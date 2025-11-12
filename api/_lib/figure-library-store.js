@@ -11,6 +11,7 @@ const {
   KvConfigurationError,
   isKvConfigured
 } = require('./figure-asset-store');
+const { loadKvClient: loadRedisKvClient } = require('./kv-client');
 
 const FIGURE_LIBRARY_UPLOAD_TOOL_ID = 'bibliotek-upload';
 
@@ -18,8 +19,6 @@ const FIGURE_KEY_PREFIX = 'figure:';
 const FIGURE_INDEX_KEY = 'figure:__slugs__';
 const CATEGORY_KEY_PREFIX = 'figure:category:';
 const CATEGORY_INDEX_KEY = 'figure:__categories__';
-const INJECTED_KV_CLIENT_KEY = '__MATH_VISUALS_KV_CLIENT__';
-
 const globalScope = typeof globalThis === 'object' && globalThis ? globalThis : global;
 
 const figureMemoryStore = globalScope.__FIGURE_LIBRARY_MEMORY_STORE__ || new Map();
@@ -31,8 +30,6 @@ globalScope.__FIGURE_LIBRARY_MEMORY_STORE__ = figureMemoryStore;
 globalScope.__FIGURE_LIBRARY_MEMORY_INDEX__ = figureMemoryIndex;
 globalScope.__FIGURE_LIBRARY_CATEGORY_STORE__ = categoryMemoryStore;
 globalScope.__FIGURE_LIBRARY_CATEGORY_INDEX__ = categoryMemoryIndex;
-
-let kvClientPromise = null;
 
 function clone(entry) {
   if (entry == null) return entry;
@@ -299,47 +296,13 @@ function ensureCategoryEntryShape(id, payload, existing) {
   return entry;
 }
 
-function getInjectedKvClient() {
-  if (typeof globalScope !== 'object' || !globalScope) {
-    return null;
-  }
-  const injected = globalScope[INJECTED_KV_CLIENT_KEY];
-  return injected ? injected : null;
-}
-
 async function loadKvClient() {
-  const injected = getInjectedKvClient();
-  if (injected) {
-    if (!kvClientPromise || !kvClientPromise.__mathVisualsInjected) {
-      const resolved = Promise.resolve(injected).then(client => {
-        if (!client) {
-          throw new KvOperationError('Injected KV client is not available');
-        }
-        return client;
-      });
-      resolved.__mathVisualsInjected = true;
-      kvClientPromise = resolved;
-    }
-    return kvClientPromise;
-  }
   if (!isKvConfigured()) {
     throw new KvConfigurationError(
-      'Figure library storage KV is not configured. Set KV_REST_API_URL and KV_REST_API_TOKEN to enable persistent storage.'
+      'Figure library storage KV is not configured. Set REDIS_ENDPOINT (or REDIS_HOST), REDIS_PORT and REDIS_PASSWORD to enable persistent storage.'
     );
   }
-  if (!kvClientPromise) {
-    kvClientPromise = import('@vercel/kv')
-      .then(mod => {
-        if (mod && mod.kv) {
-          return mod.kv;
-        }
-        throw new KvOperationError('Failed to load @vercel/kv client module');
-      })
-      .catch(error => {
-        throw new KvOperationError('Unable to initialize Vercel KV client', { cause: error });
-      });
-  }
-  return kvClientPromise;
+  return loadRedisKvClient();
 }
 
 function getStoreMode() {

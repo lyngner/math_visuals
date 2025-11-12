@@ -1,5 +1,13 @@
 'use strict';
 
+const {
+  loadKvClient: loadRedisKvClient,
+  isKvConfigured,
+  getStoreMode: getRedisStoreMode,
+  KvOperationError,
+  KvConfigurationError
+} = require('./kv-client');
+
 const KEY_PREFIX = 'examples:';
 const INDEX_KEY = 'examples:__paths__';
 const TRASH_KEY = 'examples:__trash__';
@@ -8,17 +16,6 @@ const MAX_TRASH_ENTRIES = 200;
 const memoryStore = new Map();
 const memoryIndex = new Set();
 let memoryTrashEntries = [];
-
-let kvClientPromise = null;
-const INJECTED_KV_CLIENT_KEY = '__MATH_VISUALS_KV_CLIENT__';
-
-function getInjectedKvClient() {
-  if (typeof globalThis !== 'object' || !globalThis) {
-    return null;
-  }
-  const injected = globalThis[INJECTED_KV_CLIENT_KEY];
-  return injected ? injected : null;
-}
 
 const EXAMPLE_VALUE_TYPE_KEY = '__mathVisualsType__';
 const EXAMPLE_VALUE_DATA_KEY = '__mathVisualsValue__';
@@ -164,29 +161,8 @@ function deserializeExampleValue(value, seen) {
   return obj;
 }
 
-class KvOperationError extends Error {
-  constructor(message, options) {
-    super(message);
-    if (options && options.cause) {
-      this.cause = options.cause;
-    }
-    this.code = options && options.code ? options.code : 'KV_OPERATION_FAILED';
-  }
-}
-
-class KvConfigurationError extends Error {
-  constructor(message) {
-    super(message);
-    this.code = 'KV_NOT_CONFIGURED';
-  }
-}
-
-function isKvConfigured() {
-  return Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
-}
-
 function getStoreMode() {
-  return isKvConfigured() ? 'kv' : 'memory';
+  return getRedisStoreMode();
 }
 
 function normalizeStoreMode(value) {
@@ -211,38 +187,12 @@ function applyStorageMetadata(entry, mode) {
 }
 
 async function loadKvClient() {
-  const injected = getInjectedKvClient();
-  if (injected) {
-    if (!kvClientPromise || !kvClientPromise.__mathVisualsInjected) {
-      const resolved = Promise.resolve(injected).then(client => {
-        if (!client) {
-          throw new KvOperationError('Injected KV client is not available');
-        }
-        return client;
-      });
-      resolved.__mathVisualsInjected = true;
-      kvClientPromise = resolved;
-    }
-    return kvClientPromise;
-  }
   if (!isKvConfigured()) {
     throw new KvConfigurationError(
-      'Examples KV is not configured. Set KV_REST_API_URL and KV_REST_API_TOKEN to enable persistent storage.'
+      'Examples KV is not configured. Set REDIS_ENDPOINT (or REDIS_HOST), REDIS_PORT and REDIS_PASSWORD to enable persistent storage.'
     );
   }
-  if (!kvClientPromise) {
-    kvClientPromise = import('@vercel/kv')
-      .then(mod => {
-        if (mod && mod.kv) {
-          return mod.kv;
-        }
-        throw new KvOperationError('Failed to load @vercel/kv client module');
-      })
-      .catch(error => {
-        throw new KvOperationError('Unable to initialize Vercel KV client', { cause: error });
-      });
-  }
-  return kvClientPromise;
+  return loadRedisKvClient();
 }
 
 function normalizePath(value) {

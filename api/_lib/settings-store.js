@@ -1,5 +1,13 @@
 'use strict';
 
+const {
+  loadKvClient: loadRedisKvClient,
+  isKvConfigured,
+  getStoreMode: getRedisStoreMode,
+  KvOperationError,
+  KvConfigurationError
+} = require('./kv-client');
+
 const paletteConfig = require('../../palette/palette-config.js');
 
 const SETTINGS_KEY = 'settings:projects';
@@ -99,70 +107,17 @@ const memoryState = globalScope.__MATH_VISUALS_SETTINGS_STATE__ || {
 
 globalScope.__MATH_VISUALS_SETTINGS_STATE__ = memoryState;
 
-let kvClientPromise = null;
-
-class KvOperationError extends Error {
-  constructor(message, options) {
-    super(message);
-    if (options && options.cause) {
-      this.cause = options.cause;
-    }
-    this.code = options && options.code ? options.code : 'KV_OPERATION_FAILED';
-  }
-}
-
-class KvConfigurationError extends Error {
-  constructor(message) {
-    super(message);
-    this.code = 'KV_NOT_CONFIGURED';
-  }
-}
-
-function isKvConfigured() {
-  return Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
-}
-
 function getStoreMode() {
-  return isKvConfigured() ? 'kv' : 'memory';
-}
-
-function getInjectedKvClient() {
-  return globalScope && globalScope[INJECTED_KV_CLIENT_KEY] ? globalScope[INJECTED_KV_CLIENT_KEY] : null;
+  return getRedisStoreMode();
 }
 
 async function loadKvClient() {
-  const injected = getInjectedKvClient();
-  if (injected) {
-    if (!kvClientPromise || !kvClientPromise.__mathVisualsInjected) {
-      const resolved = Promise.resolve(injected).then(client => {
-        if (!client) {
-          throw new KvOperationError('Injected KV client is not available');
-        }
-        return client;
-      });
-      resolved.__mathVisualsInjected = true;
-      kvClientPromise = resolved;
-    }
-    return kvClientPromise;
-  }
   if (!isKvConfigured()) {
     throw new KvConfigurationError(
-      'Settings storage KV is not configured. Set KV_REST_API_URL and KV_REST_API_TOKEN to enable persistent settings.'
+      'Settings storage KV is not configured. Set REDIS_ENDPOINT (or REDIS_HOST), REDIS_PORT and REDIS_PASSWORD to enable persistent settings.'
     );
   }
-  if (!kvClientPromise) {
-    kvClientPromise = import('@vercel/kv')
-      .then(mod => {
-        if (mod && mod.kv) {
-          return mod.kv;
-        }
-        throw new KvOperationError('Failed to load @vercel/kv client module');
-      })
-      .catch(error => {
-        throw new KvOperationError('Unable to initialize Vercel KV client', { cause: error });
-      });
-  }
-  return kvClientPromise;
+  return loadRedisKvClient({ injectionKey: INJECTED_KV_CLIENT_KEY });
 }
 
 function sanitizeColor(value) {
