@@ -131,6 +131,13 @@ Resources:
       RouteKey: ANY /api/figure-library/raw
       Target: !Sub integrations/${LambdaIntegration}
 
+  ApiRouteApiProxy:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: ANY /api/{proxy+}
+      Target: !Sub integrations/${LambdaIntegration}
+
   ApiFunctionPermission:
     Type: AWS::Lambda::Permission
     Properties:
