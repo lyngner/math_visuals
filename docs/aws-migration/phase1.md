@@ -72,87 +72,141 @@ Miljøvariabler og secrets må oppdateres slik at `KV_REST_API_URL`/`KV_REST_API
 Følgende AWS CLI-kommandoer og steg dokumenterer hvordan infrastrukturen i fase 1 kan settes opp fra CloudShell. Erstatter du
 plassholdere (`<...>`) med konkrete verdier kan resultatet brukes direkte i fase 2 for automatisering.
 
-### S3 bucket for statiske artefakter
+### CloudShell hurtigkommandoer (må re-eksporteres i hver økt)
+
+CloudShell nullstiller miljøet mellom økter. Eksporter derfor variabler på nytt hver gang, og husk at alle `aws cloudfront`-kall
+må kjøres i regionen `us-east-1` (CloudFront er globalt, men API-endepunktet forventer `us-east-1`). Bruk for eksempel:
 
 ```bash
-aws s3api create-bucket \
-  --bucket <bucket-navn> \
-  --create-bucket-configuration LocationConstraint=$(aws configure get region)
-
-aws s3api put-bucket-versioning \
-  --bucket <bucket-navn> \
-  --versioning-configuration Status=Enabled
-
-aws s3 sync public/ s3://<bucket-navn>/ --delete
+export AWS_REGION=eu-west-1          # region for S3, Lambda, API Gateway
+export AWS_PAGER=""
+export CLOUDFRONT_REGION=us-east-1   # eksplisitt for cloudfront-kommandoene
+ACCOUNT_ID=$(aws sts get-caller-identity --query 'Account' --output text)
+export ACCOUNT_ID
 ```
 
-Opprett en Origin Access Control (OAC) på forhånd, eller gjenbruk eksisterende OAC-ID som referanse i CloudFront-trinnet under.
-
-### CloudFront-distribusjon med eksisterende OAC
-
-1. Hent distributions-ID og nåværende konfigurasjon:
-
-   ```bash
-   DISTRIBUTION_ID=<cloudfront-distribution-id>
-   aws cloudfront get-distribution-config --id "$DISTRIBUTION_ID" > cf.json
-   ```
-
-2. Oppdater `cf.json` manuelt slik at S3-origin peker til `s3://<bucket-navn>` med `OriginAccessControlId=<oac-id>` og legg
-   inn behaviors for `/bildearkiv/*`, `/svg/*`, `/figure-library/*`, `/sortering`, `/sortering/*` med riktige origins (API Gateway
-   vs. S3) og `CachePolicyId`/`OriginRequestPolicyId` som forwarder query-parametere (`AllViewerExceptHostHeader` + egendefinert
-   request-policy som inkluderer `QueryStrings` og `Headers: Origin`).
-
-3. Lagre versjons-taggen fra `ETag`-feltet og oppdater distribusjonen:
-
-   ```bash
-   ETAG=$(jq -r '.ETag' cf.json)
-   cat cf.json | jq '.DistributionConfig' > cf-config.json
-   aws cloudfront update-distribution \
-     --id "$DISTRIBUTION_ID" \
-     --if-match "$ETAG" \
-     --distribution-config file://cf-config.json
-   ```
-
-### API Gateway + Lambda
+#### S3-sync og OAC-basert bucket-policy
 
 ```bash
-# Bygg Lambda-pakken lokalt (samme artefakt kan lastes opp med aws lambda update-function-code)
+BUCKET_NAME=<bucket-navn>
+aws s3api create-bucket \
+  --bucket "$BUCKET_NAME" \
+  --create-bucket-configuration LocationConstraint="$AWS_REGION"
+
+aws s3api put-bucket-versioning \
+  --bucket "$BUCKET_NAME" \
+  --versioning-configuration Status=Enabled
+
+aws s3 sync public/ "s3://$BUCKET_NAME/" --delete
+```
+
+Sett `DISTRIBUTION_ID` til en eksisterende distribusjon (eller hopp over til du har opprettet den). Opprett deretter (eller gjenbruk)
+en Origin Access Control (OAC) og begrens bucket-policyen til distribusjonen som eier den:
+
+```bash
+OAC_ID=$(aws cloudfront create-origin-access-control \
+  --origin-access-control-config 'Name=MathVisualsOAC,SigningProtocol=sigv4,SigningBehavior=always,OriginAccessControlOriginType=s3' \
+  --region "$CLOUDFRONT_REGION" \
+  --query 'OriginAccessControl.Id' --output text)
+
+DISTRIBUTION_ARN="arn:aws:cloudfront::$ACCOUNT_ID:distribution/$DISTRIBUTION_ID"
+
+cat <<'POLICY' > bucket-policy.json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowCloudFrontRead",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "cloudfront.amazonaws.com"
+      },
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::<bucket-navn>/*",
+      "Condition": {
+        "StringEquals": {
+          "AWS:SourceArn": "arn:aws:cloudfront::<account-id>:distribution/<distribution-id>"
+        }
+      }
+    }
+  ]
+}
+POLICY
+
+sed -i "s/<bucket-navn>/$BUCKET_NAME/g" bucket-policy.json
+sed -i "s|arn:aws:cloudfront::<account-id>:distribution/<distribution-id>|$DISTRIBUTION_ARN|" bucket-policy.json
+
+aws s3api put-bucket-policy --bucket "$BUCKET_NAME" --policy file://bucket-policy.json
+```
+
+`AWS:SourceArn` begrenser lesetilgangen til akkurat den CloudFront-distribusjonen du har satt i `DISTRIBUTION_ARN`, slik at andre
+distribusjoner (selv med samme OAC) ikke kan hente objekter fra bucketen.
+
+#### Lambda-pakking og API Gateway-variabler
+
+```bash
+LAMBDA_ZIP=function.zip
 npm install --omit=dev
-zip -r function.zip api/ node_modules/ package.json package-lock.json
+zip -r "$LAMBDA_ZIP" api/ node_modules/ package.json package-lock.json
 
-aws lambda create-function \
+aws lambda update-function-code \
   --function-name math-visuals-api \
-  --runtime nodejs18.x \
-  --handler api/index.handler \
-  --role <lambda-execution-role-arn> \
-  --timeout 30 \
-  --memory-size 1024 \
-  --zip-file fileb://function.zip
+  --zip-file fileb://"$LAMBDA_ZIP"
 
-aws apigatewayv2 create-api \
-  --name math-visuals-http \
-  --protocol-type HTTP \
-  --target arn:aws:lambda:<region>:<account-id>:function:math-visuals-api
+export API_NAME=math-visuals-http
+API_ID=$(aws apigatewayv2 get-apis --query "Items[?Name=='$API_NAME'].ApiId" --output text)
+export API_ID
+export API_STAGE=prod
+export API_EXEC_ARN="arn:aws:execute-api:$AWS_REGION:<account-id>:$API_ID/*/*/*"
 
-API_ID=$(aws apigatewayv2 get-apis --query "Items[?Name=='math-visuals-http'].ApiId" --output text)
 aws lambda add-permission \
   --function-name math-visuals-api \
   --statement-id apigw \
   --action lambda:InvokeFunction \
   --principal apigateway.amazonaws.com \
-  --source-arn arn:aws:execute-api:<region>:<account-id>:$API_ID/*/*/*
+  --source-arn "$API_EXEC_ARN"
 
 aws apigatewayv2 create-stage \
-  --api-id $API_ID \
-  --stage-name prod \
+  --api-id "$API_ID" \
+  --stage-name "$API_STAGE" \
   --auto-deploy
 
-API_GATEWAY_DOMAIN=$(aws apigatewayv2 get-api --api-id $API_ID --query "ApiEndpoint" --output text)
+API_GATEWAY_DOMAIN=$(aws apigatewayv2 get-api --api-id "$API_ID" --query "ApiEndpoint" --output text)
 echo "API Gateway URL: $API_GATEWAY_DOMAIN"
 ```
 
-Når du har `API_GATEWAY_DOMAIN`, oppdater CloudFront-behavioren(e) som peker til API Gateway slik at origin host settes til dette
-domene-navnet og `OriginPath` samsvarer med valgt stage (`/prod`).
+#### CloudFront-distribusjon (us-east-1)
+
+```bash
+# Hent distributions-ID og domenenavn automatisk
+aws cloudfront list-distributions \
+  --region "$CLOUDFRONT_REGION" \
+  > cf-list.json
+
+DISTRIBUTION_ID=$(jq -r ".DistributionList.Items[] | select(.Origins.Items[].DomainName | contains(\"$BUCKET_NAME\")) | .Id" cf-list.json | head -n1)
+export DISTRIBUTION_ID
+DIST_DOMAIN=$(jq -r ".DistributionList.Items[] | select(.Id==\"$DISTRIBUTION_ID\") | .DomainName" cf-list.json)
+echo "CloudFront distribution: $DISTRIBUTION_ID ($DIST_DOMAIN)"
+
+aws cloudfront get-distribution-config \
+  --id "$DISTRIBUTION_ID" \
+  --region "$CLOUDFRONT_REGION" \
+  > cf.json
+
+ETAG=$(jq -r '.ETag' cf.json)
+cat cf.json | jq '.DistributionConfig' > cf-config.json
+
+# Rediger cf-config.json manuelt og sett OriginAccessControlId til $OAC_ID før oppdateringen
+
+aws cloudfront update-distribution \
+  --id "$DISTRIBUTION_ID" \
+  --if-match "$ETAG" \
+  --distribution-config file://cf-config.json \
+  --region "$CLOUDFRONT_REGION"
+```
+
+Hvis distribusjonen mangler, kan du i stedet bruke `aws cloudfront create-distribution` og inkludere `--distribution-config` med
+behaviors/origins som beskrevet tidligere.
 
 ### MemoryDB eller ElastiCache
 
