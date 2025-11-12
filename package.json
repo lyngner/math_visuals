@@ -43,6 +43,6 @@
     "rollup": "^4.17.2"
   },
   "dependencies": {
-    "@vercel/kv": "^3.0.0"
+    "ioredis": "^5.8.2"
   }
 }
