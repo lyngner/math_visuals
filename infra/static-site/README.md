@@ -23,6 +23,12 @@ The [`template.yaml`](./template.yaml) file configures the following resources:
 | `/svg/*`              | API Gateway origin | Yes                     |
 | `/figure-library/*`   | API Gateway origin | Yes                     |
 
+Viewer request rewrites are handled by an attached CloudFront Function that
+normalises "friendly" app routes (for example `/tenkeblokker/eksempel1`) to
+their underlying HTML assets before the request reaches S3. This keeps deep
+links to individual tools working even when the path omits the `.html`
+extension or includes an example slug.
+
 ## Parameters
 
 | Name                  | Description                                                   |
