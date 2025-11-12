@@ -44,10 +44,15 @@ aws cloudformation deploy \
   --parameter-overrides \
       LambdaCodeS3Bucket=<artefakt-bucket> \
       LambdaCodeS3Key=<sti>/api-lambda.zip \
-      StageName=prod
+      StageName=prod \
+      SharedParametersStackName=math-visuals-shared
 ```
 
 Hvis du bruker versjonerte objekter i S3, kan du sette `LambdaCodeS3ObjectVersion=<versjon-id>` i `--parameter-overrides`.
+
+`SharedParametersStackName` gjør at malen kan importere Secrets Manager- og
+Parameter Store-navn fra `infra/shared-parameters.yaml`. Sørg for at
+shared-stacken er deployet og at verdiene er oppdatert før du kjører kommandoen.
 
 Etter deploy kan API-endepunktet finnes i stack-utsnittene:
 

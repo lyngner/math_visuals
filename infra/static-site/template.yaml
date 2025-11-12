@@ -24,6 +24,9 @@ Parameters:
       - PriceClass_200
       - PriceClass_All
     Description: Price class to use for the CloudFront distribution.
+  SharedParametersStackName:
+    Type: String
+    Description: Name of the CloudFormation stack that exports shared parameter names.
 
 Resources:
   SiteBucket:
@@ -176,3 +179,11 @@ Outputs:
     Value: !GetAtt Distribution.DomainName
     Export:
       Name: !Sub '${AWS::StackName}-DistributionDomainName'
+  ExamplesAllowedOriginsParameterName:
+    Description: Name of the shared SSM parameter used for EXAMPLES_ALLOWED_ORIGINS.
+    Value: !ImportValue
+      Fn::Sub: '${SharedParametersStackName}-ExamplesAllowedOriginsParameterName'
+  SvgAllowedOriginsParameterName:
+    Description: Name of the shared SSM parameter used for SVG_ALLOWED_ORIGINS.
+    Value: !ImportValue
+      Fn::Sub: '${SharedParametersStackName}-SvgAllowedOriginsParameterName'

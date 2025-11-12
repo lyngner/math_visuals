@@ -1,0 +1,45 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Shared configuration for Math Visuals infrastructure stacks. Provides
+  canonical Secrets Manager and Systems Manager parameter names for Redis
+  connection details and frontend allowed-origins lists.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Description: Short environment identifier used in parameter paths (e.g. prod).
+
+Outputs:
+  RedisPasswordSecretName:
+    Description: >-
+      Fully-qualified name of the Secrets Manager secret that stores the Redis
+      authentication token/password.
+    Value: !Sub 'math-visuals/${EnvironmentName}/redis/password'
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisPasswordSecretName'
+
+  RedisEndpointParameterName:
+    Description: Name of the SSM parameter that stores the Redis endpoint used by clients.
+    Value: !Sub '/math-visuals/${EnvironmentName}/redis/endpoint'
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisEndpointParameterName'
+
+  RedisPortParameterName:
+    Description: Name of the SSM parameter that stores the Redis port used by clients.
+    Value: !Sub '/math-visuals/${EnvironmentName}/redis/port'
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisPortParameterName'
+
+  ExamplesAllowedOriginsParameterName:
+    Description: >-
+      Name of the SSM parameter that stores the EXAMPLES_ALLOWED_ORIGINS comma-separated value.
+    Value: !Sub '/math-visuals/${EnvironmentName}/config/examples-allowed-origins'
+    Export:
+      Name: !Sub '${AWS::StackName}-ExamplesAllowedOriginsParameterName'
+
+  SvgAllowedOriginsParameterName:
+    Description: >-
+      Name of the SSM parameter that stores the SVG_ALLOWED_ORIGINS comma-separated value.
+    Value: !Sub '/math-visuals/${EnvironmentName}/config/svg-allowed-origins'
+    Export:
+      Name: !Sub '${AWS::StackName}-SvgAllowedOriginsParameterName'
