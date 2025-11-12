@@ -5,27 +5,66 @@ const fs = require('fs');
 const express = require('express');
 const serverlessExpress = require('@vendia/serverless-express');
 
+const IGNORED_ROUTE_SEGMENTS = new Set(['_lib', '__tests__', '__mocks__']);
+
+function shouldIgnoreSegments(relativePath) {
+  return relativePath
+    .split('/')
+    .some(segment => IGNORED_ROUTE_SEGMENTS.has(segment) || segment.startsWith('_'));
+}
+
+function containsHandlers(candidate) {
+  if (!fs.existsSync(candidate)) {
+    return false;
+  }
+
+  const stack = [candidate];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    const stats = fs.statSync(current);
+    if (stats.isDirectory()) {
+      const rel = path.relative(candidate, current).replace(/\\/g, '/');
+      if (rel && shouldIgnoreSegments(rel)) {
+        continue;
+      }
+      const children = fs.readdirSync(current, { withFileTypes: true });
+      for (const child of children) {
+        stack.push(path.join(current, child.name));
+      }
+      continue;
+    }
+
+    const rel = path.relative(candidate, current).replace(/\\/g, '/');
+    if (shouldIgnoreSegments(rel)) {
+      continue;
+    }
+    if (current.endsWith('.js')) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 const API_ROOT = (() => {
   const candidates = [
     path.resolve(__dirname, 'api'),
     path.resolve(__dirname, '../api'),
     path.resolve(__dirname, '../../api'),
+    path.resolve(__dirname, '../../../api'),
   ];
 
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
+    if (containsHandlers(candidate)) {
       return candidate;
     }
   }
 
   throw new Error('Unable to locate API handlers directory.');
 })();
-const IGNORED_ROUTE_SEGMENTS = new Set(['_lib', '__tests__', '__mocks__']);
 
 function shouldIgnore(relativePath) {
-  return relativePath
-    .split('/')
-    .some(segment => IGNORED_ROUTE_SEGMENTS.has(segment) || segment.startsWith('_'));
+  return shouldIgnoreSegments(relativePath);
 }
 
 function wrapHandler(handler, routePath) {
