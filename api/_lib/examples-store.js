@@ -187,12 +187,16 @@ function applyStorageMetadata(entry, mode) {
 }
 
 async function loadKvClient() {
-  if (!isKvConfigured()) {
-    throw new KvConfigurationError(
-      'Examples KV is not configured. Set REDIS_ENDPOINT (or REDIS_HOST), REDIS_PORT and REDIS_PASSWORD to enable persistent storage.'
-    );
+  try {
+    return await loadRedisKvClient();
+  } catch (error) {
+    if (error && (error instanceof KvConfigurationError || error.code === 'KV_NOT_CONFIGURED')) {
+      throw new KvConfigurationError(
+        'Examples KV is not configured. Set REDIS_ENDPOINT (or REDIS_HOST), REDIS_PORT and REDIS_PASSWORD to enable persistent storage.'
+      );
+    }
+    throw error;
   }
-  return loadRedisKvClient();
 }
 
 function normalizePath(value) {
