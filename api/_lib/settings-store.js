@@ -2,7 +2,6 @@
 
 const {
   loadKvClient: loadRedisKvClient,
-  isKvConfigured,
   getStoreMode: getRedisStoreMode,
   KvOperationError,
   KvConfigurationError
@@ -112,12 +111,16 @@ function getStoreMode() {
 }
 
 async function loadKvClient() {
-  if (!isKvConfigured()) {
-    throw new KvConfigurationError(
-      'Settings storage KV is not configured. Set REDIS_ENDPOINT (or REDIS_HOST), REDIS_PORT and REDIS_PASSWORD to enable persistent settings.'
-    );
+  try {
+    return await loadRedisKvClient({ injectionKey: INJECTED_KV_CLIENT_KEY });
+  } catch (error) {
+    if (error && (error instanceof KvConfigurationError || error.code === 'KV_NOT_CONFIGURED')) {
+      throw new KvConfigurationError(
+        'Settings storage KV is not configured. Set REDIS_ENDPOINT (or REDIS_HOST), REDIS_PORT and REDIS_PASSWORD to enable persistent settings.'
+      );
+    }
+    throw error;
   }
-  return loadRedisKvClient({ injectionKey: INJECTED_KV_CLIENT_KEY });
 }
 
 function sanitizeColor(value) {

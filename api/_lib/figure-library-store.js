@@ -8,8 +8,7 @@ const {
   getStoreMode: getFigureAssetStoreMode,
   applyFigureAssetUrls,
   KvOperationError,
-  KvConfigurationError,
-  isKvConfigured
+  KvConfigurationError
 } = require('./figure-asset-store');
 const { loadKvClient: loadRedisKvClient } = require('./kv-client');
 
@@ -297,12 +296,16 @@ function ensureCategoryEntryShape(id, payload, existing) {
 }
 
 async function loadKvClient() {
-  if (!isKvConfigured()) {
-    throw new KvConfigurationError(
-      'Figure library storage KV is not configured. Set REDIS_ENDPOINT (or REDIS_HOST), REDIS_PORT and REDIS_PASSWORD to enable persistent storage.'
-    );
+  try {
+    return await loadRedisKvClient();
+  } catch (error) {
+    if (error && (error instanceof KvConfigurationError || error.code === 'KV_NOT_CONFIGURED')) {
+      throw new KvConfigurationError(
+        'Figure library storage KV is not configured. Set REDIS_ENDPOINT (or REDIS_HOST), REDIS_PORT and REDIS_PASSWORD to enable persistent storage.'
+      );
+    }
+    throw error;
   }
-  return loadRedisKvClient();
 }
 
 function getStoreMode() {
