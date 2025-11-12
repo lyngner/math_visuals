@@ -97,22 +97,6 @@ Resources:
     Properties:
       Name: MathVisualsHttpApi
       ProtocolType: HTTP
-      CorsConfiguration:
-        AllowCredentials: true
-        AllowHeaders:
-          - '*'
-        AllowMethods:
-          - '*'
-        AllowOrigins: !Split
-          - ','
-          - !Sub
-            - '{{resolve:ssm:${ExamplesAllowedOriginsParameterName}}}'
-            - ExamplesAllowedOriginsParameterName: !ImportValue
-                Fn::Sub: '${SharedParametersStackName}-ExamplesAllowedOriginsParameterName'
-        ExposeHeaders:
-          - Access-Control-Allow-Origin
-          - Access-Control-Allow-Headers
-          - Access-Control-Allow-Methods
 
   HttpApiStage:
     Type: AWS::ApiGatewayV2::Stage
