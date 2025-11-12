@@ -23,6 +23,14 @@ Dagens URL-struktur er definert i `vercel.json`. Følgende tabell viser hvordan 
 
 For alle behaviors som peker til API Gateway må Origin Request Policy sørge for at `query`-parametere (spesielt `path`) videresendes til Lambda.
 
+### CloudFront-domeneoppsett
+
+I fase 1 kan CloudFront-distribusjonen lanseres med det automatisk genererte `*.cloudfront.net`-domenet. Dette reduserer behovet for ekstra sertifikater og DNS-konfigurasjon mens infrastrukturen etableres. Dersom man senere ønsker et egendefinert domene, må følgende steg gjennomføres:
+
+1. Opprett/forny et offentlig sertifikat i AWS Certificate Manager (ACM) i regionen `us-east-1` for ønsket domene/underdomene.
+2. Legg til domenet i CloudFront-distribusjonens Alternate Domain Names (CNAMEs) og knytt det til ACM-sertifikatet.
+3. Opprett en Route 53 alias-ressurs-post (A/AAAA) som peker domenet til CloudFront-distribusjonens mål.
+
 ## 3. Backend-handlere og Lambda-adapter
 
 Backend-koden er skrevet med Node sitt `req`/`res`-grensesnitt. Eksempelvis bruker `/api/examples/index.js` `res.setHeader`, `res.statusCode`, `res.end` og leser request-body via `req.on('data')`, i tillegg til å sette CORS-headere basert på `req.headers.origin`. For å flytte handleren til Lambda uten større omskriving anbefales en Express-kompatibel adapter som `@vendia/serverless-express`, som oversetter API Gateway-eventer til det samme `req`/`res`-objektet handleren forventer.【F:api/examples/index.js†L1-L121】
@@ -52,7 +60,7 @@ MemoryDB/ElastiCache kan erstatte `@vercel/kv` så lenge Lambda får nettverksti
 Fase 1 anbefaler å etablere følgende ressurser i mål-arkitekturen:
 
 - **S3 bucket** for `public/`-artefakter (statisk hosting) og opplastede figurfiler.
-- **CloudFront-distribusjon** foran S3 og API Gateway, med behaviors som speiler Vercel-rewritene og forwarder query-parametere.
+- **CloudFront-distribusjon** foran S3 og API Gateway, med behaviors som speiler Vercel-rewritene og forwarder query-parametere (egendefinert DNS er valgfritt utover minimumsoppsettet).
 - **API Gateway (HTTP API)** som ruter `/api/*` til en eller flere Lambda-funksjoner med Lambda-proxy-integrasjon.
 - **Lambda-funksjon(er)** som kjører Express-adapteren og gjenbruker eksisterende `/api`-logikk.
 - **Amazon MemoryDB eller ElastiCache for Redis** som persistent lagring for eksempler/SVG-indekser.
