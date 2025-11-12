@@ -5,7 +5,21 @@ const fs = require('fs');
 const express = require('express');
 const serverlessExpress = require('@vendia/serverless-express');
 
-const API_ROOT = path.resolve(__dirname, '../../api');
+const API_ROOT = (() => {
+  const candidates = [
+    path.resolve(__dirname, 'api'),
+    path.resolve(__dirname, '../api'),
+    path.resolve(__dirname, '../../api'),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error('Unable to locate API handlers directory.');
+})();
 const IGNORED_ROUTE_SEGMENTS = new Set(['_lib', '__tests__', '__mocks__']);
 
 function shouldIgnore(relativePath) {
