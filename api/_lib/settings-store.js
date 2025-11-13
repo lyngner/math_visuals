@@ -107,7 +107,7 @@ const memoryState = globalScope.__MATH_VISUALS_SETTINGS_STATE__ || {
 globalScope.__MATH_VISUALS_SETTINGS_STATE__ = memoryState;
 
 function getStoreMode() {
-  return getRedisStoreMode();
+  return getRedisStoreMode({ injectionKey: INJECTED_KV_CLIENT_KEY });
 }
 
 async function loadKvClient() {
