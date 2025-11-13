@@ -4,7 +4,58 @@
   const { hostname, pathname, search, hash } = window.location;
   if (!hostname || !hostname.endsWith('github.io')) return;
   window.__MATH_VISUALS_REDIRECT_INITIALIZED__ = true;
-  const targetOrigin = 'https://math-visuals.vercel.app';
+
+  const DEFAULT_REDIRECT_TARGET_ORIGIN = 'https://mathvisuals.no';
+
+  const normalizeTargetOrigin = candidate => {
+    if (typeof candidate !== 'string') return null;
+    const trimmed = candidate.trim();
+    if (!trimmed) return null;
+    try {
+      const url = new URL(trimmed);
+      if (!/^https?:$/i.test(url.protocol)) return null;
+      return url.origin;
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const resolveRedirectTargetOrigin = () => {
+    const doc = window.document;
+    const candidates = [];
+
+    candidates.push(window.MATH_VISUALS_REDIRECT_TARGET_ORIGIN);
+    candidates.push(window.__MATH_VISUALS_REDIRECT_TARGET_ORIGIN__);
+
+    if (doc && doc.currentScript && doc.currentScript.dataset) {
+      candidates.push(doc.currentScript.dataset.mathVisualsRedirectTargetOrigin);
+      candidates.push(doc.currentScript.dataset.redirectTargetOrigin);
+    }
+
+    if (doc && doc.documentElement) {
+      candidates.push(
+        doc.documentElement.getAttribute('data-math-visuals-redirect-target-origin')
+      );
+    }
+
+    if (doc) {
+      const meta = doc.querySelector('meta[name="math-visuals:redirect-target-origin"]');
+      if (meta && typeof meta.content === 'string') {
+        candidates.push(meta.content);
+      }
+    }
+
+    for (const candidate of candidates) {
+      const normalized = normalizeTargetOrigin(candidate);
+      if (normalized) {
+        return normalized;
+      }
+    }
+
+    return DEFAULT_REDIRECT_TARGET_ORIGIN;
+  };
+
+  const targetOrigin = resolveRedirectTargetOrigin();
   const repoBasePath = '/math_visuals';
   let path = typeof pathname === 'string' && pathname ? pathname : '/';
   if (!path.startsWith('/')) {

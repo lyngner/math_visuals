@@ -29,6 +29,7 @@ stacks:
 
 ```bash
 SHARED_STACK=math-visuals-shared
+STATIC_STACK=math-visuals-static-site
 REGION=eu-north-1
 
 REDIS_SECRET_NAME=$(aws cloudformation describe-stacks \
@@ -72,18 +73,25 @@ aws ssm put-parameter \
   --overwrite
 
 # Update the frontend allow-lists used by the API and CloudFront
+CLOUDFRONT_DOMAIN=$(aws cloudformation describe-stacks \
+  --stack-name "$STATIC_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionDomainName`].OutputValue' \
+  --output text)
+
+ALLOWLIST_VALUE="https://$CLOUDFRONT_DOMAIN,https://mathvisuals.no,https://app.mathvisuals.no"
+
 aws ssm put-parameter \
   --region "$REGION" \
   --name "$EXAMPLES_ALLOWED_ORIGINS" \
-  --type String \
-  --value 'https://mathvisuals.no,https://admin.mathvisuals.no' \
+  --type StringList \
+  --value "$ALLOWLIST_VALUE" \
   --overwrite
 
 aws ssm put-parameter \
   --region "$REGION" \
   --name "$SVG_ALLOWED_ORIGINS" \
-  --type String \
-  --value 'https://mathvisuals.no,https://admin.mathvisuals.no' \
+  --type StringList \
+  --value "$ALLOWLIST_VALUE" \
   --overwrite
 ```
 

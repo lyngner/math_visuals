@@ -7,7 +7,7 @@ const { test, expect } = require('@playwright/test');
 //  - EXAMPLES_API_ENTRY_WORKERS: number of concurrent page verifications (1-8).
 //  - EXAMPLES_API_ENABLE_PRODUCTION: must be set to "1" to allow targeting the
 //    production deployment.
-const PRODUCTION_ORIGIN = 'https://math-visuals.vercel.app';
+const PRODUCTION_ORIGIN = 'https://mathvisuals.no';
 
 const MAX_WORKERS = Math.max(
   1,
