@@ -103,17 +103,20 @@ test.describe('Examples viewer – empty backend', () => {
 });
 
 test.describe('Examples viewer – manual API seeding', () => {
-  let originalKvUrl;
-  let originalKvToken;
+  let originalRedisEndpoint;
+  let originalRedisPort;
+  let originalRedisPassword;
 
   test.beforeAll(() => {
-    originalKvUrl = process.env.KV_REST_API_URL;
-    originalKvToken = process.env.KV_REST_API_TOKEN;
+    originalRedisEndpoint = process.env.REDIS_ENDPOINT;
+    originalRedisPort = process.env.REDIS_PORT;
+    originalRedisPassword = process.env.REDIS_PASSWORD;
   });
 
   test.beforeEach(async ({ context }) => {
-    delete process.env.KV_REST_API_URL;
-    delete process.env.KV_REST_API_TOKEN;
+    delete process.env.REDIS_ENDPOINT;
+    delete process.env.REDIS_PORT;
+    delete process.env.REDIS_PASSWORD;
     await resetExamplesMemoryStore();
     await context.route('**/api/examples**', createExamplesApiRouteHandler());
     for (const [path, payload] of Object.entries(SAMPLE_MEMORY_ENTRIES)) {
@@ -132,15 +135,20 @@ test.describe('Examples viewer – manual API seeding', () => {
   });
 
   test.afterAll(() => {
-    if (originalKvUrl !== undefined) {
-      process.env.KV_REST_API_URL = originalKvUrl;
+    if (originalRedisEndpoint !== undefined) {
+      process.env.REDIS_ENDPOINT = originalRedisEndpoint;
     } else {
-      delete process.env.KV_REST_API_URL;
+      delete process.env.REDIS_ENDPOINT;
     }
-    if (originalKvToken !== undefined) {
-      process.env.KV_REST_API_TOKEN = originalKvToken;
+    if (originalRedisPort !== undefined) {
+      process.env.REDIS_PORT = originalRedisPort;
     } else {
-      delete process.env.KV_REST_API_TOKEN;
+      delete process.env.REDIS_PORT;
+    }
+    if (originalRedisPassword !== undefined) {
+      process.env.REDIS_PASSWORD = originalRedisPassword;
+    } else {
+      delete process.env.REDIS_PASSWORD;
     }
   });
 

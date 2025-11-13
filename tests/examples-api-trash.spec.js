@@ -1,13 +1,16 @@
 const { test, expect } = require('@playwright/test');
 
-const TEST_KV_URL = 'https://kv.test.local';
-const TEST_KV_TOKEN = 'test-token';
+const TEST_REDIS_ENDPOINT = 'redis.test.local';
+const TEST_REDIS_PORT = '6379';
+const TEST_REDIS_PASSWORD = 'test-token';
 
-const originalKvUrl = process.env.KV_REST_API_URL;
-const originalKvToken = process.env.KV_REST_API_TOKEN;
+const originalRedisEndpoint = process.env.REDIS_ENDPOINT;
+const originalRedisPort = process.env.REDIS_PORT;
+const originalRedisPassword = process.env.REDIS_PASSWORD;
 
-process.env.KV_REST_API_URL = originalKvUrl || TEST_KV_URL;
-process.env.KV_REST_API_TOKEN = originalKvToken || TEST_KV_TOKEN;
+process.env.REDIS_ENDPOINT = originalRedisEndpoint || TEST_REDIS_ENDPOINT;
+process.env.REDIS_PORT = originalRedisPort || TEST_REDIS_PORT;
+process.env.REDIS_PASSWORD = originalRedisPassword || TEST_REDIS_PASSWORD;
 
 const { setupKvMock } = require('./helpers/kv-mock');
 
@@ -29,15 +32,20 @@ test.describe('Examples trash API', () => {
 
   test.afterAll(() => {
     cleanupKvMock();
-    if (originalKvUrl !== undefined) {
-      process.env.KV_REST_API_URL = originalKvUrl;
+    if (originalRedisEndpoint !== undefined) {
+      process.env.REDIS_ENDPOINT = originalRedisEndpoint;
     } else {
-      delete process.env.KV_REST_API_URL;
+      delete process.env.REDIS_ENDPOINT;
     }
-    if (originalKvToken !== undefined) {
-      process.env.KV_REST_API_TOKEN = originalKvToken;
+    if (originalRedisPort !== undefined) {
+      process.env.REDIS_PORT = originalRedisPort;
     } else {
-      delete process.env.KV_REST_API_TOKEN;
+      delete process.env.REDIS_PORT;
+    }
+    if (originalRedisPassword !== undefined) {
+      process.env.REDIS_PASSWORD = originalRedisPassword;
+    } else {
+      delete process.env.REDIS_PASSWORD;
     }
   });
 

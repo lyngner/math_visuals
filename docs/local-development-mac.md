@@ -82,34 +82,56 @@ Du kan ignorere meldinger om utdaterte pakker, men **ikke** meldingen «Unsuppor
 npm run check-examples-api
 ```
 
-* Får du «varig lagring (KV)», er alt satt opp riktig.
-* Får du «midlertidig minne», må du legge inn `KV_REST_API_URL` og `KV_REST_API_TOKEN` (se neste seksjon).
+* Får du «varig lagring (kv)», er alt satt opp riktig (kv betyr at Redis er i bruk).
+* Får du «midlertidig minne», må du legge inn `REDIS_ENDPOINT`, `REDIS_PORT` og `REDIS_PASSWORD` (se neste seksjon).
 * Får du feilmelding om at API-et ikke svarer, kjører ikke `vercel dev`-prosessen eller du peker mot feil URL. Start `npx vercel dev` og prøv igjen.
 
-## 6. Legg inn KV-nøkler når du trenger permanent lagring
+## 6. Legg inn Redis-hemmeligheter når du trenger permanent lagring
 
-1. I Vercel: gå til **Storage → KV → View Details → REST API**.
-2. Kopier `KV_REST_API_URL` og `KV_REST_API_TOKEN`.
-3. Legg dem inn som miljøvariabler i Vercel (Production/Preview) og lokalt:
+1. Sett `REGION` og `DATA_STACK` til de samme verdiene som i AWS (for eksempel `eu-north-1` og `math-visuals-data`).
+2. Kjør de samme kommandoene som beskrevet i `docs/examples-storage.md` for å hente Parameter Store- og Secrets Manager-verdiene:
    ```bash
-   export KV_REST_API_URL="https://...vercel-storage.com"
-   export KV_REST_API_TOKEN="kv-..."
+   REGION=eu-north-1
+   DATA_STACK=math-visuals-data
+
+   REDIS_ENDPOINT_PARAMETER=$(aws cloudformation describe-stacks \
+     --region "$REGION" \
+     --stack-name "$DATA_STACK" \
+     --query 'Stacks[0].Outputs[?OutputKey==`RedisEndpointParameterName`].OutputValue' \
+     --output text)
+
+   REDIS_PORT_PARAMETER=$(aws cloudformation describe-stacks \
+     --region "$REGION" \
+     --stack-name "$DATA_STACK" \
+     --query 'Stacks[0].Outputs[?OutputKey==`RedisPortParameterName`].OutputValue' \
+     --output text)
+
+   export REDIS_ENDPOINT=$(aws ssm get-parameter --region "$REGION" --name "$REDIS_ENDPOINT_PARAMETER" --query 'Parameter.Value' --output text)
+   export REDIS_PORT=$(aws ssm get-parameter --region "$REGION" --name "$REDIS_PORT_PARAMETER" --query 'Parameter.Value' --output text)
+
+   REDIS_PASSWORD_SECRET=$(aws cloudformation describe-stacks \
+     --region "$REGION" \
+     --stack-name "$DATA_STACK" \
+     --query 'Stacks[0].Outputs[?OutputKey==`RedisPasswordSecretName`].OutputValue' \
+     --output text)
+
+   export REDIS_PASSWORD=$(aws secretsmanager get-secret-value --region "$REGION" --secret-id "$REDIS_PASSWORD_SECRET" --query 'SecretString' --output text | jq -r '.authToken')
    ```
-   Bruk `.env.local` om du heller vil lagre dem i fil for `vercel dev`.
-4. Start `npx vercel dev` på nytt etter at variablene er satt.
-5. Kjør `npm run check-examples-api` igjen for å bekrefte at lagringen nå er «varig».
+   Lagre verdiene i `.env.local` hvis du vil slippe å eksportere dem for hver økt (filen er allerede ignorert av Git).
+3. Start `npx vercel dev` på nytt etter at variablene er satt, slik at backend kan koble seg til Redis.
+4. Kjør `npm run check-examples-api` igjen for å bekrefte at lagringen nå er «varig».
 
 ## 7. Test i nettleseren
 
 1. Åpne `http://localhost:3000/arealmodell.html` (eller et annet verktøy).
 2. Lag et eksempel og lagre det.
-3. Last siden på nytt (⌘ + R). Eksemplet skal fortsatt være der hvis KV er konfigurert.
+3. Last siden på nytt (⌘ + R). Eksemplet skal fortsatt være der hvis Redis er konfigurert.
 
 ## 8. Når bør du be om hjelp?
 
 * Du får ikke logget inn i Vercel CLI.
 * `npm run check-examples-api` klarer ikke å koble til API-et.
-* Du ser fortsatt «midlertidig minne» etter at du har lagt inn KV-variablene.
+* Du ser fortsatt «midlertidig minne» etter at du har lagt inn `REDIS_*`-variablene.
 
 Del skjermdump eller terminal-output når du spør om hjelp – da er det enklere å se hva som mangler.
 

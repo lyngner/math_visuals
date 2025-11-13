@@ -2,14 +2,17 @@ const { test, expect } = require('@playwright/test');
 
 const TEST_PNG_DATA_URL = 'data:image/png;base64,' + Buffer.from('svg-store-png').toString('base64');
 
-const TEST_KV_URL = 'https://kv.test.local';
-const TEST_KV_TOKEN = 'test-token';
+const TEST_REDIS_ENDPOINT = 'redis.test.local';
+const TEST_REDIS_PORT = '6379';
+const TEST_REDIS_PASSWORD = 'test-token';
 
-const originalKvUrl = process.env.KV_REST_API_URL;
-const originalKvToken = process.env.KV_REST_API_TOKEN;
+const originalRedisEndpoint = process.env.REDIS_ENDPOINT;
+const originalRedisPort = process.env.REDIS_PORT;
+const originalRedisPassword = process.env.REDIS_PASSWORD;
 
-process.env.KV_REST_API_URL = originalKvUrl || TEST_KV_URL;
-process.env.KV_REST_API_TOKEN = originalKvToken || TEST_KV_TOKEN;
+process.env.REDIS_ENDPOINT = originalRedisEndpoint || TEST_REDIS_ENDPOINT;
+process.env.REDIS_PORT = originalRedisPort || TEST_REDIS_PORT;
+process.env.REDIS_PASSWORD = originalRedisPassword || TEST_REDIS_PASSWORD;
 
 const { setupKvMock } = require('./helpers/kv-mock');
 
@@ -36,22 +39,28 @@ function clearMemoryStore() {
 test.beforeEach(() => {
   mockKv.clear();
   clearMemoryStore();
-  process.env.KV_REST_API_URL = originalKvUrl || TEST_KV_URL;
-  process.env.KV_REST_API_TOKEN = originalKvToken || TEST_KV_TOKEN;
+  process.env.REDIS_ENDPOINT = originalRedisEndpoint || TEST_REDIS_ENDPOINT;
+  process.env.REDIS_PORT = originalRedisPort || TEST_REDIS_PORT;
+  process.env.REDIS_PASSWORD = originalRedisPassword || TEST_REDIS_PASSWORD;
 });
 
 test.afterAll(() => {
   cleanupKvMock();
   clearMemoryStore();
-  if (originalKvUrl !== undefined) {
-    process.env.KV_REST_API_URL = originalKvUrl;
+  if (originalRedisEndpoint !== undefined) {
+    process.env.REDIS_ENDPOINT = originalRedisEndpoint;
   } else {
-    delete process.env.KV_REST_API_URL;
+    delete process.env.REDIS_ENDPOINT;
   }
-  if (originalKvToken !== undefined) {
-    process.env.KV_REST_API_TOKEN = originalKvToken;
+  if (originalRedisPort !== undefined) {
+    process.env.REDIS_PORT = originalRedisPort;
   } else {
-    delete process.env.KV_REST_API_TOKEN;
+    delete process.env.REDIS_PORT;
+  }
+  if (originalRedisPassword !== undefined) {
+    process.env.REDIS_PASSWORD = originalRedisPassword;
+  } else {
+    delete process.env.REDIS_PASSWORD;
   }
 });
 
@@ -64,8 +73,9 @@ test.describe('svg-store slug normalization', () => {
 
 test.describe('svg-store memory mode', () => {
   test.beforeEach(() => {
-    delete process.env.KV_REST_API_URL;
-    delete process.env.KV_REST_API_TOKEN;
+    delete process.env.REDIS_ENDPOINT;
+    delete process.env.REDIS_PORT;
+    delete process.env.REDIS_PASSWORD;
   });
 
   test('setSvg and listSvgs operate in memory', async () => {
@@ -173,20 +183,12 @@ test.describe('svg-store memory mode', () => {
 });
 
 test.describe('svg-store kv mode', () => {
-  test('getStoreMode uses alias environment variables when primary keys are missing', async () => {
-    delete process.env.KV_REST_API_URL;
-    delete process.env.KV_REST_API_TOKEN;
-    process.env.FIGURE_LIBRARY_KV_REST_API_URL = TEST_KV_URL;
-    process.env.FIGURE_LIBRARY_KV_REST_API_TOKEN = TEST_KV_TOKEN;
+  test('getStoreMode reports kv when Redis secrets are available', async () => {
+    process.env.REDIS_ENDPOINT = TEST_REDIS_ENDPOINT;
+    process.env.REDIS_PORT = TEST_REDIS_PORT;
+    process.env.REDIS_PASSWORD = TEST_REDIS_PASSWORD;
 
     expect(getStoreMode()).toBe('kv');
-    expect(process.env.KV_REST_API_URL).toBe(TEST_KV_URL);
-    expect(process.env.KV_REST_API_TOKEN).toBe(TEST_KV_TOKEN);
-
-    delete process.env.FIGURE_LIBRARY_KV_REST_API_URL;
-    delete process.env.FIGURE_LIBRARY_KV_REST_API_TOKEN;
-    process.env.KV_REST_API_URL = originalKvUrl || TEST_KV_URL;
-    process.env.KV_REST_API_TOKEN = originalKvToken || TEST_KV_TOKEN;
   });
 
   test('setSvg persists to kv and listSvgs hydrates from kv', async () => {

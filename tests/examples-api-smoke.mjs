@@ -45,7 +45,7 @@ async function expectOk(response, allowedStatus = [200]) {
 
 async function runSmokeTest() {
   if (!isKvConfigured()) {
-    throw new Error('KV_REST_API_URL og KV_REST_API_TOKEN må være satt for røyk-testen.');
+    throw new Error('REDIS_ENDPOINT, REDIS_PORT og REDIS_PASSWORD må være satt for røyk-testen.');
   }
 
   const { server, port } = await startServer();

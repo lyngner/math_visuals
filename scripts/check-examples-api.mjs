@@ -120,7 +120,7 @@ async function main() {
       console.log(JSON.stringify(data, null, 2));
     }
     if (!persistent) {
-      console.log('⚠️  Sjekk at KV_REST_API_URL og KV_REST_API_TOKEN er satt.');
+      console.log('⚠️  Sjekk at REDIS_ENDPOINT, REDIS_PORT og REDIS_PASSWORD er satt.');
     }
   } catch (error) {
     console.error('❌ Klarte ikke å kontakte API-et.');

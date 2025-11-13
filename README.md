@@ -20,7 +20,7 @@ Mapper under `packages/` inneholder gjenbrukbare moduler som distribueres som b�
 
 ### Serverløse funksjoner
 
-`api/`-mappen rommer Vercel Functions som håndterer datalagring, generering av dynamiske SVG-er, alternativ tekst og tilpasset konfigurasjon. `api/examples` er kjernen for lagrede elevprodukter og deler en lagringsmodell beskrevet i [`docs/examples-storage.md`](docs/examples-storage.md). Øvrige endepunkter forsyner appene med analyser, beskrivelser og eksportmuligheter.
+`api/`-mappen rommer de serverløse handlerne som nå kjøres i AWS Lambda (via `infra/api/template.yaml`). `api/examples` er kjernen for lagrede elevprodukter og deler en lagringsmodell beskrevet i [`docs/examples-storage.md`](docs/examples-storage.md). Øvrige endepunkter forsyner appene med analyser, beskrivelser og eksportmuligheter.
 
 ## Domenespesifikke verktøy
 
@@ -34,7 +34,11 @@ Flere apper har historiske eller eksperimentelle varianter som bevares side om s
 
 ## Dataflyt og lagring
 
-Eksempeltjenesten er navet som binder appene sammen. Den gjør det mulig å lagre elevprodukter, hente dem opp igjen og eksportere dem som JSON eller SVG. Når miljøvariablene `KV_REST_API_URL` og `KV_REST_API_TOKEN` er satt, brukes Vercel KV som varig lagring; uten disse nøklene faller tjenesten tilbake til et midlertidig minne som er egnet for lokale prototyper. Flere funksjoner (for eksempel `api/diagram-alt-text.js` og `api/figurtall-alt-text.js`) bygger videre på de lagrede dataene for å gjøre materialet tilgjengelig i universelle utformingskontekster.
+Eksempeltjenesten er navet som binder appene sammen. Den gjør det mulig å lagre elevprodukter, hente dem opp igjen og eksportere dem som JSON eller SVG. Distribusjonen bruker nå ElastiCache/MemoryDB for Redis og forventer `REDIS_ENDPOINT`, `REDIS_PORT` og `REDIS_PASSWORD` fra CloudFormation/SSM/Secrets Manager. Uten disse hemmelighetene faller tjenesten tilbake til et midlertidig minne som er egnet for lokale prototyper.
+
+Detaljer om hvordan hemmelighetene hentes, injiseres og verifiseres finner du i [`docs/examples-storage.md`](docs/examples-storage.md) og [verifiseringsguiden](docs/examples-storage-verification.md). Seeding og manuell import skjer via den nye AWS-stacken – `npm run seed-examples` minner deg på hvilke `REDIS_*`-nøkler som trengs før du bruker `examples-viewer`/`scripts/check-examples-api.mjs`.
+
+Flere funksjoner (for eksempel `api/diagram-alt-text.js` og `api/figurtall-alt-text.js`) bygger videre på de lagrede dataene for å gjøre materialet tilgjengelig i universelle utformingskontekster.
 
 ## Teknologivalg
 
@@ -56,6 +60,8 @@ Produksjonsmiljøet deployes via GitHub Actions-workflowen [`deploy-infra.yml`](
 - oppdaterer den statiske nettsiden gjennom CloudFormation-malen [`infra/static-site/template.yaml`](infra/static-site/template.yaml).
 
 Når alle stacker er oppdatert kan workflowen (valgfritt) invalidere CloudFront-distribusjonen slik at nye filer serveres umiddelbart.
+
+> **Avvikle Vercel:** Når AWS-distribusjonen er verifisert kan den gamle Vercel-instansen fjernes. Følg sjekklisten i `docs/examples-storage.md` (flytt DNS til CloudFront, eksporter eventuelle resterende data via AWS-stacken, slett Upstash/KV i Vercel og steng prosjektet).
 
 ### Påkrevde secrets
 

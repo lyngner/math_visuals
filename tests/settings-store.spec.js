@@ -1,10 +1,12 @@
 const { test, expect } = require('@playwright/test');
 
-const originalKvUrl = process.env.KV_REST_API_URL;
-const originalKvToken = process.env.KV_REST_API_TOKEN;
+const originalRedisEndpoint = process.env.REDIS_ENDPOINT;
+const originalRedisPort = process.env.REDIS_PORT;
+const originalRedisPassword = process.env.REDIS_PASSWORD;
 
-delete process.env.KV_REST_API_URL;
-delete process.env.KV_REST_API_TOKEN;
+delete process.env.REDIS_ENDPOINT;
+delete process.env.REDIS_PORT;
+delete process.env.REDIS_PASSWORD;
 
 const {
   setSettings,
@@ -13,15 +15,20 @@ const {
 } = require('../api/_lib/settings-store');
 
 test.afterAll(() => {
-  if (originalKvUrl !== undefined) {
-    process.env.KV_REST_API_URL = originalKvUrl;
+  if (originalRedisEndpoint !== undefined) {
+    process.env.REDIS_ENDPOINT = originalRedisEndpoint;
   } else {
-    delete process.env.KV_REST_API_URL;
+    delete process.env.REDIS_ENDPOINT;
   }
-  if (originalKvToken !== undefined) {
-    process.env.KV_REST_API_TOKEN = originalKvToken;
+  if (originalRedisPort !== undefined) {
+    process.env.REDIS_PORT = originalRedisPort;
   } else {
-    delete process.env.KV_REST_API_TOKEN;
+    delete process.env.REDIS_PORT;
+  }
+  if (originalRedisPassword !== undefined) {
+    process.env.REDIS_PASSWORD = originalRedisPassword;
+  } else {
+    delete process.env.REDIS_PASSWORD;
   }
 });
 

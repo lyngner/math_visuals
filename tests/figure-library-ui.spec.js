@@ -10,26 +10,37 @@ const { setupKvMock } = require('./helpers/kv-mock');
 
 const { mockKv, cleanup: cleanupKvMock } = setupKvMock();
 
-const originalKvUrl = process.env.KV_REST_API_URL;
-const originalKvToken = process.env.KV_REST_API_TOKEN;
+const TEST_REDIS_ENDPOINT = 'redis.test.local';
+const TEST_REDIS_PORT = '6379';
+const TEST_REDIS_PASSWORD = 'test-pass';
 
-function restoreKvEnv() {
-  if (originalKvUrl !== undefined) {
-    process.env.KV_REST_API_URL = originalKvUrl;
+const originalRedisEndpoint = process.env.REDIS_ENDPOINT;
+const originalRedisPort = process.env.REDIS_PORT;
+const originalRedisPassword = process.env.REDIS_PASSWORD;
+
+function restoreRedisEnv() {
+  if (originalRedisEndpoint !== undefined) {
+    process.env.REDIS_ENDPOINT = originalRedisEndpoint;
   } else {
-    delete process.env.KV_REST_API_URL;
+    delete process.env.REDIS_ENDPOINT;
   }
-  if (originalKvToken !== undefined) {
-    process.env.KV_REST_API_TOKEN = originalKvToken;
+  if (originalRedisPort !== undefined) {
+    process.env.REDIS_PORT = originalRedisPort;
   } else {
-    delete process.env.KV_REST_API_TOKEN;
+    delete process.env.REDIS_PORT;
+  }
+  if (originalRedisPassword !== undefined) {
+    process.env.REDIS_PASSWORD = originalRedisPassword;
+  } else {
+    delete process.env.REDIS_PASSWORD;
   }
 }
 
 test.describe('Figurbibliotek opplastinger', () => {
   test.beforeEach(async ({ page, context }) => {
-    delete process.env.KV_REST_API_URL;
-    delete process.env.KV_REST_API_TOKEN;
+    process.env.REDIS_ENDPOINT = TEST_REDIS_ENDPOINT;
+    process.env.REDIS_PORT = TEST_REDIS_PORT;
+    process.env.REDIS_PASSWORD = TEST_REDIS_PASSWORD;
     mockKv.clear();
     clearFigureLibraryMemoryStores();
 
@@ -64,7 +75,7 @@ test.describe('Figurbibliotek opplastinger', () => {
   test.afterAll(() => {
     cleanupKvMock();
     clearFigureLibraryMemoryStores();
-    restoreKvEnv();
+    restoreRedisEnv();
   });
 
   test('lar brukere laste opp, redigere og bevare figurer', async ({ page }) => {
