@@ -15,6 +15,7 @@ fullisolert AWS-datastack for Redis. Malen oppretter
 | Parameter | Beskrivelse |
 | --- | --- |
 | `EnvironmentName` | Prefiks som brukes i ressursnavn (f.eks. `prod`). |
+| `SharedParametersStackName` | Navnet på stacken som ble opprettet fra `infra/shared-parameters.yaml`. |
 | `VpcCidr` | CIDR-blokk for VPC-en. Standard `10.42.0.0/16`. |
 | `PrivateSubnet1Cidr` | CIDR-blokk for det første private subnettet. Standard `10.42.0.0/19`. |
 | `PrivateSubnet2Cidr` | CIDR-blokk for det andre private subnettet. Standard `10.42.32.0/19`. |
@@ -24,7 +25,7 @@ fullisolert AWS-datastack for Redis. Malen oppretter
 | `RedisMaintenanceWindow` | Vedlikeholdsvindu i UTC (standard `sun:23:00-mon:01:30`). |
 | `RedisAuthToken` | Auth-tokenet som sendes til ElastiCache. Oppgi dette som en [dynamic reference](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html) til Secrets Manager slik at hemmeligheten ikke sjekkes inn i koden. |
 
-`RedisAuthToken` lagres også som et Secrets Manager-secret (`math-visuals/<env>/redis/auth-token`) slik at andre stacks kan slå den opp senere uten å sjekke CloudFormation-parametre.
+`SharedParametersStackName` gjør at malen kan importere de kanoniske navnene på Secrets Manager- og Systems Manager-ressursene fra `infra/shared-parameters.yaml`. `RedisAuthToken` lagres også som et Secrets Manager-secret (navnet kommer fra den delte stacken) slik at andre stacks kan slå det opp senere uten å sjekke CloudFormation-parametre.
 
 ## Deployering
 
@@ -45,7 +46,8 @@ aws cloudformation deploy \
       RedisEngineVersion=7.1 \
       RedisReplicasPerNodeGroup=1 \
       RedisMaintenanceWindow=sun:23:00-mon:01:30 \
-      RedisAuthToken='{{resolve:secretsmanager:math-visuals/prod/redis/auth-token:SecretString:authToken}}'
+      RedisAuthToken='{{resolve:secretsmanager:math-visuals/prod/redis/auth-token:SecretString:authToken}}' \
+      SharedParametersStackName=math-visuals-shared
 ```
 
 Justér CIDR-blokker, node-type og vedlikeholdsvindu til verdier som passer i ditt
