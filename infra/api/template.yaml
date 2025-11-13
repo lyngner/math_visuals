@@ -17,6 +17,9 @@ Parameters:
     Type: String
     Default: prod
     Description: Deployment stage name for the HTTP API.
+  DataStackName:
+    Type: String
+    Description: Name of the CloudFormation stack that provisions the data plane (infra/data).
   SharedParametersStackName:
     Type: String
     Description: Name of the CloudFormation stack that exports shared parameter names.
@@ -68,21 +71,30 @@ Resources:
           - HasLambdaCodeVersion
           - !Ref LambdaCodeS3ObjectVersion
           - !Ref AWS::NoValue
+      VpcConfig:
+        SecurityGroupIds:
+          - !ImportValue
+            'Fn::Sub': '${DataStackName}-LambdaSecurityGroupId'
+        SubnetIds:
+          - !ImportValue
+            'Fn::Sub': '${DataStackName}-PrivateSubnet1Id'
+          - !ImportValue
+            'Fn::Sub': '${DataStackName}-PrivateSubnet2Id'
       Environment:
         Variables:
           NODE_OPTIONS: --enable-source-maps
           REDIS_ENDPOINT: !Sub
             - '{{resolve:ssm:${RedisEndpointParameterName}}}'
             - RedisEndpointParameterName: !ImportValue
-                Fn::Sub: '${SharedParametersStackName}-RedisEndpointParameterName'
+                'Fn::Sub': '${DataStackName}-RedisEndpointParameterName'
           REDIS_PORT: !Sub
             - '{{resolve:ssm:${RedisPortParameterName}}}'
             - RedisPortParameterName: !ImportValue
-                Fn::Sub: '${SharedParametersStackName}-RedisPortParameterName'
+                'Fn::Sub': '${DataStackName}-RedisPortParameterName'
           REDIS_PASSWORD: !Sub
             - '{{resolve:secretsmanager:${RedisPasswordSecretName}:SecretString}}'
             - RedisPasswordSecretName: !ImportValue
-                Fn::Sub: '${SharedParametersStackName}-RedisPasswordSecretName'
+                'Fn::Sub': '${DataStackName}-RedisPasswordSecretName'
           EXAMPLES_ALLOWED_ORIGINS: !Sub
             - '{{resolve:ssm:${ExamplesAllowedOriginsParameterName}}}'
             - ExamplesAllowedOriginsParameterName: !ImportValue

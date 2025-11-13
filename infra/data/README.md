@@ -1,41 +1,87 @@
 # Data plane infrastructure
 
-Denne mappen inneholder en CloudFormation-mal (`template.yaml`) som beskriver en
-fullisolert dataplattform for Redis i AWS. Malen etablerer
+Denne mappen inneholder en CloudFormation-mal (`template.yaml`) som etablerer en
+fullisolert AWS-datastack for Redis. Malen oppretter
 
-- en VPC med to private subnett for kjøring av Lambda-funksjoner og Redis,
-- dedikerte sikkerhetsgrupper for Lambda og Redis, og
-- en ElastiCache for Redis-replikasjonsgruppe med TLS og autentisering aktivert.
+- en dedikert VPC med to private subnett,
+- sikkerhetsgrupper for Lambda-funksjoner og Redis,
+- et ElastiCache for Redis-subnettgruppe og -replikasjonsgruppe med TLS,
+  autentisering og Multi-AZ, og
+- Secrets Manager/SSM-ressurser som eksponerer endepunkter, port og passord til
+  resten av plattformen.
+
+## Parametere
+
+| Parameter | Beskrivelse |
+| --- | --- |
+| `EnvironmentName` | Prefiks som brukes i ressursnavn (f.eks. `prod`). |
+| `VpcCidr` | CIDR-blokk for VPC-en. Standard `10.42.0.0/16`. |
+| `PrivateSubnet1Cidr` | CIDR-blokk for det første private subnettet. Standard `10.42.0.0/19`. |
+| `PrivateSubnet2Cidr` | CIDR-blokk for det andre private subnettet. Standard `10.42.32.0/19`. |
+| `RedisNodeType` | ElastiCache-instans (f.eks. `cache.t4g.small`). |
+| `RedisEngineVersion` | Redis-versjon (standard `7.1`). |
+| `RedisReplicasPerNodeGroup` | Antall replikaser per shard (0 = kun primær). |
+| `RedisMaintenanceWindow` | Vedlikeholdsvindu i UTC (standard `sun:23:00-mon:01:30`). |
+| `RedisAuthToken` | Auth-tokenet som sendes til ElastiCache. Oppgi dette som en [dynamic reference](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html) til Secrets Manager slik at hemmeligheten ikke sjekkes inn i koden. |
+
+`RedisAuthToken` lagres også som et Secrets Manager-secret (`math-visuals/<env>/redis/auth-token`) slik at andre stacks kan slå den opp senere uten å sjekke CloudFormation-parametre.
 
 ## Deployering
 
-Bruk AWS CLI eller CloudFormation-konsollet for å opprette et stack basert på
-`template.yaml`. Parameterne lar deg tilpasse CIDR-blokker, instanstype, antall
-noder og vedlikeholdsvinduer. Sett også `SharedParametersStackName` til navnet
-på stacken som deployes fra `infra/shared-parameters.yaml` slik at malen kan
-importere Secrets Manager-/SSM-navn. `RedisAuthToken`-parameteren skal leveres som en
-[dynamic reference](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html)
-til Secrets Manager slik at selve tokenet ikke sjekkes inn i koden.
+Eksempel på deploy med AWS CLI:
 
-Når stacken er opprettet eksponerer den følgende outputs som kan deles på tvers
-av prosjekter ved hjelp av `Fn::ImportValue` eller ved å lese direkte fra
-CloudFormation-responsen:
+```bash
+aws cloudformation deploy \
+  --region eu-north-1 \
+  --stack-name math-visuals-data \
+  --template-file infra/data/template.yaml \
+  --capabilities CAPABILITY_IAM \
+  --parameter-overrides \
+      EnvironmentName=prod \
+      VpcCidr=10.42.0.0/16 \
+      PrivateSubnet1Cidr=10.42.0.0/19 \
+      PrivateSubnet2Cidr=10.42.32.0/19 \
+      RedisNodeType=cache.t4g.small \
+      RedisEngineVersion=7.1 \
+      RedisReplicasPerNodeGroup=1 \
+      RedisMaintenanceWindow=sun:23:00-mon:01:30 \
+      RedisAuthToken='{{resolve:secretsmanager:math-visuals/prod/redis/auth-token:SecretString:authToken}}'
+```
 
-- `VpcId`, `PrivateSubnetIds` og `LambdaSecurityGroupId` brukes når Lambdaer
-  må kjøres inne i VPC-en med nettverkstilgang til Redis.
-- `RedisPrimaryEndpoint`, `RedisReaderEndpoint`, `RedisPort` og
-  `RedisTlsRequired` beskriver hvordan klienter kobler seg til klyngen.
+Justér CIDR-blokker, node-type og vedlikeholdsvindu til verdier som passer i ditt
+AWS-miljø før deploy.
+
+## Outputs og eksporterte verdier
+
+Stacken eksporterer følgende verdier, slik at andre stacks kan hente dem via
+`Fn::ImportValue`:
+
+- `VpcId`, `PrivateSubnet1Id`, `PrivateSubnet2Id` – brukes i Lambda `VpcConfig`.
+- `LambdaSecurityGroupId`, `RedisSecurityGroupId` – sikrer at Lambda kun får
+  tilgang til Redis.
+- `RedisPrimaryEndpoint`, `RedisReaderEndpoint`, `RedisPort`, `RedisTlsRequired`
+  – beskriver hvordan klienter kobler seg til klyngen.
+- `RedisEndpointParameterName`, `RedisReaderEndpointParameterName`,
+  `RedisPortParameterName` – peker på SSM-parametrene hvor CI/CD kan hente
+  de faktiske verdiene.
+- `RedisPasswordSecretName` – navnet på Secrets Manager-secretet som inneholder
+  auth-tokenet.
+
+Alle outputs har også en CloudFormation-beskrivelse slik at de er lette å finne i
+konsollet.
 
 ## Lambda-konfigurasjon
 
 Lambda-funksjoner som skal snakke med Redis må kjøre inne i VPC-en og bruke
 sikkerhetsgruppen som ble opprettet for formålet:
 
-1. Sett `VpcConfig` på Lambda-funksjonen til å inkludere subnettene fra
-   `PrivateSubnetIds` og sikkerhetsgruppen `LambdaSecurityGroupId`.
+1. Sett `VpcConfig` på Lambda-funksjonen til å inkludere subnettene
+   `!ImportValue <DataStackName>-PrivateSubnet1Id` og
+   `!ImportValue <DataStackName>-PrivateSubnet2Id`, samt
+   `SecurityGroupIds: [!ImportValue <DataStackName>-LambdaSecurityGroupId]`.
 2. Sørg for at Lambda-rollen har tillatelse til å lese hemmeligheter fra Secrets
-   Manager/Parameter Store ved å gi den policyer tilsvarende `secretsmanager:GetSecretValue`
-   eller `ssm:GetParameter`.
+   Manager/Parameter Store ved å gi den policyer tilsvarende
+   `secretsmanager:GetSecretValue` og `ssm:GetParameter`.
 
 ### Miljøvariabler
 
@@ -45,34 +91,21 @@ Applikasjonskoden forventer følgende miljøvariabler:
 - `REDIS_PORT`
 - `REDIS_PASSWORD`
 
-Disse bør **ikke** hardkodes. Følg i stedet dette mønsteret:
-
-1. Legg inn Redis-endpointet og porten som CloudFormation-outputs og hent dem i
-   utrullingspipen (for eksempel via `aws cloudformation describe-stacks`).
-2. Lagre passordet i AWS Secrets Manager eller Systems Manager Parameter Store.
-   Bruk samme hemmelighet som mates inn i `RedisAuthToken`-parameteren.
-3. Når Lambdaen deployes, injiser miljøvariablene ved å
-   - lese CloudFormation-outputene programmatisk og sette `REDIS_ENDPOINT` og
-     `REDIS_PORT`, og
-   - hente hemmeligheten med `aws secretsmanager get-secret-value` (eller via
-     IaC-verktøy/SAM/Serverless Framework) og sette `REDIS_PASSWORD`.
-
-Eksempel på kommandoer i et CI/CD-script:
+Disse bør **ikke** hardkodes. Hent i stedet verdiene fra stacken slik:
 
 ```bash
-STACK_NAME=math-visuals-data
-SHARED_STACK=math-visuals-shared
+DATA_STACK=math-visuals-data
 REGION=eu-north-1
 
 REDIS_ENDPOINT_PARAMETER=$(aws cloudformation describe-stacks \
   --region "$REGION" \
-  --stack-name "$SHARED_STACK" \
+  --stack-name "$DATA_STACK" \
   --query 'Stacks[0].Outputs[?OutputKey==`RedisEndpointParameterName`].OutputValue' \
   --output text)
 
 REDIS_PORT_PARAMETER=$(aws cloudformation describe-stacks \
   --region "$REGION" \
-  --stack-name "$SHARED_STACK" \
+  --stack-name "$DATA_STACK" \
   --query 'Stacks[0].Outputs[?OutputKey==`RedisPortParameterName`].OutputValue' \
   --output text)
 
@@ -90,7 +123,7 @@ REDIS_PORT=$(aws ssm get-parameter \
 
 REDIS_SECRET_NAME=$(aws cloudformation describe-stacks \
   --region "$REGION" \
-  --stack-name "$SHARED_STACK" \
+  --stack-name "$DATA_STACK" \
   --query 'Stacks[0].Outputs[?OutputKey==`RedisPasswordSecretName`].OutputValue' \
   --output text)
 
@@ -100,19 +133,31 @@ REDIS_PASSWORD=$(aws secretsmanager get-secret-value \
   --query 'SecretString' \
   --output text | jq -r '.authToken')
 
+PRIVATE_SUBNET1=$(aws cloudformation describe-stacks \
+  --region "$REGION" \
+  --stack-name "$DATA_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`PrivateSubnet1Id`].OutputValue' \
+  --output text)
+
+PRIVATE_SUBNET2=$(aws cloudformation describe-stacks \
+  --region "$REGION" \
+  --stack-name "$DATA_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`PrivateSubnet2Id`].OutputValue' \
+  --output text)
+
+LAMBDA_SG=$(aws cloudformation describe-stacks \
+  --region "$REGION" \
+  --stack-name "$DATA_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`LambdaSecurityGroupId`].OutputValue' \
+  --output text)
+
 aws lambda update-function-configuration \
   --function-name math-visuals-api \
-  --vpc-config SubnetIds=$(aws cloudformation \
-      describe-stacks --region "$REGION" --stack-name "$STACK_NAME" \
-      --query 'Stacks[0].Outputs[?OutputKey==`PrivateSubnetIds`].OutputValue' \
-      --output text),SecurityGroupIds=$(aws cloudformation \
-      describe-stacks --region "$REGION" --stack-name "$STACK_NAME" \
-      --query 'Stacks[0].Outputs[?OutputKey==`LambdaSecurityGroupId`].OutputValue' \
-      --output text) \
+  --vpc-config SubnetIds=$PRIVATE_SUBNET1,$PRIVATE_SUBNET2,SecurityGroupIds=$LAMBDA_SG \
   --environment "Variables={REDIS_ENDPOINT=$REDIS_ENDPOINT,REDIS_PORT=$REDIS_PORT,REDIS_PASSWORD=$REDIS_PASSWORD}"
 ```
 
 CI/CD-systemer som SAM, CDK eller Serverless Framework kan gjøre denne
-miljøvariabelinjiseringen mer deklarativt, men prinsippet er det samme: hent
-verdiene fra CloudFormation-outputs og Secrets Manager/Parameter Store i stedet
-for å hardkode dem.
+miljøvariabelinjiseringen mer deklarativt. Poenget er uansett at verdiene hentes
+fra CloudFormation-outputs og Secrets Manager/Parameter Store i stedet for å
+hardkodes.
