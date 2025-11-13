@@ -96,11 +96,15 @@ pick up the updated values because the templates resolve them dynamically.
 GitHub Actions-workflowen [`deploy-infra.yml`](../.github/workflows/deploy-infra.yml)
 synkroniserer verdiene ovenfor automatisk før API-stacken deployes. Workflowen
 bruker outputs fra `SharedParametersStackName` til å finne navnene på Secrets
-Manager- og SSM-ressursene, og skriver følgende GitHub Secrets inn i dem:
+Manager- og SSM-ressursene, og forventer at følgende GitHub Secrets er definert
+under **Settings → Secrets and variables → Actions**:
 
-- `REDIS_PASSWORD` – JSON-feltet `authToken` som lagres i Secrets Manager.
-- `REDIS_ENDPOINT` – hostnavnet som plasseres i Parameter Store.
-- `REDIS_PORT` – portnummeret som plasseres i Parameter Store.
+| Secret | Hva den brukes til |
+| --- | --- |
+| `REDIS_PASSWORD` | JSON-feltet `authToken` som lagres i Secrets Manager og som også sendes inn som `RedisAuthToken` når datastacken deployes. |
+| `REDIS_ENDPOINT` | Hostnavnet som skrives til Parameter Store slik at Lambda/APIGW kan slå det opp. |
+| `REDIS_PORT` | Portnummeret som skrives til Parameter Store slik at klientene vet hvilken port Redis eksponerer. |
 
-Dersom én av hemmelighetene mangler vil workflowen stoppe før API-deployen slik
-at man slipper å pushe en stack uten konsistente Redis-verdier.
+Disse hemmelighetene må være tilstede i CI-miljøet. Workflowen validerer at alle
+tre er satt og avbryter før API-deployen dersom én mangler, slik at man slipper
+å pushe en stack uten konsistente Redis-verdier.

@@ -74,9 +74,9 @@ Følgende GitHub Secrets må være definert for at workflowen skal lykkes:
 | `API_ARTIFACT_KEY` | Objekt-nøkkel til Lambda-pakken i S3. |
 | `API_ARTIFACT_VERSION` | Valgfritt objektversjon for Lambda-pakken. |
 | `API_STAGE_NAME` | HTTP API-staget som skal oppdateres (for eksempel `prod`). |
-| `REDIS_PASSWORD` | Passordet/autentiseringstokenet som skal lagres i Secrets Manager under det delte navnet. |
-| `REDIS_ENDPOINT` | Redis-endepunktet som skal skrives til Parameter Store. |
-| `REDIS_PORT` | Redis-porten som skal skrives til Parameter Store. |
+| `REDIS_PASSWORD` | Passordet/autentiseringstokenet som workflowen både injiserer i datastacken (`RedisAuthToken`) og skriver til det delte Secrets Manager-navnet fra `infra/shared-parameters.yaml`. |
+| `REDIS_ENDPOINT` | Redis-endepunktet som workflowen skriver til Parameter Store før API-stacken deployes. |
+| `REDIS_PORT` | Redis-porten som workflowen skriver til Parameter Store før API-stacken deployes. |
 | `CLOUDFRONT_INVALIDATION_PATHS` | Mellomromsseparert liste over stier som skal invaliders (standard `/*`). |
 
 Secretsene over injiseres som miljøvariabler i de respektive deploy-stegene. Dersom `STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID` er tom hoppes invalidasjonssteget over automatisk.
