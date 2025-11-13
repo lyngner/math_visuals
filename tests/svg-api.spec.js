@@ -3,8 +3,9 @@ const { test, expect } = require('@playwright/test');
 const TEST_SVG_MARKUP =
   '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><rect width="24" height="24" fill="#1d4ed8" /></svg>';
 
-const originalKvUrl = process.env.KV_REST_API_URL;
-const originalKvToken = process.env.KV_REST_API_TOKEN;
+const originalRedisEndpoint = process.env.REDIS_ENDPOINT;
+const originalRedisPort = process.env.REDIS_PORT;
+const originalRedisPassword = process.env.REDIS_PASSWORD;
 
 const {
   invokeSvgApi,
@@ -21,27 +22,33 @@ const {
   FIGURE_LIBRARY_UPLOAD_TOOL_ID
 } = require('../api/_lib/figure-library-store');
 
-function restoreKvEnv() {
-  if (originalKvUrl !== undefined) {
-    process.env.KV_REST_API_URL = originalKvUrl;
+function restoreRedisEnv() {
+  if (originalRedisEndpoint !== undefined) {
+    process.env.REDIS_ENDPOINT = originalRedisEndpoint;
   } else {
-    delete process.env.KV_REST_API_URL;
+    delete process.env.REDIS_ENDPOINT;
   }
-  if (originalKvToken !== undefined) {
-    process.env.KV_REST_API_TOKEN = originalKvToken;
+  if (originalRedisPort !== undefined) {
+    process.env.REDIS_PORT = originalRedisPort;
   } else {
-    delete process.env.KV_REST_API_TOKEN;
+    delete process.env.REDIS_PORT;
+  }
+  if (originalRedisPassword !== undefined) {
+    process.env.REDIS_PASSWORD = originalRedisPassword;
+  } else {
+    delete process.env.REDIS_PASSWORD;
   }
 }
 
-function disableKvEnv() {
-  delete process.env.KV_REST_API_URL;
-  delete process.env.KV_REST_API_TOKEN;
+function disableRedisEnv() {
+  delete process.env.REDIS_ENDPOINT;
+  delete process.env.REDIS_PORT;
+  delete process.env.REDIS_PASSWORD;
 }
 
 test.describe('SVG API archive filtering', () => {
   test.beforeEach(() => {
-    disableKvEnv();
+    disableRedisEnv();
     clearSvgMemoryStore();
   });
 
@@ -52,7 +59,7 @@ test.describe('SVG API archive filtering', () => {
 
   test.afterAll(() => {
     clearSvgMemoryStore();
-    restoreKvEnv();
+    restoreRedisEnv();
   });
 
   test('excludes figure library uploads from list responses', async () => {

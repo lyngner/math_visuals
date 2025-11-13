@@ -65,7 +65,9 @@ Fase 1 anbefaler å etablere følgende ressurser i mål-arkitekturen:
 - **Lambda-funksjon(er)** som kjører Express-adapteren og gjenbruker eksisterende `/api`-logikk.
 - **Amazon MemoryDB eller ElastiCache for Redis** som persistent lagring for eksempler/SVG-indekser.
 
-Miljøvariabler og secrets må oppdateres slik at `KV_REST_API_URL`/`KV_REST_API_TOKEN` erstattes av Redis-tilkoblingsdetaljer (host, port, passord/TLS) og eventuelle nye konfigurasjonsnøkler (f.eks. `REDIS_ENDPOINT`, `REDIS_PASSWORD`). Frontend-relaterte variabler som `EXAMPLES_ALLOWED_ORIGINS` og `SVG_ALLOWED_ORIGINS` beholdes og injiseres i Lambda/CloudFront-konfigurasjonen.
+Miljøvariabler og secrets må oppdateres slik at de gamle Vercel KV-verdiene erstattes av Redis-tilkoblingsdetaljer (host, port, passord/TLS) og eventuelle nye konfigurasjonsnøkler (f.eks. `REDIS_ENDPOINT`, `REDIS_PASSWORD`). Frontend-relaterte variabler som `EXAMPLES_ALLOWED_ORIGINS` og `SVG_ALLOWED_ORIGINS` beholdes og injiseres i Lambda/CloudFront-konfigurasjonen.
+
+> Når Redis-stacken er bekreftet i drift, følg avviklingslisten i [`docs/examples-storage.md`](../examples-storage.md#avvikle-den-gamle-vercel-instansen) for å slå av Vercel/Upstash helt. Dokumentet beskriver også hvordan `REDIS_*`-verdiene hentes fra CloudFormation og hvilke skript (`npm run seed-examples`, `scripts/check-examples-api.mjs`) som brukes i den nye workflowen.
 
 ## 6. Praktiske CLI-instruksjoner
 

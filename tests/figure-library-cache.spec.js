@@ -9,19 +9,25 @@ const CUSTOM_STORAGE_KEY = 'mathvis:figureLibrary:customEntries:v1';
 
 const { mockKv, cleanup: cleanupKvMock } = setupKvMock();
 
-const originalKvUrl = process.env.KV_REST_API_URL;
-const originalKvToken = process.env.KV_REST_API_TOKEN;
+const originalRedisEndpoint = process.env.REDIS_ENDPOINT;
+const originalRedisPort = process.env.REDIS_PORT;
+const originalRedisPassword = process.env.REDIS_PASSWORD;
 
-function restoreKvEnv() {
-  if (originalKvUrl !== undefined) {
-    process.env.KV_REST_API_URL = originalKvUrl;
+function restoreRedisEnv() {
+  if (originalRedisEndpoint !== undefined) {
+    process.env.REDIS_ENDPOINT = originalRedisEndpoint;
   } else {
-    delete process.env.KV_REST_API_URL;
+    delete process.env.REDIS_ENDPOINT;
   }
-  if (originalKvToken !== undefined) {
-    process.env.KV_REST_API_TOKEN = originalKvToken;
+  if (originalRedisPort !== undefined) {
+    process.env.REDIS_PORT = originalRedisPort;
   } else {
-    delete process.env.KV_REST_API_TOKEN;
+    delete process.env.REDIS_PORT;
+  }
+  if (originalRedisPassword !== undefined) {
+    process.env.REDIS_PASSWORD = originalRedisPassword;
+  } else {
+    delete process.env.REDIS_PASSWORD;
   }
 }
 
@@ -31,8 +37,9 @@ function buildSvgDataUrl(markup) {
 
 test.describe('Figurbibliotek hurtig cache', () => {
   test.beforeEach(async ({ context }) => {
-    delete process.env.KV_REST_API_URL;
-    delete process.env.KV_REST_API_TOKEN;
+    delete process.env.REDIS_ENDPOINT;
+    delete process.env.REDIS_PORT;
+    delete process.env.REDIS_PASSWORD;
     mockKv.clear();
     clearFigureLibraryMemoryStores();
 
@@ -74,7 +81,7 @@ test.describe('Figurbibliotek hurtig cache', () => {
   test.afterAll(() => {
     cleanupKvMock();
     clearFigureLibraryMemoryStores();
-    restoreKvEnv();
+    restoreRedisEnv();
   });
 
   test('viser cachede figurer før treig respons og oppdaterer etterpå', async ({ page }) => {
