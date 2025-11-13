@@ -10,7 +10,7 @@
 
 ## URL og ruting
 - GitHub Pages serverer innhold fra et domenenavn under `github.io` (f.eks. `brukernavn.github.io/math_visuals/`).
-- Vercel gir et eget domenenavn per prosjekt (f.eks. `math-visuals.vercel.app`) og støtter egendefinerte domener.
+- Vercel gir et eget domenenavn per prosjekt (f.eks. `project-slug.vercel.app`) og støtter egendefinerte domener.
 
 ## Ytelse og funksjoner
 - GitHub Pages er optimalisert for enkel hosting av statiske filer uten serverlogikk.

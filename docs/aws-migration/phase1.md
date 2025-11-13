@@ -31,6 +31,28 @@ I fase 1 kan CloudFront-distribusjonen lanseres med det automatisk genererte `*
 2. Legg til domenet i CloudFront-distribusjonens Alternate Domain Names (CNAMEs) og knytt det til ACM-sertifikatet.
 3. Opprett en Route 53 alias-ressurs-post (A/AAAA) som peker domenet til CloudFront-distribusjonens mål.
 
+### GitHub Pages-redirect til ny distribusjon
+
+GitHub Pages brukes fortsatt som «landingsplass» for gamle lenker. `router.js`
+og `examples.js` sjekker nå flere kilder (globale variabler, `data-*`-attributt
+på `<html>` og en valgfri `<meta name="math-visuals:redirect-target-origin">`)
+for å finne destinasjonen og faller tilbake til `https://mathvisuals.no` når
+ingen eksplisitt verdi er satt. I ventetiden før et egendefinert domene er
+klargjort i Route 53 kan du overstyre verdien ved å legge til for eksempel
+
+```html
+<meta name="math-visuals:redirect-target-origin" content="https://d123456abcdef8.cloudfront.net" />
+```
+
+eller et lite inline-script rett før `router.js`/`examples.js` lastes:
+
+```html
+<script>window.MATH_VISUALS_REDIRECT_TARGET_ORIGIN = 'https://d123456abcdef8.cloudfront.net';</script>
+```
+
+Når DNS er peket til det permanente domenet kan overstyringen fjernes slik at
+GitHub Pages alltid sender brukerne til `https://mathvisuals.no`.
+
 ## 3. Backend-handlere og Lambda-adapter
 
 Backend-koden er skrevet med Node sitt `req`/`res`-grensesnitt. Eksempelvis bruker `/api/examples/index.js` `res.setHeader`, `res.statusCode`, `res.end` og leser request-body via `req.on('data')`, i tillegg til å sette CORS-headere basert på `req.headers.origin`. For å flytte handleren til Lambda uten større omskriving anbefales en Express-kompatibel adapter som `@vendia/serverless-express`, som oversetter API Gateway-eventer til det samme `req`/`res`-objektet handleren forventer.【F:api/examples/index.js†L1-L121】
@@ -241,26 +263,146 @@ Når klyngen er opprettet, hent `PrimaryEndpoint` (`ConfigurationEndpoint` for M
 
 ### Secrets Manager og Parameter Store
 
-Legg inn Redis-tilkobling og CORS-opprinnelser slik at Lambda kan hente dem ved oppstart:
+Legg inn Redis-tilkobling og CORS-opprinnelser slik at Lambda kan hente dem ved oppstart. Parameternavnene kommer fra `infra/shared-parameters.yaml` og CloudFront-domenet hentes direkte fra den statiske stacken slik at allow-listen alltid samsvarer med aktiv distribusjon:
 
 ```bash
+REGION=eu-north-1
+ENVIRONMENT_NAME=prod
+SHARED_STACK=math-visuals-shared
+STATIC_STACK=math-visuals-static-site
+
+REDIS_SECRET_NAME=$(aws cloudformation describe-stacks \
+  --stack-name "$SHARED_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`RedisPasswordSecretName`].OutputValue' \
+  --output text)
+
+EXAMPLES_ALLOWED_ORIGINS=$(aws cloudformation describe-stacks \
+  --stack-name "$SHARED_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`ExamplesAllowedOriginsParameterName`].OutputValue' \
+  --output text)
+
+SVG_ALLOWED_ORIGINS=$(aws cloudformation describe-stacks \
+  --stack-name "$SHARED_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`SvgAllowedOriginsParameterName`].OutputValue' \
+  --output text)
+
+CLOUDFRONT_DOMAIN=$(aws cloudformation describe-stacks \
+  --stack-name "$STATIC_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionDomainName`].OutputValue' \
+  --output text)
+
+ALLOWLIST_VALUE="https://$CLOUDFRONT_DOMAIN,https://mathvisuals.no,https://app.mathvisuals.no"
+
 aws secretsmanager create-secret \
-  --name math-visuals/redis \
-  --secret-string '{"host":"<redis-endpoint>","port":6379,"password":"<passord>"}'
+  --name "$REDIS_SECRET_NAME" \
+  --secret-string '{"host":"<redis-endpoint>","port":6379,"password":"<passord>"}' \
+  --region "$REGION"
 
 aws ssm put-parameter \
-  --name /math-visuals/cors/examples \
+  --name "$EXAMPLES_ALLOWED_ORIGINS" \
   --type StringList \
-  --value "https://mathvisuals.no,https://app.mathvisuals.no"
+  --value "$ALLOWLIST_VALUE" \
+  --overwrite \
+  --region "$REGION"
 
 aws ssm put-parameter \
-  --name /math-visuals/cors/svg \
+  --name "$SVG_ALLOWED_ORIGINS" \
   --type StringList \
-  --value "https://mathvisuals.no,https://app.mathvisuals.no"
+  --value "$ALLOWLIST_VALUE" \
+  --overwrite \
+  --region "$REGION"
 ```
 
-Gi Lambda-funksjonen IAM-policyer for å lese `math-visuals/redis` og relevante SSM-parametere. Verdiene kan lastes inn ved hjelp av
-`AWS.SecretsManager` og `AWS.SSM` i Lambda-koden eller gjennom miljøvariabler under `aws lambda update-function-configuration`.
+Gi Lambda-funksjonen IAM-policyer for å lese `math-visuals/${ENVIRONMENT_NAME}/redis/password` og de to Parameter Store-verdiene. Verdiene kan lastes inn ved hjelp av `AWS.SecretsManager` og `AWS.SSM` i Lambda-koden eller gjennom miljøvariabler under `aws lambda update-function-configuration`.
+
+### ACM-sertifikat, CloudFront-alias og DNS
+
+Når CloudFront-distribusjonen er testet på sitt generiske domenenavn må den knyttes til et egendefinert domene. Prosessen består av tre steg:
+
+1. **Utsted sertifikat i us-east-1**
+
+   ```bash
+   CUSTOM_DOMAIN=mathvisuals.no
+   ACM_REGION=us-east-1
+
+   CERTIFICATE_ARN=$(aws acm request-certificate \
+     --region "$ACM_REGION" \
+     --domain-name "$CUSTOM_DOMAIN" \
+     --subject-alternative-names "www.$CUSTOM_DOMAIN" "app.$CUSTOM_DOMAIN" \
+     --validation-method DNS \
+     --idempotency-token mathvisuals \
+     --query 'CertificateArn' \
+     --output text)
+
+   aws acm describe-certificate \
+     --certificate-arn "$CERTIFICATE_ARN" \
+     --region "$ACM_REGION" \
+     --query 'Certificate.DomainValidationOptions[].ResourceRecord'
+   ```
+
+   Outputen inneholder CNAME-ene som må legges inn i Route 53 (eller et eksternt DNS-system) for å validere sertifikatet. Etter at recordene er på plass endrer statusen seg til `ISSUED`.
+
+2. **Legg til domenet i CloudFront**
+
+   ```bash
+   CLOUDFRONT_REGION=us-east-1
+   DISTRIBUTION_ID=<distribution-id>
+
+   aws cloudfront get-distribution-config \
+     --id "$DISTRIBUTION_ID" \
+     --region "$CLOUDFRONT_REGION" \
+     > cf.json
+
+   ETAG=$(jq -r '.ETag' cf.json)
+   jq '.DistributionConfig' cf.json > cf-config.json
+
+   jq \
+     --arg domain "$CUSTOM_DOMAIN" \
+     --arg cert "$CERTIFICATE_ARN" \
+     '.Aliases = { Quantity: 1, Items: [$domain] } |
+      .ViewerCertificate = { ACMCertificateArn: $cert, SSLSupportMethod: "sni-only", MinimumProtocolVersion: "TLSv1.2_2021" }' \
+     cf-config.json > cf-config-updated.json
+
+   aws cloudfront update-distribution \
+     --id "$DISTRIBUTION_ID" \
+     --if-match "$ETAG" \
+     --distribution-config file://cf-config-updated.json \
+     --region "$CLOUDFRONT_REGION"
+   ```
+
+3. **Pek DNS til distribusjonen**
+
+   ```bash
+   HOSTED_ZONE_ID=<route53-hosted-zone-id>
+   DIST_DOMAIN=$(aws cloudfront get-distribution --id "$DISTRIBUTION_ID" --query 'Distribution.DomainName' --output text)
+
+   cat <<'JSON' > change-batch.json
+   {
+     "Changes": [
+       {
+         "Action": "UPSERT",
+         "ResourceRecordSet": {
+           "Name": "mathvisuals.no",
+           "Type": "A",
+           "AliasTarget": {
+             "HostedZoneId": "Z2FDTNDATAQYW2",
+             "DNSName": "DIST_DOMAIN_PLACEHOLDER",
+             "EvaluateTargetHealth": false
+           }
+         }
+       }
+     ]
+   }
+   JSON
+
+   sed -i "s/DIST_DOMAIN_PLACEHOLDER/$DIST_DOMAIN/" change-batch.json
+
+   aws route53 change-resource-record-sets \
+     --hosted-zone-id "$HOSTED_ZONE_ID" \
+     --change-batch file://change-batch.json
+   ```
+
+   Gjenta for `AAAA` dersom IPv6 er ønsket. Når DNS har propagert og sertifikatet er aktivt kan GitHub-redirecten fjernes helt og CloudFront svarer på `https://mathvisuals.no` uten mellomledd.
 
 ---
 
