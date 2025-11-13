@@ -146,18 +146,40 @@ Resources:
           return true;
         }
 
-        function getAssetRoot(target, override) {
-          if (typeof override === 'string' && override) {
-            return override;
+        function formatAssetRoot(value) {
+          if (typeof value !== 'string' || !value) {
+            return null;
           }
-          if (typeof target !== 'string' || !target) {
-            return '/';
+          var root = value;
+          if (root.charCodeAt(0) !== 47) {
+            root = '/' + root;
           }
-          var lastSlash = target.lastIndexOf('/');
-          if (lastSlash <= 0) {
-            return '/';
+          if (root.charCodeAt(root.length - 1) !== 47) {
+            root += '/';
           }
-          return target.slice(0, lastSlash + 1);
+          return root;
+        }
+
+        function getAssetRoot(target, override, aliases) {
+          var formattedOverride = formatAssetRoot(override);
+          if (formattedOverride) {
+            return formattedOverride;
+          }
+          if (typeof target === 'string' && target) {
+            var lastSlash = target.lastIndexOf('/');
+            if (lastSlash > 0) {
+              return target.slice(0, lastSlash + 1);
+            }
+          }
+          if (Array.isArray(aliases)) {
+            for (var index = 0; index < aliases.length; index++) {
+              var normalized = normalizeAlias(aliases[index]);
+              if (normalized && normalized !== '/') {
+                return normalized + '/';
+              }
+            }
+          }
+          return '/';
         }
 
         function handler(event) {
@@ -199,7 +221,7 @@ Resources:
           for (var i = 0; i < routes.length; i++) {
             var route = routes[i];
             var aliases = route.aliases;
-            var assetRoot = getAssetRoot(route.target, route.assetRoot);
+            var assetRoot = getAssetRoot(route.target, route.assetRoot, route.aliases);
             for (var j = 0; j < aliases.length; j++) {
               var normalized = normalizeAlias(aliases[j]);
               if (!normalized) {
