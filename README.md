@@ -50,7 +50,8 @@ Math Visuals videreutvikles i tett dialog med lærere, elever og spesialpedagoge
 Produksjonsmiljøet deployes via GitHub Actions-workflowen [`deploy-infra.yml`](.github/workflows/deploy-infra.yml). Den trigges både manuelt (`workflow_dispatch`) og automatisk ved push til `main`. Workflowen kjører et enkelt `deploy-iac`-jobbløp som
 
 - konfigurerer AWS-legitimasjon ved hjelp av OIDC-rollens ARN,
-- oppdaterer datastrukturen i [`infra/data/template.yaml`](infra/data/template.yaml) slik at KV REST API-nøkler fra GitHub Secrets replikeres til Secrets Manager og Parameter Store,
+- oppdaterer datastrukturen i [`infra/data/template.yaml`](infra/data/template.yaml),
+- synkroniserer `REDIS_*`-hemmelighetene inn i Secrets Manager og Systems Manager-parameterne som er definert i [`infra/shared-parameters.yaml`](infra/shared-parameters.yaml),
 - ruller ut API-stacken fra [`infra/api/template.yaml`](infra/api/template.yaml) med den forhåndsbyggede Lambda-pakken, og
 - oppdaterer den statiske nettsiden gjennom CloudFormation-malen [`infra/static-site/template.yaml`](infra/static-site/template.yaml).
 
@@ -73,10 +74,9 @@ Følgende GitHub Secrets må være definert for at workflowen skal lykkes:
 | `API_ARTIFACT_KEY` | Objekt-nøkkel til Lambda-pakken i S3. |
 | `API_ARTIFACT_VERSION` | Valgfritt objektversjon for Lambda-pakken. |
 | `API_STAGE_NAME` | HTTP API-staget som skal oppdateres (for eksempel `prod`). |
-| `DATA_KV_REST_API_URL` | Base-URL til Vercel KV-instansen som brukes av `/api/examples`. |
-| `DATA_KV_REST_API_TOKEN` | Skrivetokenet for Vercel KV-instansen som brukes av `/api/examples`. |
-| `FIGURE_LIBRARY_KV_REST_API_URL` | Base-URL til Vercel KV-instansen for `/api/figure-library`. |
-| `FIGURE_LIBRARY_KV_REST_API_TOKEN` | Skrivetoken for Vercel KV-instansen for `/api/figure-library`. |
+| `REDIS_PASSWORD` | Passordet/autentiseringstokenet som skal lagres i Secrets Manager under det delte navnet. |
+| `REDIS_ENDPOINT` | Redis-endepunktet som skal skrives til Parameter Store. |
+| `REDIS_PORT` | Redis-porten som skal skrives til Parameter Store. |
 | `CLOUDFRONT_INVALIDATION_PATHS` | Mellomromsseparert liste over stier som skal invaliders (standard `/*`). |
 
 Secretsene over injiseres som miljøvariabler i de respektive deploy-stegene. Dersom `STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID` er tom hoppes invalidasjonssteget over automatisk.

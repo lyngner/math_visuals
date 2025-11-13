@@ -23,16 +23,13 @@ jobs:
       API_ARTIFACT_KEY: ${{ secrets.API_ARTIFACT_KEY }}
       API_ARTIFACT_VERSION: ${{ secrets.API_ARTIFACT_VERSION }}
       API_STAGE_NAME: ${{ secrets.API_STAGE_NAME }}
-      DATA_KV_REST_API_URL: ${{ secrets.DATA_KV_REST_API_URL }}
-      DATA_KV_REST_API_TOKEN: ${{ secrets.DATA_KV_REST_API_TOKEN }}
-      FIGURE_LIBRARY_KV_REST_API_URL: ${{ secrets.FIGURE_LIBRARY_KV_REST_API_URL }}
-      FIGURE_LIBRARY_KV_REST_API_TOKEN: ${{ secrets.FIGURE_LIBRARY_KV_REST_API_TOKEN }}
       CLOUDFRONT_INVALIDATION_PATHS: ${{ secrets.CLOUDFRONT_INVALIDATION_PATHS }}
       # Stack names and defaults
       STATIC_STACK_NAME: math-visuals-static
       API_STACK_NAME: math-visuals-api
       DATA_STACK_NAME: math-visuals-data
       DATA_ENVIRONMENT_NAME: prod
+      SHARED_PARAMETERS_STACK_NAME: math-visuals-shared
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -50,11 +47,70 @@ jobs:
             --template-file infra/data/template.yaml \
             --capabilities CAPABILITY_IAM \
             --parameter-overrides \
-              EnvironmentName=$DATA_ENVIRONMENT_NAME \
-              KvRestApiUrl=$DATA_KV_REST_API_URL \
-              KvRestApiToken=$DATA_KV_REST_API_TOKEN \
-              FigureLibraryKvRestApiUrl=$FIGURE_LIBRARY_KV_REST_API_URL \
-              FigureLibraryKvRestApiToken=$FIGURE_LIBRARY_KV_REST_API_TOKEN
+              EnvironmentName=$DATA_ENVIRONMENT_NAME
+
+      - name: Sync shared Redis connection parameters
+        env:
+          REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
+          REDIS_PORT: ${{ secrets.REDIS_PORT }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${REDIS_ENDPOINT:-}" ] || [ -z "${REDIS_PORT:-}" ] || [ -z "${REDIS_PASSWORD:-}" ]; then
+            echo "Missing REDIS_* secrets. Make sure REDIS_ENDPOINT, REDIS_PORT and REDIS_PASSWORD are configured." >&2
+            exit 1
+          fi
+
+          get_output() {
+            local stack_name="$1"
+            local output_key="$2"
+            aws cloudformation describe-stacks \
+              --stack-name "$stack_name" \
+              --query "Stacks[0].Outputs[?OutputKey=='${output_key}'].OutputValue" \
+              --output text
+          }
+
+          REDIS_PASSWORD_SECRET_NAME=$(get_output "$SHARED_PARAMETERS_STACK_NAME" RedisPasswordSecretName)
+          REDIS_ENDPOINT_PARAMETER_NAME=$(get_output "$SHARED_PARAMETERS_STACK_NAME" RedisEndpointParameterName)
+          REDIS_PORT_PARAMETER_NAME=$(get_output "$SHARED_PARAMETERS_STACK_NAME" RedisPortParameterName)
+
+          if [ -z "$REDIS_PASSWORD_SECRET_NAME" ] || [ "$REDIS_PASSWORD_SECRET_NAME" == "None" ]; then
+            echo "Unable to resolve RedisPasswordSecretName output from stack $SHARED_PARAMETERS_STACK_NAME" >&2
+            exit 1
+          fi
+
+          if [ -z "$REDIS_ENDPOINT_PARAMETER_NAME" ] || [ "$REDIS_ENDPOINT_PARAMETER_NAME" == "None" ]; then
+            echo "Unable to resolve RedisEndpointParameterName output from stack $SHARED_PARAMETERS_STACK_NAME" >&2
+            exit 1
+          fi
+
+          if [ -z "$REDIS_PORT_PARAMETER_NAME" ] || [ "$REDIS_PORT_PARAMETER_NAME" == "None" ]; then
+            echo "Unable to resolve RedisPortParameterName output from stack $SHARED_PARAMETERS_STACK_NAME" >&2
+            exit 1
+          fi
+
+          SECRET_STRING=$(python - <<'PY'
+import json, os
+print(json.dumps({"authToken": os.environ["REDIS_PASSWORD"]}))
+PY
+)
+
+          aws secretsmanager put-secret-value \
+            --secret-id "$REDIS_PASSWORD_SECRET_NAME" \
+            --secret-string "$SECRET_STRING"
+
+          aws ssm put-parameter \
+            --name "$REDIS_ENDPOINT_PARAMETER_NAME" \
+            --type String \
+            --value "$REDIS_ENDPOINT" \
+            --overwrite
+
+          aws ssm put-parameter \
+            --name "$REDIS_PORT_PARAMETER_NAME" \
+            --type String \
+            --value "$REDIS_PORT" \
+            --overwrite
 
       - name: Deploy API stack
         run: |

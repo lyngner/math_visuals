@@ -90,3 +90,17 @@ aws ssm put-parameter \
 Repeat the `put-secret-value` and `put-parameter` commands whenever the Redis or
 allowed-origins configuration changes. The next deployment will automatically
 pick up the updated values because the templates resolve them dynamically.
+
+### CI-integrasjon og nødvendige secrets
+
+GitHub Actions-workflowen [`deploy-infra.yml`](../.github/workflows/deploy-infra.yml)
+synkroniserer verdiene ovenfor automatisk før API-stacken deployes. Workflowen
+bruker outputs fra `SharedParametersStackName` til å finne navnene på Secrets
+Manager- og SSM-ressursene, og skriver følgende GitHub Secrets inn i dem:
+
+- `REDIS_PASSWORD` – JSON-feltet `authToken` som lagres i Secrets Manager.
+- `REDIS_ENDPOINT` – hostnavnet som plasseres i Parameter Store.
+- `REDIS_PORT` – portnummeret som plasseres i Parameter Store.
+
+Dersom én av hemmelighetene mangler vil workflowen stoppe før API-deployen slik
+at man slipper å pushe en stack uten konsistente Redis-verdier.
