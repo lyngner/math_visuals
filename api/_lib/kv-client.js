@@ -329,7 +329,15 @@ async function loadKvClient(options) {
   return sharedClientPromise;
 }
 
-function getStoreMode() {
+function hasInjectedClient(options = {}) {
+  const injectionKey = options && options.injectionKey ? normalizeInjectionKey(options.injectionKey) : DEFAULT_INJECTION_KEY;
+  return Boolean(getInjectedClient(injectionKey));
+}
+
+function getStoreMode(options = {}) {
+  if (hasInjectedClient(options)) {
+    return 'kv';
+  }
   return isKvConfigured() ? 'kv' : 'memory';
 }
 
@@ -337,6 +345,7 @@ module.exports = {
   loadKvClient,
   isKvConfigured,
   getStoreMode,
+  hasInjectedClient,
   KvOperationError,
   KvConfigurationError,
   getRedisEnvironment,
