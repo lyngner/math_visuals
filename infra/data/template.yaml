@@ -1,92 +1,257 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
-  Stores Vercel KV REST API configuration in AWS Secrets Manager and Systems
-  Manager Parameter Store so that the Math Visuals API can fetch credentials
-  during deployment.
+  Provides an isolated Redis data plane in AWS, including networking, security
+  groups, ElastiCache for Redis and shared connection parameters for the Math
+  Visuals API.
 
 Parameters:
   EnvironmentName:
     Type: String
     Description: Environment name used as a prefix for resource paths (e.g. prod).
-  KvRestApiUrl:
+  VpcCidr:
     Type: String
-    Description: Base URL for the primary Vercel KV REST API instance.
-  KvRestApiToken:
+    Default: 10.42.0.0/16
+    Description: CIDR block for the dedicated VPC that hosts Redis and Lambda.
+  PrivateSubnet1Cidr:
+    Type: String
+    Default: 10.42.0.0/19
+    Description: CIDR block for the first private subnet.
+  PrivateSubnet2Cidr:
+    Type: String
+    Default: 10.42.32.0/19
+    Description: CIDR block for the second private subnet.
+  RedisNodeType:
+    Type: String
+    Default: cache.t4g.small
+    Description: ElastiCache node instance type for each primary/replica node.
+  RedisEngineVersion:
+    Type: String
+    Default: '7.1'
+    Description: Redis engine version for the replication group.
+  RedisReplicasPerNodeGroup:
+    Type: Number
+    Default: 1
+    MinValue: 0
+    MaxValue: 5
+    Description: Number of replica nodes per shard (set to 0 for single node).
+  RedisMaintenanceWindow:
+    Type: String
+    Default: sun:23:00-mon:01:30
+    Description: Preferred maintenance window in UTC.
+  RedisAuthToken:
     Type: String
     NoEcho: true
-    Description: Write token for the primary Vercel KV instance.
-  FigureLibraryKvRestApiUrl:
-    Type: String
-    Description: Base URL for the figure library Vercel KV REST API instance.
-  FigureLibraryKvRestApiToken:
-    Type: String
-    NoEcho: true
-    Description: Write token for the figure library Vercel KV instance.
-  SharedParametersStackName:
-    Type: String
-    Description: Name of the CloudFormation stack that exports shared parameter names.
+    Description: >-
+      Auth token passed to ElastiCache. Provide this as a dynamic reference to
+      Secrets Manager to avoid storing the value in plaintext in CloudFormation
+      templates.
 
 Resources:
-  ExamplesKvRestApiUrlParameter:
-    Type: AWS::SSM::Parameter
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
+  Vpc:
+    Type: AWS::EC2::VPC
     Properties:
-      Name: !Sub '/math-visuals/${EnvironmentName}/examples/kv-rest-api-url'
-      Type: String
-      Value: !Ref KvRestApiUrl
-      Description: Base URL for the Vercel KV instance used by /api/examples.
+      CidrBlock: !Ref VpcCidr
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub 'math-visuals-${EnvironmentName}-vpc'
 
-  ExamplesKvRestApiTokenSecret:
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !Ref PrivateSubnet1Cidr
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub 'math-visuals-${EnvironmentName}-private-a'
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: !Ref PrivateSubnet2Cidr
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub 'math-visuals-${EnvironmentName}-private-b'
+
+  LambdaSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allows Lambda functions to communicate with Redis inside the VPC.
+      VpcId: !Ref Vpc
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub 'math-visuals-${EnvironmentName}-lambda-sg'
+
+  RedisSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Restricts Redis access to the Lambda security group.
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          SourceSecurityGroupId: !Ref LambdaSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub 'math-visuals-${EnvironmentName}-redis-sg'
+
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      CacheSubnetGroupName: !Sub 'math-visuals-${EnvironmentName}-redis-subnets'
+      Description: Private subnets that host the Redis replication group.
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+
+  RedisAuthTokenSecret:
     Type: AWS::SecretsManager::Secret
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      Name: !Sub 'math-visuals/${EnvironmentName}/examples/kv-rest-api-token'
-      Description: Write token for the Vercel KV instance used by /api/examples.
-      SecretString: !Ref KvRestApiToken
+      Name: !Sub 'math-visuals/${EnvironmentName}/redis/auth-token'
+      Description: Auth token for the ElastiCache replication group.
+      SecretString: !Sub '{"authToken":"${RedisAuthToken}"}'
 
-  FigureLibraryKvRestApiUrlParameter:
+  RedisReplicationGroup:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupDescription: !Sub 'Math Visuals Redis (${EnvironmentName})'
+      ReplicationGroupId: !Sub 'mv-${EnvironmentName}-redis'
+      Engine: redis
+      EngineVersion: !Ref RedisEngineVersion
+      CacheNodeType: !Ref RedisNodeType
+      AutomaticFailoverEnabled: true
+      MultiAZEnabled: true
+      NumNodeGroups: 1
+      ReplicasPerNodeGroup: !Ref RedisReplicasPerNodeGroup
+      SecurityGroupIds:
+        - !Ref RedisSecurityGroup
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      PreferredMaintenanceWindow: !Ref RedisMaintenanceWindow
+      AtRestEncryptionEnabled: true
+      TransitEncryptionEnabled: true
+      AuthToken: !Ref RedisAuthToken
+      Port: 6379
+
+  RedisPrimaryEndpointParameter:
     Type: AWS::SSM::Parameter
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      Name: !Sub '/math-visuals/${EnvironmentName}/figure-library/kv-rest-api-url'
+      Name: !Sub '/math-visuals/${EnvironmentName}/redis/primary-endpoint'
       Type: String
-      Value: !Ref FigureLibraryKvRestApiUrl
-      Description: Base URL for the Vercel KV instance used by /api/figure-library.
+      Value: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Address
+      Description: Primary writer endpoint for the Redis replication group.
 
-  FigureLibraryKvRestApiTokenSecret:
-    Type: AWS::SecretsManager::Secret
+  RedisReaderEndpointParameter:
+    Type: AWS::SSM::Parameter
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      Name: !Sub 'math-visuals/${EnvironmentName}/figure-library/kv-rest-api-token'
-      Description: Write token for the Vercel KV instance used by /api/figure-library.
-      SecretString: !Ref FigureLibraryKvRestApiToken
+      Name: !Sub '/math-visuals/${EnvironmentName}/redis/reader-endpoint'
+      Type: String
+      Value: !GetAtt RedisReplicationGroup.ReadEndPoint.Addresses
+      Description: Reader endpoint for the Redis replication group.
+
+  RedisPortParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Sub '/math-visuals/${EnvironmentName}/redis/port'
+      Type: String
+      Value: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Port
+      Description: Redis port used by the replication group.
 
 Outputs:
-  ExamplesKvRestApiUrlParameterArn:
-    Description: ARN to the SSM parameter storing the /api/examples KV REST API URL.
-    Value: !GetAtt ExamplesKvRestApiUrlParameter.Arn
-  ExamplesKvRestApiTokenSecretArn:
-    Description: ARN to the secret storing the /api/examples KV REST API token.
-    Value: !Ref ExamplesKvRestApiTokenSecret
-  FigureLibraryKvRestApiUrlParameterArn:
-    Description: ARN to the SSM parameter storing the /api/figure-library KV REST API URL.
-    Value: !GetAtt FigureLibraryKvRestApiUrlParameter.Arn
-  FigureLibraryKvRestApiTokenSecretArn:
-    Description: ARN to the secret storing the /api/figure-library KV REST API token.
-    Value: !Ref FigureLibraryKvRestApiTokenSecret
-  RedisPasswordSecretName:
-    Description: Shared Secrets Manager secret name used for the Redis password/auth token.
-    Value: !ImportValue
-      Fn::Sub: '${SharedParametersStackName}-RedisPasswordSecretName'
+  VpcId:
+    Description: VPC ID that hosts Redis and the Lambda subnets.
+    Value: !Ref Vpc
+    Export:
+      Name: !Sub '${AWS::StackName}-VpcId'
+
+  PrivateSubnet1Id:
+    Description: ID of the first private subnet for Lambda/Redis.
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivateSubnet1Id'
+
+  PrivateSubnet2Id:
+    Description: ID of the second private subnet for Lambda/Redis.
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub '${AWS::StackName}-PrivateSubnet2Id'
+
+  LambdaSecurityGroupId:
+    Description: Security group ID used by Lambda functions that access Redis.
+    Value: !Ref LambdaSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaSecurityGroupId'
+
+  RedisSecurityGroupId:
+    Description: Security group attached to the Redis replication group.
+    Value: !Ref RedisSecurityGroup
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisSecurityGroupId'
+
+  RedisPrimaryEndpoint:
+    Description: Primary writer endpoint for Redis.
+    Value: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Address
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisPrimaryEndpoint'
+
+  RedisReaderEndpoint:
+    Description: Reader endpoint for Redis clients that only need replicas.
+    Value: !GetAtt RedisReplicationGroup.ReadEndPoint.Addresses
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisReaderEndpoint'
+
+  RedisPort:
+    Description: Port exposed by the Redis replication group.
+    Value: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Port
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisPort'
+
+  RedisTlsRequired:
+    Description: Indicates that TLS must be used when connecting to Redis.
+    Value: 'true'
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisTlsRequired'
+
   RedisEndpointParameterName:
-    Description: Shared SSM parameter name that stores the Redis endpoint.
-    Value: !ImportValue
-      Fn::Sub: '${SharedParametersStackName}-RedisEndpointParameterName'
+    Description: SSM parameter name that stores the Redis primary endpoint.
+    Value: !Ref RedisPrimaryEndpointParameter
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisEndpointParameterName'
+
+  RedisReaderEndpointParameterName:
+    Description: SSM parameter name that stores the Redis reader endpoint.
+    Value: !Ref RedisReaderEndpointParameter
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisReaderEndpointParameterName'
+
   RedisPortParameterName:
-    Description: Shared SSM parameter name that stores the Redis port.
-    Value: !ImportValue
-      Fn::Sub: '${SharedParametersStackName}-RedisPortParameterName'
+    Description: SSM parameter name that stores the Redis port.
+    Value: !Ref RedisPortParameter
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisPortParameterName'
+
+  RedisPasswordSecretName:
+    Description: Secrets Manager secret that stores the Redis auth token.
+    Value: !Ref RedisAuthTokenSecret
+    Export:
+      Name: !Sub '${AWS::StackName}-RedisPasswordSecretName'

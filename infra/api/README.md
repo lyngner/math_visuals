@@ -45,10 +45,16 @@ aws cloudformation deploy \
       LambdaCodeS3Bucket=<artefakt-bucket> \
       LambdaCodeS3Key=<sti>/api-lambda.zip \
       StageName=prod \
+      DataStackName=math-visuals-data \
       SharedParametersStackName=math-visuals-shared
 ```
 
 Hvis du bruker versjonerte objekter i S3, kan du sette `LambdaCodeS3ObjectVersion=<versjon-id>` i `--parameter-overrides`.
+
+`DataStackName` må peke på stacken som deployes fra `infra/data`. Denne verdien
+brukes til å importere VPC-ID, private subnett, Lambda-sikkerhetsgruppen og
+Redis-endepunkter slik at Lambdaen kan kjøre bak samme nettverk/firewall som
+Redis.
 
 `SharedParametersStackName` gjør at malen kan importere Secrets Manager- og
 Parameter Store-navn fra `infra/shared-parameters.yaml`. Sørg for at
