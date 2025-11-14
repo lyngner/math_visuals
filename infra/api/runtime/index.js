@@ -151,29 +151,48 @@ function ensureArray(value) {
 
 function normalizeEvent(event) {
   if (!event || typeof event !== 'object') {
-    return {};
+    return {
+      headers: {},
+      multiValueHeaders: {},
+      queryStringParameters: {},
+      multiValueQueryStringParameters: {},
+      pathParameters: {},
+      stageVariables: {},
+      requestContext: { http: {}, authorizer: {} },
+      cookies: [],
+    };
   }
-  const requestContext = ensurePlainObject(event.requestContext);
-  if (requestContext.http) {
-    requestContext.http = ensurePlainObject(event.requestContext.http);
-  }
-  if (requestContext.authorizer) {
-    requestContext.authorizer = ensurePlainObject(event.requestContext.authorizer);
-  }
-  const normalized = {
-    ...event,
-    headers: ensurePlainObject(event.headers),
-    multiValueHeaders: ensurePlainObject(event.multiValueHeaders),
-    queryStringParameters: ensurePlainObject(event.queryStringParameters),
-    multiValueQueryStringParameters: ensurePlainObject(
-      event.multiValueQueryStringParameters
-    ),
-    pathParameters: ensurePlainObject(event.pathParameters),
-    stageVariables: ensurePlainObject(event.stageVariables),
-    requestContext,
-    cookies: ensureArray(event.cookies),
+  const baseEvent = ensurePlainObject(event);
+  const requestContext = ensurePlainObject(baseEvent.requestContext);
+  requestContext.http = ensurePlainObject(requestContext.http);
+  requestContext.authorizer = ensurePlainObject(requestContext.authorizer);
+
+  const defaults = {
+    headers: {},
+    multiValueHeaders: {},
+    queryStringParameters: {},
+    multiValueQueryStringParameters: {},
+    pathParameters: {},
+    stageVariables: {},
+    requestContext: {},
+    cookies: [],
   };
-  return normalized;
+
+  const normalized = {
+    ...baseEvent,
+    headers: ensurePlainObject(baseEvent.headers),
+    multiValueHeaders: ensurePlainObject(baseEvent.multiValueHeaders),
+    queryStringParameters: ensurePlainObject(baseEvent.queryStringParameters),
+    multiValueQueryStringParameters: ensurePlainObject(
+      baseEvent.multiValueQueryStringParameters
+    ),
+    pathParameters: ensurePlainObject(baseEvent.pathParameters),
+    stageVariables: ensurePlainObject(baseEvent.stageVariables),
+    requestContext,
+    cookies: ensureArray(baseEvent.cookies),
+  };
+
+  return { ...defaults, ...normalized, requestContext };
 }
 
 function logEventSummary(event) {
@@ -220,6 +239,6 @@ exports.handler = async function handler(event, context) {
     cachedServer = serverlessExpress({ app });
   }
   const safeEvent = normalizeEvent(event);
-  logEventSummary(event);
+  logEventSummary(safeEvent);
   return cachedServer(safeEvent, context);
 };
