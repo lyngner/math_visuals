@@ -26,6 +26,11 @@ cp -R "$LAMBDA_DIR/node_modules" "$BUILD_DIR/node_modules"
 rsync -a --exclude 'node_modules' "$API_SRC_DIR/" "$BUILD_DIR/api/"
 rsync -a "$PALETTE_SRC_DIR/" "$BUILD_DIR/palette/"
 
+if [ ! -f "$BUILD_DIR/palette/palette-config.js" ]; then
+  echo "palette-config.js was not bundled into the Lambda artefact" >&2
+  exit 1
+fi
+
 (
   cd "$BUILD_DIR"
   zip -qr "$ARTIFACT_PATH" .
