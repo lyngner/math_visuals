@@ -5,7 +5,7 @@ const fs = require('fs');
 const express = require('express');
 const serverlessExpress = require('@vendia/serverless-express');
 
-const API_ROOT = path.resolve(__dirname, '../../api');
+const API_ROOT = path.resolve(__dirname, 'api');
 const IGNORED_ROUTE_SEGMENTS = new Set(['_lib', '__tests__', '__mocks__']);
 
 function shouldIgnore(relativePath) {
