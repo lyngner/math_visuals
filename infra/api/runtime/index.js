@@ -5,7 +5,7 @@ const fs = require('fs');
 const express = require('express');
 const serverlessExpress = require('@vendia/serverless-express');
 
-const API_ROOT = path.resolve(__dirname, 'api');
+const API_ROOT = path.join(__dirname, 'api');
 const IGNORED_ROUTE_SEGMENTS = new Set(['_lib', '__tests__', '__mocks__']);
 
 function shouldIgnore(relativePath) {
@@ -35,6 +35,10 @@ function wrapHandler(handler, routePath) {
 
 function normalizeRoutePath(filePath) {
   const relative = path.relative(API_ROOT, filePath).replace(/\\/g, '/');
+  if (relative.startsWith('..')) {
+    // Ignore anything outside the bundled api/ folder.
+    return null;
+  }
   if (shouldIgnore(relative)) {
     return null;
   }
@@ -50,7 +54,7 @@ function normalizeRoutePath(filePath) {
     // No root-level handler is expected; skip.
     return null;
   }
-  return `/api/${routePath}`.replace(/\/+/g, '/');
+  return path.posix.join('/api', routePath);
 }
 
 function discoverHandlers() {
