@@ -86,3 +86,5 @@ Følgende GitHub Secrets må være definert for at workflowen skal lykkes:
 | `CLOUDFRONT_INVALIDATION_PATHS` | Mellomromsseparert liste over stier som skal invaliders (standard `/*`). |
 
 Secretsene over injiseres som miljøvariabler i de respektive deploy-stegene. Dersom `STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID` er tom hoppes invalidasjonssteget over automatisk.
+
+Se også den dedikerte veiledningen i [`docs/github-actions-setup.md`](docs/github-actions-setup.md) for en komplett gjennomgang av hvordan du aktiverer Actions, oppretter OIDC-rollen i AWS og verifiserer at workflowene kjører som forventet.
