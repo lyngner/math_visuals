@@ -46,6 +46,9 @@ Parameters:
       Secrets Manager to avoid storing the value in plaintext in CloudFormation
       templates.
 
+Conditions:
+  HasRedisReplicas: !Not [!Equals [!Ref RedisReplicasPerNodeGroup, 0]]
+
 Resources:
   Vpc:
     Type: AWS::EC2::VPC
@@ -134,8 +137,8 @@ Resources:
       Engine: redis
       EngineVersion: !Ref RedisEngineVersion
       CacheNodeType: !Ref RedisNodeType
-      AutomaticFailoverEnabled: true
-      MultiAZEnabled: true
+      AutomaticFailoverEnabled: !If [HasRedisReplicas, true, false]
+      MultiAZEnabled: !If [HasRedisReplicas, true, false]
       NumNodeGroups: 1
       ReplicasPerNodeGroup: !Ref RedisReplicasPerNodeGroup
       SecurityGroupIds:
@@ -158,6 +161,7 @@ Resources:
       Description: Primary writer endpoint for the Redis replication group.
 
   RedisReaderEndpointParameter:
+    Condition: HasRedisReplicas
     Type: AWS::SSM::Parameter
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
@@ -255,3 +259,4 @@ Outputs:
     Value: !Ref RedisAuthTokenSecret
     Export:
       Name: !Sub '${AWS::StackName}-RedisPasswordSecretName'
+
