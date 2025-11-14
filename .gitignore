@@ -1,4 +1,6 @@
 node_modules/
+infra/api/build/
+infra/api/api-lambda.zip
 playwright-report/
 test-results/
 .cache/
