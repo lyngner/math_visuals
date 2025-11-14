@@ -171,6 +171,7 @@ Resources:
             { target: '/perlesnor.html', aliases: ['/perlesnor'], includeExamples: true },
             { target: '/kuler.html', aliases: ['/kuler'], includeExamples: true },
             { target: '/kvikkbilder.html', aliases: ['/kvikkbilder'], includeExamples: true },
+            { target: '/kvikkbilder-monster.html', aliases: ['/kvikkbilder-monster'], includeExamples: true },
             { target: '/trefigurer.html', aliases: ['/trefigurer', '/3dfigurer'], includeExamples: true },
             { target: '/brøkvegg.html', aliases: ['/br%C3%B8kvegg', '/brkvegg'], includeExamples: true },
             { target: '/måling.html', aliases: ['/m%C3%A5ling', '/malingbeta'], includeExamples: false },
