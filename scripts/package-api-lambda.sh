@@ -6,6 +6,7 @@ LAMBDA_DIR="$ROOT_DIR/infra/api/lambda"
 BUILD_DIR="$ROOT_DIR/infra/api/build"
 RUNTIME_DIR="$ROOT_DIR/infra/api/runtime"
 API_SRC_DIR="$ROOT_DIR/api"
+PALETTE_SRC_DIR="$ROOT_DIR/palette"
 ARTIFACT_PATH="$ROOT_DIR/infra/api/api-lambda.zip"
 
 # Install production dependencies for the Lambda runtime
@@ -13,7 +14,7 @@ npm ci --omit=dev --prefix "$LAMBDA_DIR"
 
 # Prepare build directory
 rm -rf "$BUILD_DIR"
-mkdir -p "$BUILD_DIR/api"
+mkdir -p "$BUILD_DIR/api" "$BUILD_DIR/palette"
 
 cp "$RUNTIME_DIR/index.js" "$BUILD_DIR/index.js"
 cp "$LAMBDA_DIR/package.json" "$BUILD_DIR/package.json"
@@ -23,6 +24,7 @@ fi
 cp -R "$LAMBDA_DIR/node_modules" "$BUILD_DIR/node_modules"
 
 rsync -a --exclude 'node_modules' "$API_SRC_DIR/" "$BUILD_DIR/api/"
+rsync -a "$PALETTE_SRC_DIR/" "$BUILD_DIR/palette/"
 
 (
   cd "$BUILD_DIR"

@@ -19,12 +19,13 @@ npm ci --omit=dev --prefix infra/api/lambda
 
 # Bygg en isolert mappe med runtime, avhengigheter og api/
 rm -rf infra/api/build
-mkdir -p infra/api/build
+mkdir -p infra/api/build/palette
 cp infra/api/runtime/index.js infra/api/build/index.js
 cp infra/api/lambda/package.json infra/api/build/package.json
 cp infra/api/lambda/package-lock.json infra/api/build/package-lock.json 2>/dev/null || true
 cp -R infra/api/lambda/node_modules infra/api/build/node_modules
 rsync -a --exclude 'node_modules' api/ infra/api/build/api/
+rsync -a palette/ infra/api/build/palette/
 
 # Lag en zip som kan lastes opp til S3
 cd infra/api/build
