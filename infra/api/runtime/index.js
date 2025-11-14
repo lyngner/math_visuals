@@ -238,7 +238,23 @@ exports.handler = async function handler(event, context) {
     const app = createApp();
     cachedServer = serverlessExpress({ app });
   }
-  const safeEvent = normalizeEvent(event);
+  const normalizedEvent = normalizeEvent(event);
+  const safeEvent = {
+    ...normalizedEvent,
+    headers: { ...(normalizedEvent.headers || {}) },
+    multiValueHeaders: { ...(normalizedEvent.multiValueHeaders || {}) },
+    queryStringParameters: { ...(normalizedEvent.queryStringParameters || {}) },
+    multiValueQueryStringParameters:
+      {
+        ...(normalizedEvent.multiValueQueryStringParameters || {}),
+      },
+    stageVariables: { ...(normalizedEvent.stageVariables || {}) },
+    pathParameters: { ...(normalizedEvent.pathParameters || {}) },
+    requestContext: { ...(normalizedEvent.requestContext || {}) },
+    cookies: Array.isArray(normalizedEvent.cookies)
+      ? [...normalizedEvent.cookies]
+      : [],
+  };
   logEventSummary(safeEvent);
   return cachedServer(safeEvent, context);
 };
