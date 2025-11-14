@@ -159,6 +159,20 @@ aws lambda update-function-configuration \
   --environment "Variables={REDIS_ENDPOINT=$REDIS_ENDPOINT,REDIS_PORT=$REDIS_PORT,REDIS_PASSWORD=$REDIS_PASSWORD}"
 ```
 
+#### Automatisert oppdatering med skript
+
+Skriptet [`scripts/configure-lambda-redis.sh`](../../scripts/configure-lambda-redis.sh)
+pakker kommandoene over i ett steg. Det henter VPC-konfigurasjon og Redis-hemmeligheter
+fra stacken og kaller `aws lambda update-function-configuration` med korrekte
+miljøvariabler.
+
+```bash
+DATA_STACK=math-visuals-data AWS_REGION=eu-north-1 \
+  ./scripts/configure-lambda-redis.sh math-visuals-api
+```
+
+Skriptet forventer at du er logget inn med AWS CLI og at `jq` er tilgjengelig.
+
 CI/CD-systemer som SAM, CDK eller Serverless Framework kan gjøre denne
 miljøvariabelinjiseringen mer deklarativt. Poenget er uansett at verdiene hentes
 fra CloudFormation-outputs og Secrets Manager/Parameter Store i stedet for å
