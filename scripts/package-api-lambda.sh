@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LAMBDA_DIR="$ROOT_DIR/infra/api/lambda"
+BUILD_DIR="$ROOT_DIR/infra/api/build"
+RUNTIME_DIR="$ROOT_DIR/infra/api/runtime"
+API_SRC_DIR="$ROOT_DIR/api"
+ARTIFACT_PATH="$ROOT_DIR/infra/api/api-lambda.zip"
+
+# Install production dependencies for the Lambda runtime
+npm ci --omit=dev --prefix "$LAMBDA_DIR"
+
+# Prepare build directory
+rm -rf "$BUILD_DIR"
+mkdir -p "$BUILD_DIR/api"
+
+cp "$RUNTIME_DIR/index.js" "$BUILD_DIR/index.js"
+cp "$LAMBDA_DIR/package.json" "$BUILD_DIR/package.json"
+if [ -f "$LAMBDA_DIR/package-lock.json" ]; then
+  cp "$LAMBDA_DIR/package-lock.json" "$BUILD_DIR/package-lock.json"
+fi
+cp -R "$LAMBDA_DIR/node_modules" "$BUILD_DIR/node_modules"
+
+rsync -a --exclude 'node_modules' "$API_SRC_DIR/" "$BUILD_DIR/api/"
+
+(
+  cd "$BUILD_DIR"
+  zip -qr "$ARTIFACT_PATH" .
+)
+
+echo "Packaged Lambda artefact at: $ARTIFACT_PATH"
