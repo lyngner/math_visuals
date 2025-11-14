@@ -43,3 +43,12 @@ Outputs:
     Value: !Sub '/math-visuals/${EnvironmentName}/config/svg-allowed-origins'
     Export:
       Name: !Sub '${AWS::StackName}-SvgAllowedOriginsParameterName'
+
+Resources:
+  SharedStackVersionParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub '/math-visuals/${EnvironmentName}/stack/shared/version'
+      Type: String
+      Value: !Ref AWS::StackName
+      Description: Marker parameter that indicates the deployed version of the shared stack.
