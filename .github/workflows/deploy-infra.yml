@@ -21,7 +21,6 @@ jobs:
       STATIC_SITE_CLOUDFRONT_PRICE_CLASS: ${{ secrets.STATIC_SITE_CLOUDFRONT_PRICE_CLASS }}
       API_ARTIFACT_BUCKET: ${{ secrets.API_ARTIFACT_BUCKET }}
       API_ARTIFACT_KEY: ${{ secrets.API_ARTIFACT_KEY }}
-      API_ARTIFACT_VERSION: ${{ secrets.API_ARTIFACT_VERSION }}
       API_STAGE_NAME: ${{ secrets.API_STAGE_NAME }}
       CLOUDFRONT_INVALIDATION_PATHS: ${{ secrets.CLOUDFRONT_INVALIDATION_PATHS }}
       # Stack names and defaults
@@ -34,11 +33,39 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: ${{ env.AWS_IAC_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Compute Lambda artefact key
+        run: |
+          set -euo pipefail
+          base_key="${API_ARTIFACT_KEY:-lambda/api-lambda.zip}"
+          base_without_zip="${base_key%.zip}"
+          new_key="${base_without_zip}-${GITHUB_SHA}.zip"
+          echo "LAMBDA_CODE_KEY=$new_key" >> "$GITHUB_ENV"
+
+      - name: Build Lambda artefact
+        run: |
+          set -euo pipefail
+          scripts/package-api-lambda.sh
+
+      - name: Upload Lambda artefact to S3
+        run: |
+          set -euo pipefail
+          artefact_path="infra/api/api-lambda.zip"
+          aws s3 cp "$artefact_path" "s3://$API_ARTIFACT_BUCKET/$LAMBDA_CODE_KEY"
+          version_id=$(aws s3api head-object --bucket "$API_ARTIFACT_BUCKET" --key "$LAMBDA_CODE_KEY" --query 'VersionId' --output text 2>/dev/null || true)
+          if [ -n "${version_id:-}" ] && [ "$version_id" != "None" ]; then
+            echo "LAMBDA_CODE_VERSION=$version_id" >> "$GITHUB_ENV"
+          fi
 
       - name: Deploy data stack
         env:
@@ -118,15 +145,16 @@ PY
 
       - name: Deploy API stack
         run: |
+          set -euo pipefail
+          PARAM_OVERRIDES="LambdaCodeS3Bucket=$API_ARTIFACT_BUCKET LambdaCodeS3Key=$LAMBDA_CODE_KEY StageName=$API_STAGE_NAME"
+          if [ -n "${LAMBDA_CODE_VERSION:-}" ]; then
+            PARAM_OVERRIDES="$PARAM_OVERRIDES LambdaCodeS3ObjectVersion=$LAMBDA_CODE_VERSION"
+          fi
           aws cloudformation deploy \
             --stack-name "$API_STACK_NAME" \
             --template-file infra/api/template.yaml \
             --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
-            --parameter-overrides \
-              LambdaCodeS3Bucket=$API_ARTIFACT_BUCKET \
-              LambdaCodeS3Key=$API_ARTIFACT_KEY \
-              LambdaCodeS3ObjectVersion=$API_ARTIFACT_VERSION \
-              StageName=$API_STAGE_NAME
+            --parameter-overrides $PARAM_OVERRIDES
 
       - name: Deploy static site stack
         run: |
