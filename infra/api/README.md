@@ -27,6 +27,9 @@ cp -R infra/api/lambda/node_modules infra/api/build/node_modules
 rsync -a --exclude 'node_modules' api/ infra/api/build/api/
 rsync -a palette/ infra/api/build/palette/
 
+# Verifiser at `palette-config.js` ble kopiert
+test -f infra/api/build/palette/palette-config.js
+
 # Lag en zip som kan lastes opp til S3
 cd infra/api/build
 zip -r ../api-lambda.zip .
