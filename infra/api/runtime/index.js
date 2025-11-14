@@ -136,26 +136,43 @@ function createApp() {
 let cachedServer;
 
 function ensurePlainObject(value) {
-  if (!value || typeof value !== 'object') {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
   }
   return { ...value };
+}
+
+function ensureArray(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return [...value];
 }
 
 function normalizeEvent(event) {
   if (!event || typeof event !== 'object') {
     return {};
   }
-  const normalized = { ...event };
-  normalized.headers = ensurePlainObject(event.headers);
-  normalized.multiValueHeaders = ensurePlainObject(event.multiValueHeaders);
-  normalized.queryStringParameters = ensurePlainObject(event.queryStringParameters);
-  normalized.multiValueQueryStringParameters = ensurePlainObject(
-    event.multiValueQueryStringParameters
-  );
-  normalized.pathParameters = ensurePlainObject(event.pathParameters);
-  normalized.stageVariables = ensurePlainObject(event.stageVariables);
-  normalized.requestContext = ensurePlainObject(event.requestContext);
+  const requestContext = ensurePlainObject(event.requestContext);
+  if (requestContext.http) {
+    requestContext.http = ensurePlainObject(event.requestContext.http);
+  }
+  if (requestContext.authorizer) {
+    requestContext.authorizer = ensurePlainObject(event.requestContext.authorizer);
+  }
+  const normalized = {
+    ...event,
+    headers: ensurePlainObject(event.headers),
+    multiValueHeaders: ensurePlainObject(event.multiValueHeaders),
+    queryStringParameters: ensurePlainObject(event.queryStringParameters),
+    multiValueQueryStringParameters: ensurePlainObject(
+      event.multiValueQueryStringParameters
+    ),
+    pathParameters: ensurePlainObject(event.pathParameters),
+    stageVariables: ensurePlainObject(event.stageVariables),
+    requestContext,
+    cookies: ensureArray(event.cookies),
+  };
   return normalized;
 }
 
@@ -164,6 +181,6 @@ exports.handler = async function handler(event, context) {
     const app = createApp();
     cachedServer = serverlessExpress({ app });
   }
-  const normalizedEvent = normalizeEvent(event);
-  return cachedServer(normalizedEvent, context);
+  const safeEvent = normalizeEvent(event);
+  return cachedServer(safeEvent, context);
 };
