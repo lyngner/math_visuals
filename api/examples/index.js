@@ -14,6 +14,27 @@ const {
 
 const MEMORY_LIMITATION_NOTE = 'Denne instansen bruker midlertidig minnelagring. Eksempler tilbakestilles når serveren starter på nytt.';
 
+function extractQueryParams(searchParams) {
+  if (!searchParams) return {};
+  const result = {};
+  for (const key of searchParams.keys()) {
+    const values = searchParams.getAll(key);
+    result[key] = values.length > 1 ? values : values[0];
+  }
+  return result;
+}
+
+function logDebug(details) {
+  try {
+    console.log('[ExamplesDebug]', details);
+  } catch (error) {
+    console.log('[ExamplesDebug]', {
+      message: 'Failed to log debug details',
+      loggingError: error && error.message ? error.message : error,
+    });
+  }
+}
+
 function normalizeStoreMode(value) {
   if (typeof value !== 'string') return null;
   const normalized = value.trim().toLowerCase();
@@ -151,20 +172,45 @@ module.exports = async function handler(req, res) {
   }
 
   if (req.method === 'OPTIONS') {
+    logDebug({
+      method: req && req.method,
+      url: req && req.url,
+      action: 'corsPreflight',
+      statusCode: 204,
+    });
     res.statusCode = 204;
     res.end();
     return;
   }
 
   let url;
+  let queryParams = {};
   try {
     url = new URL(req.url, buildOrigin(req));
+    queryParams = extractQueryParams(url.searchParams);
   } catch (error) {
+    logDebug({
+      method: req && req.method,
+      url: req && req.url,
+      action: 'parseUrl',
+      statusCode: 400,
+      message: 'Failed to parse request URL',
+      error: error && error.message ? error.message : error,
+    });
     sendJson(res, 400, { error: 'Invalid request URL' });
     return;
   }
 
   const queryPath = normalizePath(url.searchParams.get('path'));
+
+  const baseLog = {
+    method: req.method,
+    url: req.url,
+    normalizedPath: url.pathname,
+    queryParams,
+    queryPath,
+    storeMode: currentMode,
+  };
 
   try {
     if (req.method === 'GET') {
@@ -173,11 +219,13 @@ module.exports = async function handler(req, res) {
           const entry = await getEntry(queryPath);
           if (!entry) {
             const metadata = applyModeHeaders(res, currentMode);
+            logDebug({ ...baseLog, action: 'getEntry', statusCode: 404, foundEntry: false });
             sendJson(res, 404, { error: 'Not Found', ...metadata });
             return;
           }
           const payload = augmentEntry(entry, currentMode);
           applyModeHeaders(res, payload.mode);
+          logDebug({ ...baseLog, action: 'getEntry', statusCode: 200, foundEntry: true, mode: payload.mode });
           sendJson(res, 200, payload);
           return;
         }
@@ -189,12 +237,26 @@ module.exports = async function handler(req, res) {
         const effectiveMode = payloadEntries.length ? payloadEntries[0].mode : currentMode;
         const listMetadata = buildModeMetadata(effectiveMode);
         applyModeHeaders(res, listMetadata.mode);
+        logDebug({
+          ...baseLog,
+          action: 'listEntries',
+          statusCode: 200,
+          entriesLength: entries.length,
+          mode: listMetadata.mode,
+        });
         sendJson(res, 200, { ...listMetadata, entries: payloadEntries });
         return;
       } catch (error) {
         if (error instanceof KvConfigurationError) {
           const fallbackMode = 'memory';
           const metadata = applyModeHeaders(res, fallbackMode);
+          logDebug({
+            ...baseLog,
+            action: 'kvConfigurationError',
+            statusCode: queryPath ? 404 : 200,
+            error: error.message,
+            fallbackMode,
+          });
           if (queryPath) {
             sendJson(res, 404, { error: 'Not Found', ...metadata });
             return;
@@ -209,17 +271,27 @@ module.exports = async function handler(req, res) {
     if (req.method === 'DELETE') {
       const target = queryPath;
       if (!target) {
+        logDebug({ ...baseLog, action: 'deleteEntry', statusCode: 400, error: 'Missing path parameter' });
         sendJson(res, 400, { error: 'Missing path parameter' });
         return;
       }
       try {
         await deleteEntry(target);
         const metadata = applyModeHeaders(res, currentMode);
+        logDebug({ ...baseLog, action: 'deleteEntry', statusCode: 200, deletedPath: target });
         sendJson(res, 200, { ok: true, ...metadata });
         return;
       } catch (error) {
         if (error instanceof KvConfigurationError) {
           const metadata = applyModeHeaders(res, 'memory');
+          logDebug({
+            ...baseLog,
+            action: 'deleteEntry',
+            statusCode: 404,
+            error: error.message,
+            fallbackMode: 'memory',
+            deletedPath: target,
+          });
           sendJson(res, 404, { error: 'Not Found', ...metadata });
           return;
         }
@@ -232,11 +304,23 @@ module.exports = async function handler(req, res) {
       try {
         body = await readJsonBody(req);
       } catch (error) {
+        logDebug({
+          ...baseLog,
+          action: req.method === 'POST' ? 'createEntry' : 'updateEntry',
+          statusCode: 400,
+          error: error && error.message ? error.message : 'Invalid request body',
+        });
         sendJson(res, 400, { error: error.message || 'Invalid request body' });
         return;
       }
       const target = extractPathFromBody(body, queryPath);
       if (!target) {
+        logDebug({
+          ...baseLog,
+          action: req.method === 'POST' ? 'createEntry' : 'updateEntry',
+          statusCode: 400,
+          error: 'Missing path',
+        });
         sendJson(res, 400, { error: 'Missing path' });
         return;
       }
@@ -249,11 +333,27 @@ module.exports = async function handler(req, res) {
         const entry = await setEntry(target, payload);
         const responseEntry = augmentEntry(entry, currentMode);
         applyModeHeaders(res, responseEntry.mode);
+        logDebug({
+          ...baseLog,
+          action: req.method === 'POST' ? 'createEntry' : 'updateEntry',
+          statusCode: 200,
+          mode: responseEntry.mode,
+          path: target,
+          examplesLength: Array.isArray(payload.examples) ? payload.examples.length : undefined,
+        });
         sendJson(res, 200, responseEntry);
         return;
       } catch (error) {
         if (error instanceof KvConfigurationError) {
           const metadata = applyModeHeaders(res, 'memory');
+          logDebug({
+            ...baseLog,
+            action: req.method === 'POST' ? 'createEntry' : 'updateEntry',
+            statusCode: 404,
+            error: error.message,
+            fallbackMode: 'memory',
+            path: target,
+          });
           sendJson(res, 404, { error: 'Not Found', ...metadata });
           return;
         }
@@ -261,15 +361,30 @@ module.exports = async function handler(req, res) {
       }
     }
 
+    logDebug({ ...baseLog, action: 'methodNotAllowed', statusCode: 405 });
     sendJson(res, 405, { error: 'Method Not Allowed' });
   } catch (error) {
     if (error instanceof KvConfigurationError) {
       const metadata = applyModeHeaders(res, 'memory');
+      logDebug({
+        ...baseLog,
+        action: 'kvConfigurationError',
+        statusCode: 200,
+        error: error.message,
+        fallbackMode: 'memory',
+      });
       sendJson(res, 200, { ok: true, message: error.message, ...metadata });
       return;
     }
     if (error instanceof KvOperationError) {
       const metadata = applyModeHeaders(res, currentMode);
+      logDebug({
+        ...baseLog,
+        action: 'kvOperationError',
+        statusCode: 503,
+        error: error.message,
+        kvCode: error.code,
+      });
       sendJson(res, 503, {
         error: 'KVUnavailable',
         message: error.message,
@@ -277,6 +392,12 @@ module.exports = async function handler(req, res) {
       });
       return;
     }
+    logDebug({
+      ...baseLog,
+      action: 'unhandledError',
+      statusCode: 500,
+      error: error && error.message ? error.message : 'Unknown error',
+    });
     sendJson(res, 500, {
       error: 'Internal Server Error',
       message: error && error.message ? error.message : 'Unknown error'

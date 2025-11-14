@@ -176,11 +176,50 @@ function normalizeEvent(event) {
   return normalized;
 }
 
+function logEventSummary(event) {
+  if (!event || typeof console !== 'object' || typeof console.log !== 'function') {
+    return;
+  }
+  try {
+    const requestContext = ensurePlainObject(event.requestContext);
+    const httpContext = ensurePlainObject(requestContext.http);
+    const summary = {
+      rawPath: event.rawPath || null,
+      path: event.path || null,
+      routeKey: requestContext.routeKey,
+      version: event.version,
+      queryStringParameters: ensurePlainObject(event.queryStringParameters),
+      http: httpContext.method || httpContext.path ? {
+        method: httpContext.method,
+        path: httpContext.path,
+        protocol: httpContext.protocol,
+      } : undefined,
+    };
+    const bodyLength = typeof event.body === 'string' ? event.body.length : 0;
+    if (bodyLength > 0) {
+      summary.bodyLength = bodyLength;
+      if (bodyLength <= 512) {
+        summary.bodyPreview = event.body;
+      } else {
+        summary.bodyPreview = `${event.body.slice(0, 256)}…`;
+        summary.bodyPreviewTruncated = true;
+      }
+    }
+    console.log('[ApiRuntimeDebug]', summary);
+  } catch (error) {
+    console.log('[ApiRuntimeDebug]', {
+      message: 'Failed to log event summary',
+      error: error && error.message ? error.message : error,
+    });
+  }
+}
+
 exports.handler = async function handler(event, context) {
   if (!cachedServer) {
     const app = createApp();
     cachedServer = serverlessExpress({ app });
   }
   const safeEvent = normalizeEvent(event);
+  logEventSummary(event);
   return cachedServer(safeEvent, context);
 };
