@@ -149,50 +149,29 @@ function ensureArray(value) {
   return [...value];
 }
 
-function normalizeEvent(event) {
-  if (!event || typeof event !== 'object') {
-    return {
-      headers: {},
-      multiValueHeaders: {},
-      queryStringParameters: {},
-      multiValueQueryStringParameters: {},
-      pathParameters: {},
-      stageVariables: {},
-      requestContext: { http: {}, authorizer: {} },
-      cookies: [],
-    };
-  }
+function toSafeEvent(event = {}) {
   const baseEvent = ensurePlainObject(event);
   const requestContext = ensurePlainObject(baseEvent.requestContext);
-  requestContext.http = ensurePlainObject(requestContext.http);
-  requestContext.authorizer = ensurePlainObject(requestContext.authorizer);
+  const httpContext = ensurePlainObject(requestContext.http);
+  const authorizerContext = ensurePlainObject(requestContext.authorizer);
 
-  const defaults = {
-    headers: {},
-    multiValueHeaders: {},
-    queryStringParameters: {},
-    multiValueQueryStringParameters: {},
-    pathParameters: {},
-    stageVariables: {},
-    requestContext: {},
-    cookies: [],
-  };
-
-  const normalized = {
+  return {
     ...baseEvent,
     headers: ensurePlainObject(baseEvent.headers),
     multiValueHeaders: ensurePlainObject(baseEvent.multiValueHeaders),
+    cookies: ensureArray(baseEvent.cookies),
     queryStringParameters: ensurePlainObject(baseEvent.queryStringParameters),
     multiValueQueryStringParameters: ensurePlainObject(
       baseEvent.multiValueQueryStringParameters
     ),
-    pathParameters: ensurePlainObject(baseEvent.pathParameters),
     stageVariables: ensurePlainObject(baseEvent.stageVariables),
-    requestContext,
-    cookies: ensureArray(baseEvent.cookies),
+    pathParameters: ensurePlainObject(baseEvent.pathParameters),
+    requestContext: {
+      ...requestContext,
+      http: httpContext,
+      authorizer: authorizerContext,
+    },
   };
-
-  return { ...defaults, ...normalized, requestContext };
 }
 
 function logEventSummary(event) {
@@ -238,32 +217,7 @@ exports.handler = async function handler(event, context) {
     const app = createApp();
     cachedServer = serverlessExpress({ app });
   }
-  const normalizedEvent = normalizeEvent(event);
-  const sanitizedEvent = {
-    ...normalizedEvent,
-    headers: normalizedEvent.headers ? { ...normalizedEvent.headers } : {},
-    multiValueHeaders: normalizedEvent.multiValueHeaders
-      ? { ...normalizedEvent.multiValueHeaders }
-      : {},
-    queryStringParameters: normalizedEvent.queryStringParameters
-      ? { ...normalizedEvent.queryStringParameters }
-      : {},
-    multiValueQueryStringParameters: normalizedEvent.multiValueQueryStringParameters
-      ? { ...normalizedEvent.multiValueQueryStringParameters }
-      : {},
-    stageVariables: normalizedEvent.stageVariables
-      ? { ...normalizedEvent.stageVariables }
-      : {},
-    pathParameters: normalizedEvent.pathParameters
-      ? { ...normalizedEvent.pathParameters }
-      : {},
-    requestContext: normalizedEvent.requestContext
-      ? { ...normalizedEvent.requestContext }
-      : {},
-    cookies: Array.isArray(normalizedEvent.cookies)
-      ? [...normalizedEvent.cookies]
-      : [],
-  };
-  logEventSummary(sanitizedEvent);
-  return cachedServer(sanitizedEvent, context);
+  const safeEvent = toSafeEvent(event);
+  logEventSummary(safeEvent);
+  return cachedServer(safeEvent, context);
 };
