@@ -20,6 +20,7 @@ npm ci --omit=dev --prefix infra/api/lambda
 # Bygg en isolert mappe med runtime, avhengigheter og api/
 rm -rf infra/api/build
 mkdir -p infra/api/build/palette
+# Inkluderer hele `palette/` slik at `palette-config.js` og hjelpetjenestene er tilgjengelige i `/var/task/palette/`
 cp infra/api/runtime/index.js infra/api/build/index.js
 cp infra/api/lambda/package.json infra/api/build/package.json
 cp infra/api/lambda/package-lock.json infra/api/build/package-lock.json 2>/dev/null || true
@@ -35,6 +36,8 @@ cd infra/api/build
 zip -r ../api-lambda.zip .
 cd -
 ```
+
+Disse stegene finnes også automatisert i `scripts/package-api-lambda.sh`, som brukes til å produsere en zip hvor `palette/`-mappen alltid er inkludert.
 
 Last opp `infra/api/api-lambda.zip` til ønsket S3-bucket og nøkkel, og bruk deretter CloudFormation/SAM til å deploye:
 
