@@ -20,6 +20,7 @@
     "seed-examples": "node scripts/seed-examples.mjs",
     "sync-svg-archive": "node scripts/sync-svg-archive.js",
     "migrate-figure-library-assets": "node scripts/migrate-figure-library-assets.js",
+    "package-api-lambda": "bash scripts/package-api-lambda.sh",
     "start": "npx http-server -c-1"
   },
   "keywords": [],
