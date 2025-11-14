@@ -239,22 +239,31 @@ exports.handler = async function handler(event, context) {
     cachedServer = serverlessExpress({ app });
   }
   const normalizedEvent = normalizeEvent(event);
-  const safeEvent = {
+  const sanitizedEvent = {
     ...normalizedEvent,
-    headers: { ...(normalizedEvent.headers || {}) },
-    multiValueHeaders: { ...(normalizedEvent.multiValueHeaders || {}) },
-    queryStringParameters: { ...(normalizedEvent.queryStringParameters || {}) },
-    multiValueQueryStringParameters:
-      {
-        ...(normalizedEvent.multiValueQueryStringParameters || {}),
-      },
-    stageVariables: { ...(normalizedEvent.stageVariables || {}) },
-    pathParameters: { ...(normalizedEvent.pathParameters || {}) },
-    requestContext: { ...(normalizedEvent.requestContext || {}) },
+    headers: normalizedEvent.headers ? { ...normalizedEvent.headers } : {},
+    multiValueHeaders: normalizedEvent.multiValueHeaders
+      ? { ...normalizedEvent.multiValueHeaders }
+      : {},
+    queryStringParameters: normalizedEvent.queryStringParameters
+      ? { ...normalizedEvent.queryStringParameters }
+      : {},
+    multiValueQueryStringParameters: normalizedEvent.multiValueQueryStringParameters
+      ? { ...normalizedEvent.multiValueQueryStringParameters }
+      : {},
+    stageVariables: normalizedEvent.stageVariables
+      ? { ...normalizedEvent.stageVariables }
+      : {},
+    pathParameters: normalizedEvent.pathParameters
+      ? { ...normalizedEvent.pathParameters }
+      : {},
+    requestContext: normalizedEvent.requestContext
+      ? { ...normalizedEvent.requestContext }
+      : {},
     cookies: Array.isArray(normalizedEvent.cookies)
       ? [...normalizedEvent.cookies]
       : [],
   };
-  logEventSummary(safeEvent);
-  return cachedServer(safeEvent, context);
+  logEventSummary(sanitizedEvent);
+  return cachedServer(sanitizedEvent, context);
 };
