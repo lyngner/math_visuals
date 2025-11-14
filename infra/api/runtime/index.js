@@ -135,10 +135,35 @@ function createApp() {
 
 let cachedServer;
 
+function ensurePlainObject(value) {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  return { ...value };
+}
+
+function normalizeEvent(event) {
+  if (!event || typeof event !== 'object') {
+    return {};
+  }
+  const normalized = { ...event };
+  normalized.headers = ensurePlainObject(event.headers);
+  normalized.multiValueHeaders = ensurePlainObject(event.multiValueHeaders);
+  normalized.queryStringParameters = ensurePlainObject(event.queryStringParameters);
+  normalized.multiValueQueryStringParameters = ensurePlainObject(
+    event.multiValueQueryStringParameters
+  );
+  normalized.pathParameters = ensurePlainObject(event.pathParameters);
+  normalized.stageVariables = ensurePlainObject(event.stageVariables);
+  normalized.requestContext = ensurePlainObject(event.requestContext);
+  return normalized;
+}
+
 exports.handler = async function handler(event, context) {
   if (!cachedServer) {
     const app = createApp();
     cachedServer = serverlessExpress({ app });
   }
-  return cachedServer(event, context);
+  const normalizedEvent = normalizeEvent(event);
+  return cachedServer(normalizedEvent, context);
 };
