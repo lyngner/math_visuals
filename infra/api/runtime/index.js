@@ -143,32 +143,18 @@ function ensurePlainObject(value) {
 }
 
 function toSafeEvent(event = {}) {
-  const safeEvent = {
+  return {
     ...event,
     headers: event.headers || {},
     multiValueHeaders: event.multiValueHeaders || {},
-    cookies: Array.isArray(event.cookies) ? [...event.cookies] : [],
+    cookies: Array.isArray(event.cookies) ? event.cookies : [],
     queryStringParameters: event.queryStringParameters || {},
     multiValueQueryStringParameters:
       event.multiValueQueryStringParameters || {},
-    stageVariables: event.stageVariables || {},
     pathParameters: event.pathParameters || {},
-    requestContext: {
-      ...(event.requestContext || {}),
-    },
+    stageVariables: event.stageVariables || {},
+    requestContext: event.requestContext || {},
   };
-
-  if (safeEvent.requestContext.http) {
-    safeEvent.requestContext.http = { ...safeEvent.requestContext.http };
-  }
-
-  if (safeEvent.requestContext.authorizer) {
-    safeEvent.requestContext.authorizer = {
-      ...safeEvent.requestContext.authorizer,
-    };
-  }
-
-  return safeEvent;
 }
 
 function logEventSummary(event) {
@@ -212,9 +198,9 @@ function logEventSummary(event) {
 exports.handler = async function handler(event, context) {
   if (!cachedServer) {
     const app = createApp();
-    cachedServer = app;
+    cachedServer = serverlessExpress({ app });
   }
   const safeEvent = toSafeEvent(event);
   logEventSummary(safeEvent);
-  return serverlessExpress({ app: cachedServer })(safeEvent, context);
+  return cachedServer(safeEvent, context);
 };
