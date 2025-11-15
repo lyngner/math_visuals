@@ -133,28 +133,13 @@ function createApp() {
   return app;
 }
 
-let cachedServer;
+let cachedApp;
 
 function ensurePlainObject(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {};
   }
   return { ...value };
-}
-
-function toSafeEvent(event = {}) {
-  return {
-    ...event,
-    headers: event.headers || {},
-    multiValueHeaders: event.multiValueHeaders || {},
-    cookies: Array.isArray(event.cookies) ? event.cookies : [],
-    queryStringParameters: event.queryStringParameters || {},
-    multiValueQueryStringParameters:
-      event.multiValueQueryStringParameters || {},
-    pathParameters: event.pathParameters || {},
-    stageVariables: event.stageVariables || {},
-    requestContext: event.requestContext || {},
-  };
 }
 
 function logEventSummary(event) {
@@ -195,12 +180,27 @@ function logEventSummary(event) {
   }
 }
 
+function toSafeEvent(event = {}) {
+  return {
+    ...event,
+    headers: event.headers || {},
+    multiValueHeaders: event.multiValueHeaders || {},
+    cookies: Array.isArray(event.cookies) ? event.cookies : [],
+    queryStringParameters: event.queryStringParameters || {},
+    multiValueQueryStringParameters:
+      event.multiValueQueryStringParameters || {},
+    pathParameters: event.pathParameters || {},
+    stageVariables: event.stageVariables || {},
+    requestContext: event.requestContext || {},
+  };
+}
+
 exports.handler = async function handler(event, context) {
-  if (!cachedServer) {
-    const app = createApp();
-    cachedServer = serverlessExpress({ app });
+  if (!cachedApp) {
+    cachedApp = createApp();
   }
+  const app = cachedApp;
   const safeEvent = toSafeEvent(event);
   logEventSummary(safeEvent);
-  return cachedServer(safeEvent, context);
+  return serverlessExpress({ app })(safeEvent, context);
 };
