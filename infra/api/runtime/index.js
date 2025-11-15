@@ -180,6 +180,10 @@ function logEventSummary(event) {
   }
 }
 
+function ensureArray(value) {
+  return Array.isArray(value) ? [...value] : [];
+}
+
 function toSafeEvent(event = {}) {
   const headers = ensurePlainObject(event.headers);
   const multiValueHeaders = ensurePlainObject(event.multiValueHeaders);
@@ -190,17 +194,27 @@ function toSafeEvent(event = {}) {
   const pathParameters = ensurePlainObject(event.pathParameters);
   const stageVariables = ensurePlainObject(event.stageVariables);
   const requestContext = ensurePlainObject(event.requestContext);
+  const authorizer = ensurePlainObject(requestContext.authorizer);
+  const lambdaAuthorizer = ensurePlainObject(authorizer.lambda);
+  const httpContext = ensurePlainObject(requestContext.http);
 
   return {
     ...event,
     headers,
     multiValueHeaders,
-    cookies: Array.isArray(event.cookies) ? [...event.cookies] : [],
+    cookies: ensureArray(event.cookies),
     queryStringParameters,
     multiValueQueryStringParameters,
     pathParameters,
     stageVariables,
-    requestContext,
+    requestContext: {
+      ...requestContext,
+      authorizer: {
+        ...authorizer,
+        lambda: lambdaAuthorizer,
+      },
+      http: httpContext,
+    },
   };
 }
 
