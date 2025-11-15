@@ -142,36 +142,33 @@ function ensurePlainObject(value) {
   return { ...value };
 }
 
-function ensureArray(value) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return [...value];
-}
-
 function toSafeEvent(event = {}) {
-  const baseEvent = ensurePlainObject(event);
-  const requestContext = ensurePlainObject(baseEvent.requestContext);
-  const httpContext = ensurePlainObject(requestContext.http);
-  const authorizerContext = ensurePlainObject(requestContext.authorizer);
-
-  return {
-    ...baseEvent,
-    headers: ensurePlainObject(baseEvent.headers),
-    multiValueHeaders: ensurePlainObject(baseEvent.multiValueHeaders),
-    cookies: ensureArray(baseEvent.cookies),
-    queryStringParameters: ensurePlainObject(baseEvent.queryStringParameters),
-    multiValueQueryStringParameters: ensurePlainObject(
-      baseEvent.multiValueQueryStringParameters
-    ),
-    stageVariables: ensurePlainObject(baseEvent.stageVariables),
-    pathParameters: ensurePlainObject(baseEvent.pathParameters),
+  const safeEvent = {
+    ...event,
+    headers: event.headers || {},
+    multiValueHeaders: event.multiValueHeaders || {},
+    cookies: Array.isArray(event.cookies) ? [...event.cookies] : [],
+    queryStringParameters: event.queryStringParameters || {},
+    multiValueQueryStringParameters:
+      event.multiValueQueryStringParameters || {},
+    stageVariables: event.stageVariables || {},
+    pathParameters: event.pathParameters || {},
     requestContext: {
-      ...requestContext,
-      http: httpContext,
-      authorizer: authorizerContext,
+      ...(event.requestContext || {}),
     },
   };
+
+  if (safeEvent.requestContext.http) {
+    safeEvent.requestContext.http = { ...safeEvent.requestContext.http };
+  }
+
+  if (safeEvent.requestContext.authorizer) {
+    safeEvent.requestContext.authorizer = {
+      ...safeEvent.requestContext.authorizer,
+    };
+  }
+
+  return safeEvent;
 }
 
 function logEventSummary(event) {
@@ -215,9 +212,9 @@ function logEventSummary(event) {
 exports.handler = async function handler(event, context) {
   if (!cachedServer) {
     const app = createApp();
-    cachedServer = serverlessExpress({ app });
+    cachedServer = app;
   }
   const safeEvent = toSafeEvent(event);
   logEventSummary(safeEvent);
-  return cachedServer(safeEvent, context);
+  return serverlessExpress({ app: cachedServer })(safeEvent, context);
 };
