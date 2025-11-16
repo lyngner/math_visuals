@@ -41,11 +41,15 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
-  CloudFrontOriginAccessIdentity:
-    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+  SiteOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
     Properties:
-      CloudFrontOriginAccessIdentityConfig:
-        Comment: Access identity for math visuals static assets bucket
+      OriginAccessControlConfig:
+        Description: Access control for math visuals static assets bucket
+        Name: !Sub '${AWS::StackName}-s3-oac'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
 
   SiteBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -57,10 +61,26 @@ Resources:
           - Sid: AllowCloudFrontServicePrincipalReadOnly
             Effect: Allow
             Principal:
-              CanonicalUser: !GetAtt CloudFrontOriginAccessIdentity.S3CanonicalUserId
+              Service: cloudfront.amazonaws.com
             Action:
               - s3:GetObject
             Resource: !Sub '${SiteBucket.Arn}/*'
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
+
+  ApiOriginRequestPolicy:
+    Type: AWS::CloudFront::OriginRequestPolicy
+    Properties:
+      OriginRequestPolicyConfig:
+        Name: !Sub '${AWS::StackName}-api-origin-request-policy'
+        Comment: Forward all query strings required by API Gateway path parameters
+        CookiesConfig:
+          CookieBehavior: none
+        HeadersConfig:
+          HeaderBehavior: none
+        QueryStringsConfig:
+          QueryStringBehavior: all
 
   ViewerRequestRouterFunction:
     Type: AWS::CloudFront::Function
@@ -216,8 +236,8 @@ Resources:
         Origins:
           - Id: SiteBucketOrigin
             DomainName: !GetAtt SiteBucket.RegionalDomainName
-            S3OriginConfig:
-              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${CloudFrontOriginAccessIdentity}'
+            S3OriginConfig: {}
+            OriginAccessControlId: !GetAtt SiteOriginAccessControl.Id
           - Id: ApiGatewayOrigin
             DomainName: !Ref ApiGatewayDomainName
             OriginPath: !Ref ApiGatewayOriginPath
@@ -246,6 +266,21 @@ Resources:
             Cookies:
               Forward: none
         CacheBehaviors:
+          - PathPattern: '/sortering/eksempel*'
+            TargetOriginId: SiteBucketOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+            Compress: true
+            ForwardedValues:
+              QueryString: true
+              Cookies:
+                Forward: none
           - PathPattern: '/sortering*'
             TargetOriginId: SiteBucketOrigin
             ViewerProtocolPolicy: redirect-to-https
@@ -272,10 +307,8 @@ Resources:
               - GET
               - HEAD
             Compress: true
-            ForwardedValues:
-              QueryString: true
-              Cookies:
-                Forward: none
+            CachePolicyId: 413fd3bd-6cbb-4b1c-969e-326cdc361f5c # Managed-CachingDisabled
+            OriginRequestPolicyId: !Ref ApiOriginRequestPolicy
           - PathPattern: '/svg/*'
             TargetOriginId: ApiGatewayOrigin
             ViewerProtocolPolicy: https-only
@@ -287,10 +320,8 @@ Resources:
               - GET
               - HEAD
             Compress: true
-            ForwardedValues:
-              QueryString: true
-              Cookies:
-                Forward: none
+            CachePolicyId: 413fd3bd-6cbb-4b1c-969e-326cdc361f5c # Managed-CachingDisabled
+            OriginRequestPolicyId: !Ref ApiOriginRequestPolicy
           - PathPattern: '/figure-library/*'
             TargetOriginId: ApiGatewayOrigin
             ViewerProtocolPolicy: https-only
@@ -302,10 +333,8 @@ Resources:
               - GET
               - HEAD
             Compress: true
-            ForwardedValues:
-              QueryString: true
-              Cookies:
-                Forward: none
+            CachePolicyId: 413fd3bd-6cbb-4b1c-969e-326cdc361f5c # Managed-CachingDisabled
+            OriginRequestPolicyId: !Ref ApiOriginRequestPolicy
         ViewerCertificate:
           CloudFrontDefaultCertificate: true
 

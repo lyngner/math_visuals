@@ -9,19 +9,20 @@ The [`template.yaml`](./template.yaml) file configures the following resources:
 
 - A versioned S3 bucket for storing the compiled `public/` artefacts.
 - A CloudFront distribution fronting the bucket, including an origin access
-  identity so that the bucket can remain private.
+  control so that the bucket can remain private without exposing public ACLs.
 - Behaviours that route API-backed paths to an API Gateway origin while letting
   `/sortering` paths resolve to S3 objects.
 
 ### CloudFront behaviours
 
-| Path pattern          | Origin             | Query string forwarding |
-| --------------------- | ------------------ | ----------------------- |
-| Default (`*`)         | S3 static assets   | No                      |
-| `/sortering*`         | S3 static assets   | Yes                     |
-| `/bildearkiv/*`       | API Gateway origin | Yes                     |
-| `/svg/*`              | API Gateway origin | Yes                     |
-| `/figure-library/*`   | API Gateway origin | Yes                     |
+| Path pattern            | Origin             | Query string forwarding |
+| ----------------------- | ------------------ | ----------------------- |
+| Default (`*`)           | S3 static assets   | No                      |
+| `/sortering/eksempel*`  | S3 static assets   | Yes                     |
+| `/sortering*`           | S3 static assets   | Yes                     |
+| `/bildearkiv/*`         | API Gateway origin | Yes                     |
+| `/svg/*`                | API Gateway origin | Yes                     |
+| `/figure-library/*`     | API Gateway origin | Yes                     |
 
 Viewer request rewrites are handled by an attached CloudFront Function that
 normalises "friendly" app routes (for example `/tenkeblokker/eksempel1`) to
