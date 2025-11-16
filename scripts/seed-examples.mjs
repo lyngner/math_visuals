@@ -9,6 +9,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 const DEFAULT_DATASET_PATH = path.join(ROOT_DIR, 'docs', 'examples-seed.json');
+const SAMPLE_DATASET_PATH = path.join(ROOT_DIR, 'docs', 'examples-seed.sample.json');
 const requiredKeys = ['REDIS_ENDPOINT', 'REDIS_PORT', 'REDIS_PASSWORD'];
 
 const require = createRequire(import.meta.url);
@@ -25,6 +26,7 @@ function printHelp() {
   console.log('Bruk: node scripts/seed-examples.mjs [--dataset=fil.json] [--dry-run] [--help]');
   console.log('');
   console.log('Skriptet fyller Redis-lageret med standardeksemplene definert i docs/examples-seed.json.');
+  console.log('Filen er git-ignorert – bruk docs/examples-seed.sample.json som utgangspunkt.');
   console.log('  --dataset   Sti til JSON-fil med entries/trash (standard: docs/examples-seed.json).');
   console.log('  --dry-run   Leser og validerer datasettet uten å skrive til lagringen.');
   console.log('  --help      Viser denne hjelpen.');
@@ -78,7 +80,12 @@ async function loadDataset(datasetPath) {
   try {
     raw = await readFile(resolvedPath, 'utf8');
   } catch (error) {
-    throw new Error(`Kunne ikke lese datasettet (${resolvedPath}): ${error && error.message ? error.message : error}`);
+    const missingFileHint = error && error.code === 'ENOENT'
+      ? ` Opprett filen ved å kopiere ${SAMPLE_DATASET_PATH}.`
+      : '';
+    throw new Error(
+      `Kunne ikke lese datasettet (${resolvedPath}): ${error && error.message ? error.message : error}.${missingFileHint}`,
+    );
   }
   let parsed;
   try {

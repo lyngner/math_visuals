@@ -1,0 +1,61 @@
+{
+  "entries": [
+    {
+      "path": "/diagram",
+      "examples": [
+        {
+          "description": "Eksempel på søylediagram",
+          "exampleNumber": "1",
+          "isDefault": true,
+          "config": {
+            "diagram": {
+              "title": "Bøker lest per måned",
+              "categories": ["Jan", "Feb", "Mar"],
+              "series": [
+                {
+                  "name": "6. trinn",
+                  "values": [12, 15, 11]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "deletedProvided": []
+    },
+    {
+      "path": "/perlesnor",
+      "examples": [
+        {
+          "description": "Tallinje for repetisjon",
+          "exampleNumber": "2",
+          "config": {
+            "pearls": {
+              "min": 0,
+              "max": 20,
+              "highlight": [5, 10, 15]
+            }
+          }
+        }
+      ],
+      "deletedProvided": [
+        {
+          "description": "Utgått øvelse",
+          "exampleNumber": "old-1"
+        }
+      ]
+    }
+  ],
+  "trash": [
+    {
+      "path": "/diagram",
+      "examples": [
+        {
+          "description": "Gammelt søylediagram",
+          "exampleNumber": "trash-1",
+          "config": {}
+        }
+      ]
+    }
+  ]
+}

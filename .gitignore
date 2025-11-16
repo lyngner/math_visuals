@@ -7,3 +7,5 @@ test-results/
 .data/
 artifacts/
 public/
+
+docs/examples-seed.json
