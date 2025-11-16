@@ -221,6 +221,27 @@ function sanitizeHttpContext(httpContext, fallbackPath) {
   return result;
 }
 
+function stripStagePrefix(pathValue, stageName) {
+  const pathString = ensureString(pathValue);
+  if (!pathString) {
+    return pathString;
+  }
+  const normalizedStage = ensureString(stageName).replace(/^\/+/, '').replace(/\/+$/, '');
+  if (!normalizedStage) {
+    return pathString;
+  }
+  const stagePrefix = `/${normalizedStage}`;
+  if (pathString === stagePrefix) {
+    return '/';
+  }
+  const stagePrefixWithSlash = `${stagePrefix}/`;
+  if (pathString.startsWith(stagePrefixWithSlash)) {
+    const stripped = pathString.slice(stagePrefix.length);
+    return stripped.startsWith('/') ? stripped : `/${stripped}`;
+  }
+  return pathString;
+}
+
 function toSafeEvent(event = {}) {
   const headers = normalizeRecordOfStrings(event.headers);
   const multiValueHeaders = normalizeRecordOfStringArrays(event.multiValueHeaders);
@@ -234,14 +255,24 @@ function toSafeEvent(event = {}) {
   const authorizer = ensurePlainObject(requestContext.authorizer);
   const lambdaAuthorizer = ensurePlainObject(authorizer.lambda);
   const httpContext = ensurePlainObject(requestContext.http);
-  const rawPath = ensureString(event.rawPath) || ensureString(event.path) || '/';
+  const rawPathInput = ensureString(event.rawPath) || ensureString(event.path) || '/';
+  const rawPath = stripStagePrefix(rawPathInput, requestContext.stage) || '/';
   const rawQueryString = ensureString(event.rawQueryString);
+  const normalizedPath = stripStagePrefix(ensureString(event.path), requestContext.stage) || rawPath;
+  const httpPath = stripStagePrefix(httpContext.path, requestContext.stage) || rawPath;
+  const sanitizedHttpContext = sanitizeHttpContext(
+    {
+      ...httpContext,
+      path: httpPath,
+    },
+    rawPath,
+  );
 
   return {
     ...event,
     version: ensureString(event.version, '2.0'),
     rawPath,
-    path: ensureString(event.path) || rawPath,
+    path: normalizedPath,
     rawQueryString,
     headers,
     multiValueHeaders,
@@ -259,7 +290,7 @@ function toSafeEvent(event = {}) {
         ...authorizer,
         lambda: lambdaAuthorizer,
       },
-      http: sanitizeHttpContext(httpContext, rawPath),
+      http: sanitizedHttpContext,
     },
   };
 }
@@ -273,3 +304,5 @@ exports.handler = async function handler(event, context) {
   logEventSummary(safeEvent);
   return serverlessExpress({ app })(safeEvent, context);
 };
+
+exports.toSafeEvent = toSafeEvent;
