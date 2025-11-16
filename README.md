@@ -63,6 +63,10 @@ Når alle stacker er oppdatert kan workflowen (valgfritt) invalidere CloudFront-
 
 > **Avvikle Vercel:** Når AWS-distribusjonen er verifisert kan den gamle Vercel-instansen fjernes. Følg sjekklisten i `docs/examples-storage.md` (flytt DNS til CloudFront, eksporter eventuelle resterende data via AWS-stacken, slett Upstash/KV i Vercel og steng prosjektet).
 
+### Manuell opplasting
+
+Hvis CI/CD ikke er tilgjengelig kan du følge stegene i [`docs/manual-static-deploy.md`](docs/manual-static-deploy.md) for å bygge lokalt, synkronisere `public/` til S3 og koble bøtta til CloudFront med Origin Access Control.
+
 ### Påkrevde secrets
 
 Følgende GitHub Secrets må være definert for at workflowen skal lykkes:
