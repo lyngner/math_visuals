@@ -331,6 +331,121 @@ aws ssm put-parameter \
 
 Gi Lambda-funksjonen IAM-policyer for å lese `math-visuals/${ENVIRONMENT_NAME}/redis/password` og de to Parameter Store-verdiene. Merk at selve Secrets Manager-secreten kun inneholder auth-tokenet (`authToken`) definert i `infra/data/template.yaml`, mens host/port-verdiene ligger i SSM-parametrene (eksponert gjennom outputs som `RedisEndpointParameterName` og `RedisPortParameterName`).【F:infra/data/template.yaml†L93-L157】【F:infra/data/template.yaml†L160-L213】 Verdiene kan lastes inn ved hjelp av `AWS.SecretsManager` og `AWS.SSM` i Lambda-koden eller gjennom miljøvariabler under `aws lambda update-function-configuration`.
 
+#### Komplett CloudShell-oppstart (kan limes inn når økten har restartet)
+
+Hvis CloudShell-taben lukkes eller du må begynne helt på nytt, kan du lime inn blokken under uten endringer. Skriptet sikrer at CLI-verktøyene finnes, genererer et tilfeldig auth-token, (re)distribuerer `math-visuals-shared` og `math-visuals-data`, og fyller Secrets Manager/Parameter Store med riktige verdier. Du kan overstyre standardene ved å skrive inn nye verdier når skriptet spør, men Enter godtar forslagene som allerede matcher produksjonsoppsettet.
+
+```bash
+bash <<'MV_BOOTSTRAP'
+set -euo pipefail
+
+need_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "Kommandoen '$1' finnes ikke i CloudShell." >&2; exit 1; }; }
+need_cmd aws
+need_cmd jq
+need_cmd openssl
+
+prompt() { local label="$1" default="$2" value; read -rp "$label [$default]: " value; printf '%s' "${value:-$default}"; }
+
+RUNTIME_REGION=$(prompt "Region for S3/Lambda/API" "eu-west-1")
+INFRA_REGION=$(prompt "Region for data/shared stacker" "eu-north-1")
+ENVIRONMENT=$(prompt "Miljønavn" "prod")
+SHARED_STACK=$(prompt "Navn på shared-parameterstack" "math-visuals-shared")
+DATA_STACK=$(prompt "Navn på data-stack" "math-visuals-data")
+STATIC_STACK=$(prompt "Navn på statisk CloudFront-stack" "math-visuals-static-site")
+
+AUTH_TOKEN=$(openssl rand -base64 48 | tr -d '\n' | head -c 48)
+echo "Generert Redis auth-token: $AUTH_TOKEN"
+
+echo "\n==> Sikrer $SHARED_STACK ($INFRA_REGION)"
+aws cloudformation deploy \
+  --region "$INFRA_REGION" \
+  --stack-name "$SHARED_STACK" \
+  --template-file infra/shared-parameters.yaml \
+  --parameter-overrides EnvironmentName="$ENVIRONMENT"
+
+echo "\n==> Fjerner ev. eldre data-stack og hemmelighet"
+aws cloudformation delete-stack --region "$INFRA_REGION" --stack-name "$DATA_STACK" 2>/dev/null || true
+aws cloudformation wait stack-delete-complete --region "$INFRA_REGION" --stack-name "$DATA_STACK" 2>/dev/null || true
+aws secretsmanager delete-secret \
+  --region "$INFRA_REGION" \
+  --secret-id "math-visuals/$ENVIRONMENT/redis/password" \
+  --force-delete-without-recovery 2>/dev/null || true
+
+echo "\n==> Deploy $DATA_STACK ($INFRA_REGION) med nytt auth-token"
+aws cloudformation deploy \
+  --region "$INFRA_REGION" \
+  --stack-name "$DATA_STACK" \
+  --template-file infra/data/template.yaml \
+  --capabilities CAPABILITY_IAM \
+  --parameter-overrides \
+      EnvironmentName="$ENVIRONMENT" \
+      SharedParametersStackName="$SHARED_STACK" \
+      RedisAuthToken="$AUTH_TOKEN"
+
+echo "\n==> Leser outputs for Parameter Store og CloudFront"
+EXAMPLES_ALLOWED_ORIGINS=$(aws cloudformation describe-stacks \
+  --region "$INFRA_REGION" \
+  --stack-name "$SHARED_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`ExamplesAllowedOriginsParameterName`].OutputValue' \
+  --output text)
+
+SVG_ALLOWED_ORIGINS=$(aws cloudformation describe-stacks \
+  --region "$INFRA_REGION" \
+  --stack-name "$SHARED_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`SvgAllowedOriginsParameterName`].OutputValue' \
+  --output text)
+
+REDIS_SECRET_NAME=$(aws cloudformation describe-stacks \
+  --region "$INFRA_REGION" \
+  --stack-name "$DATA_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`RedisPasswordSecretName`].OutputValue' \
+  --output text)
+
+REDIS_ENDPOINT_PARAM=$(aws cloudformation describe-stacks \
+  --region "$INFRA_REGION" \
+  --stack-name "$DATA_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`RedisEndpointParameterName`].OutputValue' \
+  --output text)
+
+REDIS_PORT_PARAM=$(aws cloudformation describe-stacks \
+  --region "$INFRA_REGION" \
+  --stack-name "$DATA_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`RedisPortParameterName`].OutputValue' \
+  --output text)
+
+CLOUDFRONT_DOMAIN=$(aws cloudformation describe-stacks \
+  --region "$INFRA_REGION" \
+  --stack-name "$STATIC_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionDomainName`].OutputValue' \
+  --output text)
+
+ALLOWLIST_VALUE="https://$CLOUDFRONT_DOMAIN,https://mathvisuals.no,https://app.mathvisuals.no"
+
+echo "\n==> Legger inn auth-token og allow-lister"
+aws secretsmanager put-secret-value \
+  --region "$INFRA_REGION" \
+  --secret-id "$REDIS_SECRET_NAME" \
+  --secret-string "{\"authToken\":\"$AUTH_TOKEN\"}"
+
+for PARAM in "$EXAMPLES_ALLOWED_ORIGINS" "$SVG_ALLOWED_ORIGINS"; do
+  aws ssm put-parameter \
+    --region "$INFRA_REGION" \
+    --name "$PARAM" \
+    --type StringList \
+    --value "$ALLOWLIST_VALUE" \
+    --overwrite
+done
+
+echo "\n==> Ferdig! Disse verdiene kan eksporteres i samme shell:"
+echo "Redis secret:        $REDIS_SECRET_NAME"
+echo "Redis endpoint param: $REDIS_ENDPOINT_PARAM"
+echo "Redis port param:     $REDIS_PORT_PARAM"
+echo "Allow-list verdi:     $ALLOWLIST_VALUE"
+MV_BOOTSTRAP
+```
+
+Kjør skriptet når en CloudShell-økt har restartet eller når `math-visuals-data` er i `ROLLBACK_COMPLETE`. Når blokken er ferdig kan du hente selve verdiene med `scripts/cloudshell-check-examples.sh` eller `aws ssm get-parameter` som beskrevet over, og fortsette med Lambda/API-utrulling uten flere manuelle tilpasninger.
+
 ### ACM-sertifikat, CloudFront-alias og DNS
 
 Når CloudFront-distribusjonen er testet på sitt generiske domenenavn må den knyttes til et egendefinert domene. Prosessen består av tre steg:
