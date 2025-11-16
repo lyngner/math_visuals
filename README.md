@@ -43,7 +43,7 @@ Flere funksjoner (for eksempel `api/diagram-alt-text.js` og `api/figurtall-alt-t
 ## Teknologivalg
 
 * **Frontend:** Vanilla HTML, CSS og JavaScript supplert med JSXGraph, MathLive og skreddersydde UI-komponenter.
-* **Bygg og deling:** Rollup for pakkene i `packages/`, `npm`-skript for utvikleropplevelsen og Vercel for distribusjon av både statiske filer og serverløse funksjoner.
+* **Bygg og deling:** Rollup for pakkene i `packages/`, `npm`-skript for utvikleropplevelsen og et AWS-oppsett der statiske apper lever på S3 bak CloudFront, mens backend-endepunkter eksponeres via API Gateway og Lambda.
 * **Testing og kvalitet:** Playwright-scenarier og interne verktøy i `scripts/` sikrer at appene leverer konsistent oppførsel og at API-kontraktene opprettholdes.
 ## Videre arbeid
 
@@ -61,7 +61,7 @@ Produksjonsmiljøet deployes via GitHub Actions-workflowen [`deploy-infra.yml`](
 
 Når alle stacker er oppdatert kan workflowen (valgfritt) invalidere CloudFront-distribusjonen slik at nye filer serveres umiddelbart.
 
-> **Avvikle Vercel:** Når AWS-distribusjonen er verifisert kan den gamle Vercel-instansen fjernes. Følg sjekklisten i `docs/examples-storage.md` (flytt DNS til CloudFront, eksporter eventuelle resterende data via AWS-stacken, slett Upstash/KV i Vercel og steng prosjektet).
+> **Avvikle Vercel:** Produksjonen kjøres allerede i AWS, men når de siste etterkontrollene er ferdige kan den gamle Vercel-instansen fjernes. Følg sjekklisten i `docs/examples-storage.md` (flytt DNS til CloudFront, eksporter eventuelle resterende data via AWS-stacken, slett Upstash/KV i Vercel og steng prosjektet).
 
 ### Påkrevde secrets
 
