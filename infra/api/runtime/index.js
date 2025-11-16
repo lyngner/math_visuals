@@ -184,11 +184,48 @@ function ensureArray(value) {
   return Array.isArray(value) ? [...value] : [];
 }
 
+function ensureString(value, fallback = '') {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function normalizeRecordOfStrings(record) {
+  const normalized = {};
+  for (const [key, value] of Object.entries(ensurePlainObject(record))) {
+    if (value === undefined || value === null) {
+      continue;
+    }
+    normalized[String(key)] = String(value);
+  }
+  return normalized;
+}
+
+function normalizeRecordOfStringArrays(record) {
+  const normalized = {};
+  for (const [key, value] of Object.entries(ensurePlainObject(record))) {
+    const arrayValue = ensureArray(value).map(item => String(item));
+    normalized[String(key)] = arrayValue;
+  }
+  return normalized;
+}
+
+function sanitizeHttpContext(httpContext, fallbackPath) {
+  const method = ensureString(httpContext.method) || 'GET';
+  const pathValue = ensureString(httpContext.path) || fallbackPath;
+  const protocol = ensureString(httpContext.protocol) || 'HTTP/1.1';
+  const result = {
+    ...httpContext,
+    method,
+    path: pathValue,
+    protocol,
+  };
+  return result;
+}
+
 function toSafeEvent(event = {}) {
-  const headers = ensurePlainObject(event.headers);
-  const multiValueHeaders = ensurePlainObject(event.multiValueHeaders);
-  const queryStringParameters = ensurePlainObject(event.queryStringParameters);
-  const multiValueQueryStringParameters = ensurePlainObject(
+  const headers = normalizeRecordOfStrings(event.headers);
+  const multiValueHeaders = normalizeRecordOfStringArrays(event.multiValueHeaders);
+  const queryStringParameters = normalizeRecordOfStrings(event.queryStringParameters);
+  const multiValueQueryStringParameters = normalizeRecordOfStringArrays(
     event.multiValueQueryStringParameters,
   );
   const pathParameters = ensurePlainObject(event.pathParameters);
@@ -197,23 +234,32 @@ function toSafeEvent(event = {}) {
   const authorizer = ensurePlainObject(requestContext.authorizer);
   const lambdaAuthorizer = ensurePlainObject(authorizer.lambda);
   const httpContext = ensurePlainObject(requestContext.http);
+  const rawPath = ensureString(event.rawPath) || ensureString(event.path) || '/';
+  const rawQueryString = ensureString(event.rawQueryString);
 
   return {
     ...event,
+    version: ensureString(event.version, '2.0'),
+    rawPath,
+    path: ensureString(event.path) || rawPath,
+    rawQueryString,
     headers,
     multiValueHeaders,
-    cookies: ensureArray(event.cookies),
+    cookies: ensureArray(event.cookies).map(cookie => String(cookie)),
     queryStringParameters,
     multiValueQueryStringParameters,
     pathParameters,
     stageVariables,
+    isBase64Encoded: Boolean(event.isBase64Encoded),
     requestContext: {
       ...requestContext,
+      routeKey:
+        ensureString(requestContext.routeKey) || ensureString(event.routeKey) || 'ANY /api',
       authorizer: {
         ...authorizer,
         lambda: lambdaAuthorizer,
       },
-      http: httpContext,
+      http: sanitizeHttpContext(httpContext, rawPath),
     },
   };
 }
