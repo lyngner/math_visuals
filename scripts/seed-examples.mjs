@@ -20,6 +20,9 @@ const {
   isKvConfigured,
   KvConfigurationError
 } = require('../api/_lib/examples-store.js');
+const { loadKvClient } = require('../api/_lib/kv-client.js');
+
+let kvClientUsed = false;
 
 function printHelp() {
   console.log('Bruk: node scripts/seed-examples.mjs [--dataset=fil.json] [--dry-run] [--help]');
@@ -132,6 +135,9 @@ async function seedEntries(entries, { dryRun }) {
       continue;
     }
     try {
+      if (!dryRun) {
+        kvClientUsed = true;
+      }
       await setEntry(normalizedPath, data);
       console.log(`✅ Skrev ${label}.`);
       ensured += 1;
@@ -153,6 +159,7 @@ async function seedTrashEntries(trashEntries, { dryRun }) {
     return { updated: entries.length, failed: null };
   }
   try {
+    kvClientUsed = kvClientUsed || !dryRun;
     await setTrashEntries(entries);
     console.log(`✅ Oppdaterte ${entries.length} papirkurv-oppføring(er).`);
     return { updated: entries.length, failed: null };
@@ -170,39 +177,71 @@ async function main() {
   }
 
   try {
-    verifyEnvironment();
-  } catch (error) {
-    console.error(error && error.message ? error.message : error);
-    process.exitCode = 1;
-    return;
-  }
-
-  let dataset;
-  try {
-    dataset = await loadDataset(options.datasetPath);
-  } catch (error) {
-    console.error(error && error.message ? error.message : error);
-    process.exitCode = 1;
-    return;
-  }
-
-  console.log('Starter seeding av eksempeltjenesten.');
-  console.log(`Kilde: ${options.datasetPath}`);
-  if (options.dryRun) {
-    console.log('Tørrkjøring aktivert – ingen data skrives til Redis.');
-  }
-
-  const entryResult = await seedEntries(dataset.entries, options);
-  const trashResult = await seedTrashEntries(dataset.trash, options);
-
-  if (entryResult.failures.length > 0 || trashResult.failed) {
-    process.exitCode = 1;
-    console.error('Fullførte med feil. Minst én oppføring eller papirkurvskriving feilet.');
-  } else {
-    console.log(`Ferdig. ${entryResult.ensured} oppføring(er) skrevet (${entryResult.skipped} hoppet over).`);
-    if (dataset.trash && dataset.trash.length) {
-      console.log(`Papirkurv oppdatert med ${dataset.trash.length} oppføring(er).`);
+    try {
+      verifyEnvironment();
+    } catch (error) {
+      console.error(error && error.message ? error.message : error);
+      process.exitCode = 1;
+      return;
     }
+
+    let dataset;
+    try {
+      dataset = await loadDataset(options.datasetPath);
+    } catch (error) {
+      console.error(error && error.message ? error.message : error);
+      process.exitCode = 1;
+      return;
+    }
+
+    console.log('Starter seeding av eksempeltjenesten.');
+    console.log(`Kilde: ${options.datasetPath}`);
+    if (options.dryRun) {
+      console.log('Tørrkjøring aktivert – ingen data skrives til Redis.');
+    }
+
+    const entryResult = await seedEntries(dataset.entries, options);
+    const trashResult = await seedTrashEntries(dataset.trash, options);
+
+    if (entryResult.failures.length > 0 || trashResult.failed) {
+      process.exitCode = 1;
+      console.error('Fullførte med feil. Minst én oppføring eller papirkurvskriving feilet.');
+    } else {
+      console.log(`Ferdig. ${entryResult.ensured} oppføring(er) skrevet (${entryResult.skipped} hoppet over).`);
+      if (dataset.trash && dataset.trash.length) {
+        console.log(`Papirkurv oppdatert med ${dataset.trash.length} oppføring(er).`);
+      }
+    }
+  } finally {
+    await shutdownKvClient();
+  }
+}
+
+async function shutdownKvClient() {
+  if (!kvClientUsed) {
+    return;
+  }
+  try {
+    const kv = await loadKvClient();
+    if (!kv) return;
+    const redisClient = kv.__redis && typeof kv.__redis === 'object' ? kv.__redis : null;
+    if (redisClient && typeof redisClient.quit === 'function') {
+      await redisClient.quit();
+      return;
+    }
+    if (redisClient && typeof redisClient.disconnect === 'function') {
+      redisClient.disconnect();
+      return;
+    }
+    if (typeof kv.quit === 'function') {
+      await kv.quit();
+      return;
+    }
+    if (typeof kv.disconnect === 'function') {
+      kv.disconnect();
+    }
+  } catch (error) {
+    console.warn('⚠️  Klarte ikke å lukke Redis-tilkoblingen:', error && error.message ? error.message : error);
   }
 }
 
