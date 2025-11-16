@@ -1,0 +1,64 @@
+{
+  "entries": [
+    {
+      "path": "/diagram",
+      "examples": [
+        {
+          "description": "Skjermtid i 7A",
+          "exampleNumber": "1",
+          "isDefault": true,
+          "config": {
+            "CFG": {
+              "type": "stacked",
+              "title": "Skjermtid i 7A",
+              "labels": ["1", "2", "3", "4", "5", "6", "7"],
+              "series1": "Gutter",
+              "start": [2, 5, 4, 2, 3, 1, 0],
+              "answer": [2, 5, 4, 2, 3, 1, 0],
+              "series2": "Jenter",
+              "start2": [2, 3, 3, 1, 1, 1, 0],
+              "answer2": [2, 3, 3, 1, 1, 1, 0],
+              "yMin": 0,
+              "yMax": 9,
+              "snap": 1,
+              "tolerance": 0,
+              "axisXLabel": "Timer per dag",
+              "axisYLabel": "Antall elever",
+              "valueDisplay": "none",
+              "pieLabelPosition": "outside",
+              "locked": []
+            }
+          }
+        }
+      ],
+      "deletedProvided": []
+    },
+    {
+      "path": "/graftegner",
+      "examples": [
+        {
+          "description": "Linje gjennom A og B",
+          "exampleNumber": "1",
+          "isDefault": true,
+          "config": {
+            "STATE": {
+              "points": [
+                { "id": "A", "x": -2, "y": -1 },
+                { "id": "B", "x": 3, "y": 2 }
+              ],
+              "lines": [
+                { "id": "linjeAB", "from": "A", "to": "B" }
+              ],
+              "axes": {
+                "x": { "min": -5, "max": 5 },
+                "y": { "min": -5, "max": 5 }
+              }
+            }
+          }
+        }
+      ],
+      "deletedProvided": []
+    }
+  ],
+  "trash": []
+}
