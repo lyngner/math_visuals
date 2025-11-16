@@ -363,13 +363,23 @@ aws cloudformation deploy \
   --template-file infra/shared-parameters.yaml \
   --parameter-overrides EnvironmentName="$ENVIRONMENT"
 
-echo "\n==> Fjerner ev. eldre data-stack og hemmelighet"
+echo "\n==> Fjerner ev. eldre data-stack, hemmelighet og beholdte SSM-parametere"
+if aws cloudformation describe-stacks --region "$INFRA_REGION" --stack-name "$DATA_STACK" >/tmp/data-stack.json 2>/dev/null; then
+  REDIS_ENDPOINT_PARAM=$(jq -r '.Stacks[0].Outputs[] | select(.OutputKey=="RedisEndpointParameterName") | .OutputValue' /tmp/data-stack.json)
+  REDIS_PORT_PARAM=$(jq -r '.Stacks[0].Outputs[] | select(.OutputKey=="RedisPortParameterName") | .OutputValue' /tmp/data-stack.json)
+  REDIS_READER_PARAM=$(jq -r '.Stacks[0].Outputs[] | select(.OutputKey=="RedisReaderEndpointParameterName") | .OutputValue' /tmp/data-stack.json)
+fi
 aws cloudformation delete-stack --region "$INFRA_REGION" --stack-name "$DATA_STACK" 2>/dev/null || true
 aws cloudformation wait stack-delete-complete --region "$INFRA_REGION" --stack-name "$DATA_STACK" 2>/dev/null || true
 aws secretsmanager delete-secret \
   --region "$INFRA_REGION" \
   --secret-id "math-visuals/$ENVIRONMENT/redis/password" \
   --force-delete-without-recovery 2>/dev/null || true
+for PARAM in "$REDIS_ENDPOINT_PARAM" "$REDIS_PORT_PARAM" "$REDIS_READER_PARAM"; do
+  if [ -n "${PARAM:-}" ] && [ "$PARAM" != "null" ]; then
+    aws ssm delete-parameter --region "$INFRA_REGION" --name "$PARAM" 2>/dev/null || true
+  fi
+done
 
 echo "\n==> Deploy $DATA_STACK ($INFRA_REGION) med nytt auth-token"
 aws cloudformation deploy \
@@ -413,6 +423,12 @@ REDIS_PORT_PARAM=$(aws cloudformation describe-stacks \
   --query 'Stacks[0].Outputs[?OutputKey==`RedisPortParameterName`].OutputValue' \
   --output text)
 
+REDIS_READER_PARAM=$(aws cloudformation describe-stacks \
+  --region "$INFRA_REGION" \
+  --stack-name "$DATA_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`RedisReaderEndpointParameterName`].OutputValue' \
+  --output text)
+
 CLOUDFRONT_DOMAIN=$(aws cloudformation describe-stacks \
   --region "$INFRA_REGION" \
   --stack-name "$STATIC_STACK" \
@@ -439,6 +455,7 @@ done
 echo "\n==> Ferdig! Disse verdiene kan eksporteres i samme shell:"
 echo "Redis secret:        $REDIS_SECRET_NAME"
 echo "Redis endpoint param: $REDIS_ENDPOINT_PARAM"
+echo "Redis reader param:   $REDIS_READER_PARAM"
 echo "Redis port param:     $REDIS_PORT_PARAM"
 echo "Allow-list verdi:     $ALLOWLIST_VALUE"
 MV_BOOTSTRAP
