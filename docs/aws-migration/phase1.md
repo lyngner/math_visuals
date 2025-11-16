@@ -199,6 +199,22 @@ API_GATEWAY_DOMAIN=$(aws apigatewayv2 get-api --api-id "$API_ID" --query "ApiEnd
 echo "API Gateway URL: $API_GATEWAY_DOMAIN"
 ```
 
+Bruk verdien i `API_GATEWAY_DOMAIN` som origin-adresse i CloudFront-behaviorene
+fra Task 2 (for eksempel `https://abc123.execute-api.eu-west-1.amazonaws.com`).
+Dette sikrer at alle `/api/*`-ruter peker mot samme HTTP API når CloudFront
+videresender forespørsler basert på Path Pattern-reglene.
+
+Verifiser til slutt at Lambdaen svarer fra API Gateway ved å hente
+`/api/examples` manuelt:
+
+```bash
+curl "$API_GATEWAY_DOMAIN/api/examples"
+```
+
+Responsen skal inneholde `"mode": "kv"` når Redis er konfigurert riktig.
+Hvis du i stedet får `"mode": "memory"`, betyr det at Lambdaen fremdeles
+bruker in-memory fallback (mangler MemoryDB/ElastiCache-tilkobling).
+
 #### CloudFront-distribusjon (us-east-1)
 
 ```bash
