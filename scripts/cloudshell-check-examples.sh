@@ -114,9 +114,9 @@ secret_payload=$(aws secretsmanager get-secret-value \
   --query 'SecretString' \
   --output text)
 
-export REDIS_PASSWORD=$(jq -r '.password // empty' <<<"$secret_payload")
+export REDIS_PASSWORD=$(jq -r '.authToken // empty' <<<"$secret_payload")
 if [[ -z "$REDIS_PASSWORD" ]]; then
-  echo "Secret $REDIS_PASSWORD_SECRET inneholder ikke feltet password." >&2
+  echo "Secret $REDIS_PASSWORD_SECRET inneholder ikke feltet authToken." >&2
   exit 1
 fi
 
