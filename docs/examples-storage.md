@@ -73,8 +73,8 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
 2. Hent navnene (eller la GitHub Actions gjøre det) med `aws cloudformation describe-stacks --stack-name <data-stack> --query 'Stacks[0].Outputs'`.
 3. Slå opp verdiene fra Systems Manager/Secrets Manager og eksporter dem til shell-et eller GitHub Secrets. Eksempel:
    ```bash
-   REGION=eu-north-1
-   DATA_STACK=math-visuals-data
+   REGION="eu-north-1"
+   DATA_STACK="math-visuals-data"
 
    REDIS_ENDPOINT_PARAMETER=$(aws cloudformation describe-stacks \
      --region "$REGION" \
@@ -111,6 +111,18 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
      --query 'SecretString' \
      --output text | jq -r '.authToken')
    ```
+   > Tips: `REGION`, `DATA_STACK` og `API_URL` bør stå i anførselstegn slik at copy/paste fungerer selv før du erstatter plassholderne.
+
+   **CloudShell-snarvei:** I stedet for å lime inn blokken manuelt kan du be skriptet [`scripts/cloudshell-check-examples.sh`](../scripts/cloudshell-check-examples.sh) hente verdiene og kjøre `npm run check-examples-api` for deg:
+
+   ```bash
+   REGION="eu-west-1" \
+   DATA_STACK="math-visuals-data" \
+   API_URL="https://<ditt-domene>/api/examples" \
+   bash scripts/cloudshell-check-examples.sh
+   ```
+
+   Skriptet stopper med en tydelig feilmelding dersom stacken ikke finnes i regionen eller hvis secrets mangler `authToken`-feltet, i stedet for bare å avslutte med «exit».
 4. Injiser verdiene i Lambda (via `infra/shared-parameters.yaml`), GitHub Secrets eller lokalt shell, og redeploy API-stacken i [`infra/api/template.yaml`](../infra/api/template.yaml). For lokal utvikling holder det å legge verdiene i `.env.local` og starte `npx vercel dev` på nytt.
 5. Workflowen `.github/workflows/deploy-infra.yml` gjør de samme stegene automatisk: den leser outputsene, oppdaterer Secrets Manager/Parameter Store og kjører seeding/vedlikehold med `REDIS_*`-verdiene tilgjengelig.
 
