@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "generatedAt": "2024-01-01T00:00:00.000Z",
+  "entries": [
+    {
+      "path": "/diagram",
+      "updatedAt": "2024-01-01T00:00:00.000Z",
+      "examples": [
+        {
+          "id": "sample-diagram",
+          "description": "Eksempel på kakediagram",
+          "isDefault": true,
+          "config": {
+            "STATE": {
+              "title": "Brøker",
+              "slices": [
+                { "value": 3, "label": "A" },
+                { "value": 2, "label": "B" }
+              ]
+            }
+          }
+        }
+      ],
+      "deletedProvided": []
+    }
+  ],
+  "trash": [
+    {
+      "id": "sample-trash-entry",
+      "deletedAt": "2024-01-02T12:00:00.000Z",
+      "sourcePath": "/diagram",
+      "sourceTitle": "Testside",
+      "reason": "cleanup",
+      "example": {
+        "description": "Slettet eksempel",
+        "config": {
+          "STATE": {
+            "notes": "Dette viser strukturen på trash-eksporten."
+          }
+        }
+      }
+    }
+  ]
+}

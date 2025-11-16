@@ -36,7 +36,7 @@ Flere apper har historiske eller eksperimentelle varianter som bevares side om s
 
 Eksempeltjenesten er navet som binder appene sammen. Den gjør det mulig å lagre elevprodukter, hente dem opp igjen og eksportere dem som JSON eller SVG. Distribusjonen bruker nå ElastiCache/MemoryDB for Redis og forventer `REDIS_ENDPOINT`, `REDIS_PORT` og `REDIS_PASSWORD` fra CloudFormation/SSM/Secrets Manager. Uten disse hemmelighetene faller tjenesten tilbake til et midlertidig minne som er egnet for lokale prototyper.
 
-Detaljer om hvordan hemmelighetene hentes, injiseres og verifiseres finner du i [`docs/examples-storage.md`](docs/examples-storage.md) og [verifiseringsguiden](docs/examples-storage-verification.md). Seeding og manuell import skjer via den nye AWS-stacken – `npm run seed-examples` minner deg på hvilke `REDIS_*`-nøkler som trengs før du bruker `examples-viewer`/`scripts/check-examples-api.mjs`.
+Detaljer om hvordan hemmelighetene hentes, injiseres og verifiseres finner du i [`docs/examples-storage.md`](docs/examples-storage.md) og [verifiseringsguiden](docs/examples-storage-verification.md). Seeding og manuell import skjer nå via `npm run seed-examples`, som leser en eksport (standard `docs/examples-seed.json`), skriver alle oppføringer til Redis og kan kjøres i tørrkjøringsmodus før du peker scripts/check-examples-api.mjs eller `examples-viewer` mot samme miljø.
 
 Flere funksjoner (for eksempel `api/diagram-alt-text.js` og `api/figurtall-alt-text.js`) bygger videre på de lagrede dataene for å gjøre materialet tilgjengelig i universelle utformingskontekster.
 
