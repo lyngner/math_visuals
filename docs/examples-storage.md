@@ -145,8 +145,8 @@ Standardeksemplene ligger nå i Redis-instansen som driftes av `infra/data`-stac
 1. Følg fremgangsmåten i avsnittet over for å hente `REDIS_ENDPOINT`, `REDIS_PORT` og `REDIS_PASSWORD` (typisk i AWS CloudShell, GitHub Actions eller et lokalt shell som logger mot AWS CLI).
    Under lokale forsøk kan du eksportere verdiene rett i terminalen eller skrive dem til en midlertidig `.env.local` som **ikke** sjekkes inn.
 2. Start API-et (enten via `npm run dev`, `npx vercel dev` eller ved å redeploye Lambdaen) med de samme variablene. Seeding fungerer kun hvis API-et svarer med `mode: "kv"`.
-3. Kjør `npm run seed-examples` fra samme miljø. Skriptet sjekker at `REDIS_*` er satt og viser en tydelig beskjed om hvordan du henter dem fra CloudFormation/SSM dersom noe mangler.
-4. Fyll datasettet gjennom den nye AWS-stacken – enten ved å bruke `examples-viewer` (som kan eksportere/importere JSON) eller ved å sende `PUT`-kall direkte mot `/api/examples?path=...`.
+3. Kjør `npm run seed-examples` fra samme miljø. Skriptet verifiserer at `REDIS_*` er satt, sjekker at lagringen svarer med `mode: "kv"` og leser datasettet fra `docs/examples-seed.json` (kan overstyres via `--dataset=sti/fil.json`). Bruk `--dry-run` for å validere datasettet uten å skrive til Redis. Skriptet avslutter med en ikke-null exit-kode hvis en enkelt oppføring eller papirkurven ikke kan skrives, slik at CI/CD stopper ved feil.
+4. Fyll datasettet gjennom den nye AWS-stacken – enten ved å bruke `examples-viewer` (som kan eksportere/importere JSON) eller ved å sende `PUT`-kall direkte mot `/api/examples?path=...`. Legg eksporten i `docs/examples-seed.json` (eller oppgi din egen fil via `--dataset`) før du kjører seeding.
 5. Verifiser resultatet med `npm run check-examples-api -- --url=https://<ditt-domene>/api/examples`. Responsene skal vise `mode: "kv"`, og `storage` skal være `kv`/`persistent: true`.
 
 > **GitHub Actions:** Workflowen i `.github/workflows/deploy-infra.yml` har egne steg for å hente verdiene fra CloudFormation-outputs, synkronisere dem til Secrets Manager/Parameter Store og kjøre vedlikeholdsskript (inkludert seeding). Bruk den for produksjon slik at prosessen blir deterministisk og reproduserbar.
@@ -154,4 +154,6 @@ Standardeksemplene ligger nå i Redis-instansen som driftes av `infra/data`-stac
 > **Manuell import:** Dersom du må migrere data fra Vercel én gang til, eksporter JSON fra `examples-viewer`, sett `REDIS_*`-verdiene i CloudShell og gjenbruk API-endepunktene (`PUT /api/examples?path=...`) for å skrive datasettene inn i Redis. Unngå å koble gamle KV-nøkler direkte; all ny data skal via AWS-stacken.
 
 Når Redis er fylt i ett miljø, deles data automatisk av alle instanser som peker til samme `REDIS_*`-verdier. Nye miljøer (f.eks. `preview`) må enten peke til den samme klyngen eller kjøre seeding-prosessen over på nytt.
+
+Standarddatasettet i repoet ligger i `docs/examples-seed.json` og består av en JSON-struktur med to lister: `entries` (hver med `path`, `examples` og `deletedProvided`) og `trash` (brukes av `setTrashEntries`). Når du eksporterer nye canonical data fra `examples-viewer` kan filen byttes ut direkte eller gis til skriptet via `npm run seed-examples -- --dataset=/sti/til/eksport.json`.
 
