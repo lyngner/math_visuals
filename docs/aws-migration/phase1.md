@@ -311,7 +311,7 @@ ALLOWLIST_VALUE="https://$CLOUDFRONT_DOMAIN,https://mathvisuals.no,https://app.m
 
 aws secretsmanager create-secret \
   --name "$REDIS_SECRET_NAME" \
-  --secret-string '{"host":"<redis-endpoint>","port":6379,"password":"<passord>"}' \
+  --secret-string '{"authToken":"<redis-auth-token>"}' \
   --region "$REGION"
 
 aws ssm put-parameter \
@@ -329,7 +329,7 @@ aws ssm put-parameter \
   --region "$REGION"
 ```
 
-Gi Lambda-funksjonen IAM-policyer for å lese `math-visuals/${ENVIRONMENT_NAME}/redis/password` og de to Parameter Store-verdiene. Verdiene kan lastes inn ved hjelp av `AWS.SecretsManager` og `AWS.SSM` i Lambda-koden eller gjennom miljøvariabler under `aws lambda update-function-configuration`.
+Gi Lambda-funksjonen IAM-policyer for å lese `math-visuals/${ENVIRONMENT_NAME}/redis/password` og de to Parameter Store-verdiene. Merk at selve Secrets Manager-secreten kun inneholder auth-tokenet (`authToken`) definert i `infra/data/template.yaml`, mens host/port-verdiene ligger i SSM-parametrene (eksponert gjennom outputs som `RedisEndpointParameterName` og `RedisPortParameterName`).【F:infra/data/template.yaml†L93-L157】【F:infra/data/template.yaml†L160-L213】 Verdiene kan lastes inn ved hjelp av `AWS.SecretsManager` og `AWS.SSM` i Lambda-koden eller gjennom miljøvariabler under `aws lambda update-function-configuration`.
 
 ### ACM-sertifikat, CloudFront-alias og DNS
 
