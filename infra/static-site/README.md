@@ -62,8 +62,8 @@ scripts/deploy-static-site.sh
 ```
 
 The script reads the current parameter values for `SiteBucketName`,
-`ApiGatewayDomainName`, `ApiGatewayOriginPath` and `CloudFrontPriceClass` from
-the existing `math-visuals-static-site` stack before calling
+`ApiGatewayDomainName`, `ApiGatewayOriginPath`, `CloudFrontPriceClass` and
+`CachePolicyId` from the existing `math-visuals-static-site` stack before calling
 [`aws cloudformation deploy`](https://docs.aws.amazon.com/cli/latest/reference/cloudformation/deploy/index.html)
 against [`template.yaml`](./template.yaml). Passing `--force-upload` ensures
 CloudFront receives the latest behaviours even when the parameter values do not
@@ -73,8 +73,10 @@ variables before running the script.
 
 To override the cache policy used for API behaviours, export
 `CACHE_POLICY_ID=<policy-id>` before running `scripts/deploy-static-site.sh`.
-If you omit it the deploy falls back to the template default value so existing
-stacks continue to inherit AWS's managed "CachingDisabled" policy.
+If you omit it the script reuses the value already stored on the stack (falling
+back to the template default of `4135ea2d-6df8-44a3-9df3-4b5a84be39ad` when the
+stack is first created) so existing deployments continue to inherit AWS's
+managed "CachingDisabled" policy.
 
 After the deployment finishes the script prints the CloudFront distribution ID
 and domain so you can immediately verify the behaviour updates.
