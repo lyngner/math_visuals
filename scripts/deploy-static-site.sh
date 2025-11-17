@@ -43,6 +43,7 @@ SITE_BUCKET_NAME=${SITE_BUCKET_NAME:-}
 API_GATEWAY_DOMAIN=${API_GATEWAY_DOMAIN:-}
 API_GATEWAY_ORIGIN_PATH=${API_GATEWAY_ORIGIN_PATH:-}
 CLOUDFRONT_PRICE_CLASS=${CLOUDFRONT_PRICE_CLASS:-}
+CACHE_POLICY_ID=${CACHE_POLICY_ID:-}
 
 if [[ -z "$SITE_BUCKET_NAME" ]]; then
   SITE_BUCKET_NAME=$(read_parameter "SiteBucketName")
@@ -62,17 +63,24 @@ fi
 
 echo "Deploying $STACK_NAME using parameters from the existing stack..."
 
+PARAM_OVERRIDES=(
+  "SiteBucketName=$SITE_BUCKET_NAME"
+  "ApiGatewayDomainName=$API_GATEWAY_DOMAIN"
+  "ApiGatewayOriginPath=$API_GATEWAY_ORIGIN_PATH"
+  "CloudFrontPriceClass=$CLOUDFRONT_PRICE_CLASS"
+  "SharedParametersStackName=$SHARED_STACK_NAME"
+)
+
+if [[ -n "$CACHE_POLICY_ID" ]]; then
+  PARAM_OVERRIDES+=("CachePolicyId=$CACHE_POLICY_ID")
+fi
+
 aws cloudformation deploy \
   --stack-name "$STACK_NAME" \
   --template-file "$TEMPLATE_FILE" \
   --capabilities CAPABILITY_NAMED_IAM \
   --force-upload \
-  --parameter-overrides \
-      SiteBucketName="$SITE_BUCKET_NAME" \
-      ApiGatewayDomainName="$API_GATEWAY_DOMAIN" \
-      ApiGatewayOriginPath="$API_GATEWAY_ORIGIN_PATH" \
-      CloudFrontPriceClass="$CLOUDFRONT_PRICE_CLASS" \
-      SharedParametersStackName="$SHARED_STACK_NAME"
+  --parameter-overrides "${PARAM_OVERRIDES[@]}"
 
 CLOUDFRONT_DOMAIN=$(read_output "CloudFrontDistributionDomainName")
 CLOUDFRONT_ID=$(read_output "CloudFrontDistributionId")
