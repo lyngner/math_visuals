@@ -60,22 +60,31 @@ the parameter values that were already provisioned in AWS:
 scripts/deploy-static-site.sh
 ```
 
-The script reads the existing values for `SiteBucketName`,
+The script reads the current parameter values for `SiteBucketName`,
 `ApiGatewayDomainName`, `ApiGatewayOriginPath` and `CloudFrontPriceClass` from
-the `math-visuals-static-site` stack and redeploys
-[`template.yaml`](./template.yaml) with `--force-upload` so that CloudFront
-receives the latest behaviours even when the parameters are unchanged. Override
-any of the values (or the stack names) by exporting the matching environment
+the existing `math-visuals-static-site` stack before calling
+[`aws cloudformation deploy`](https://docs.aws.amazon.com/cli/latest/reference/cloudformation/deploy/index.html)
+against [`template.yaml`](./template.yaml). Passing `--force-upload` ensures
+CloudFront receives the latest behaviours even when the parameter values do not
+change. Override any of the values—along with `STACK_NAME`,
+`SHARED_STACK_NAME`, or `TEMPLATE_FILE`—by exporting the matching environment
 variables before running the script.
+
+After the deployment finishes the script prints the CloudFront distribution ID
+and domain so you can immediately verify the behaviour updates.
 
 ### Verification
 
-1. Confirm that the `/api/*` behaviour still targets the API Gateway origin:
+1. Confirm that the `/api/*` behaviour still targets the API Gateway origin.
+   The script prints the distribution ID at the end of the deploy. If you need
+   to look it up again, read it from the stack output before calling
+   `aws cloudfront get-distribution-config`:
 
    ```bash
+   STACK_NAME=${STACK_NAME:-math-visuals-static-site}
    CLOUDFRONT_REGION=us-east-1
    CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
-     --stack-name math-visuals-static-site \
+     --stack-name "$STACK_NAME" \
      --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
      --output text)
 
@@ -92,8 +101,9 @@ variables before running the script.
 2. Run the verification curls against the deployed CloudFront domain:
 
    ```bash
+   STACK_NAME=${STACK_NAME:-math-visuals-static-site}
    CLOUDFRONT_DOMAIN=$(aws cloudformation describe-stacks \
-     --stack-name math-visuals-static-site \
+     --stack-name "$STACK_NAME" \
      --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionDomainName`].OutputValue' \
      --output text)
 
