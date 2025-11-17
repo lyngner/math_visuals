@@ -15,6 +15,22 @@ info() {
   printf '\n%s\n' "$1"
 }
 
+die() {
+  echo "Error: $1" >&2
+  exit 1
+}
+
+validate_cf_output() {
+  local value="$1"
+  local description="$2"
+  local stack="$3"
+  local region="$4"
+
+  if [ -z "$value" ] || [ "$value" = "None" ]; then
+    die "Failed to resolve the $description from CloudFormation outputs. Verify that $stack exists in $region and has completed successfully."
+  fi
+}
+
 get_cf_output() {
   local region="$1"
   local stack="$2"
@@ -86,6 +102,12 @@ REDIS_ENDPOINT_PARAM=$(get_cf_output "$SHARED_REGION" "$SHARED_STACK" "RedisEndp
 REDIS_PORT_PARAM=$(get_cf_output "$SHARED_REGION" "$SHARED_STACK" "RedisPortParameterName")
 EXAMPLES_ALLOWED_ORIGINS_PARAM=$(get_cf_output "$SHARED_REGION" "$SHARED_STACK" "ExamplesAllowedOriginsParameterName")
 SVG_ALLOWED_ORIGINS_PARAM=$(get_cf_output "$SHARED_REGION" "$SHARED_STACK" "SvgAllowedOriginsParameterName")
+
+validate_cf_output "$REDIS_SECRET_NAME" "Redis password secret" "$SHARED_STACK" "$SHARED_REGION"
+validate_cf_output "$REDIS_ENDPOINT_PARAM" "Redis endpoint parameter" "$SHARED_STACK" "$SHARED_REGION"
+validate_cf_output "$REDIS_PORT_PARAM" "Redis port parameter" "$SHARED_STACK" "$SHARED_REGION"
+validate_cf_output "$EXAMPLES_ALLOWED_ORIGINS_PARAM" "examples allowed-origins parameter" "$SHARED_STACK" "$SHARED_REGION"
+validate_cf_output "$SVG_ALLOWED_ORIGINS_PARAM" "SVG allowed-origins parameter" "$SHARED_STACK" "$SHARED_REGION"
 
 info "Retrieving current Redis values..."
 CURRENT_SECRET_STRING=""
@@ -169,6 +191,7 @@ aws ssm put-parameter \
 
 info "Resolving CloudFront domain from $STATIC_STACK in $STATIC_REGION..."
 CLOUDFRONT_DOMAIN=$(get_cf_output "$STATIC_REGION" "$STATIC_STACK" "CloudFrontDistributionDomainName")
+validate_cf_output "$CLOUDFRONT_DOMAIN" "CloudFront domain" "$STATIC_STACK" "$STATIC_REGION"
 ALLOWLIST_FILE=$(mktemp)
 trap 'rm -f "$ALLOWLIST_FILE"' EXIT
 printf 'https://%s,https://mathvisuals.no,https://app.mathvisuals.no' "$CLOUDFRONT_DOMAIN" >"$ALLOWLIST_FILE"
