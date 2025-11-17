@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -euo pipefail
+
+# Source-friendly helper: `source scripts/cloudshell-check-examples.sh && run_seed --url=...`
 
 usage() {
   cat <<'USAGE'
@@ -15,110 +16,124 @@ Eksempel:
   REGION=eu-west-1 DATA_STACK=math-visuals-data \
     API_URL="https://eksempel.no/api/examples" \
     bash scripts/cloudshell-check-examples.sh
+
+Kilde og kjør manuelt:
+  REGION=eu-west-1 DATA_STACK=math-visuals-data \
+    API_URL="https://eksempel.no/api/examples" \
+    source scripts/cloudshell-check-examples.sh && run_seed
 USAGE
 }
 
-REGION=${REGION:-eu-north-1}
-DATA_STACK=${DATA_STACK:-math-visuals-data}
-API_URL=${API_URL:-}
+run_seed() {
+  local -
+  set -euo pipefail
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --region=*)
-      REGION="${1#*=}"
-      ;;
-    --stack=*)
-      DATA_STACK="${1#*=}"
-      ;;
-    --url=*)
-      API_URL="${1#*=}"
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    *)
-      echo "Ukjent flagg: $1" >&2
-      usage >&2
-      exit 1
-      ;;
-  esac
-  shift
-done
+  REGION=${REGION:-eu-north-1}
+  DATA_STACK=${DATA_STACK:-math-visuals-data}
+  API_URL=${API_URL:-}
 
-if [[ -z "${API_URL}" ]]; then
-  echo "API_URL er ikke satt. Angi API_URL miljøvariabelen eller bruk --url=..." >&2
-  usage >&2
-  exit 1
-fi
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --region=*)
+        REGION="${1#*=}"
+        ;;
+      --stack=*)
+        DATA_STACK="${1#*=}"
+        ;;
+      --url=*)
+        API_URL="${1#*=}"
+        ;;
+      -h|--help)
+        usage
+        return 0
+        ;;
+      *)
+        echo "Ukjent flagg: $1" >&2
+        usage >&2
+        return 1
+        ;;
+    esac
+    shift
+  done
 
-if ! command -v aws >/dev/null 2>&1; then
-  echo "aws CLI mangler. Installer den (CloudShell har den ferdig installert)." >&2
-  exit 1
-fi
-
-if ! command -v jq >/dev/null 2>&1; then
-  echo "jq mangler. Installer den før du kjører skriptet." >&2
-  exit 1
-fi
-
-echo "Region:        $REGION"
-echo "Data-stack:    $DATA_STACK"
-echo "API-URL:       $API_URL"
-
-describe_output() {
-  local key="$1"
-  aws cloudformation describe-stacks \
-    --region "$REGION" \
-    --stack-name "$DATA_STACK" \
-    --query "Stacks[0].Outputs[?OutputKey==\`$key\`].OutputValue" \
-    --output text
-}
-
-require_value() {
-  local value="$1"
-  local label="$2"
-  if [[ -z "$value" || "$value" == "None" ]]; then
-    echo "Fant ikke verdi for $label. Sjekk at stacken '$DATA_STACK' finnes i region '$REGION'." >&2
-    exit 1
+  if [[ -z "${API_URL}" ]]; then
+    echo "API_URL er ikke satt. Angi API_URL miljøvariabelen eller bruk --url=..." >&2
+    usage >&2
+    return 1
   fi
+
+  if ! command -v aws >/dev/null 2>&1; then
+    echo "aws CLI mangler. Installer den (CloudShell har den ferdig installert)." >&2
+    return 1
+  fi
+
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "jq mangler. Installer den før du kjører skriptet." >&2
+    return 1
+  fi
+
+  echo "Region:        $REGION"
+  echo "Data-stack:    $DATA_STACK"
+  echo "API-URL:       $API_URL"
+
+  describe_output() {
+    local key="$1"
+    aws cloudformation describe-stacks \
+      --region "$REGION" \
+      --stack-name "$DATA_STACK" \
+      --query "Stacks[0].Outputs[?OutputKey==\`$key\`].OutputValue" \
+      --output text
+  }
+
+  require_value() {
+    local value="$1"
+    local label="$2"
+    if [[ -z "$value" || "$value" == "None" ]]; then
+      echo "Fant ikke verdi for $label. Sjekk at stacken '$DATA_STACK' finnes i region '$REGION'." >&2
+      return 1
+    fi
+  }
+
+  echo "Henter Parameter Store-/Secrets Manager-navn ..."
+  REDIS_ENDPOINT_PARAMETER=$(describe_output "RedisEndpointParameterName")
+  REDIS_PORT_PARAMETER=$(describe_output "RedisPortParameterName")
+  REDIS_PASSWORD_SECRET=$(describe_output "RedisPasswordSecretName")
+
+  require_value "$REDIS_ENDPOINT_PARAMETER" "RedisEndpointParameterName"
+  require_value "$REDIS_PORT_PARAMETER" "RedisPortParameterName"
+  require_value "$REDIS_PASSWORD_SECRET" "RedisPasswordSecretName"
+
+  echo "Leser REDIS_ENDPOINT fra $REDIS_ENDPOINT_PARAMETER ..."
+  export REDIS_ENDPOINT=$(aws ssm get-parameter \
+    --region "$REGION" \
+    --name "$REDIS_ENDPOINT_PARAMETER" \
+    --query 'Parameter.Value' \
+    --output text)
+
+  echo "Leser REDIS_PORT fra $REDIS_PORT_PARAMETER ..."
+  export REDIS_PORT=$(aws ssm get-parameter \
+    --region "$REGION" \
+    --name "$REDIS_PORT_PARAMETER" \
+    --query 'Parameter.Value' \
+    --output text)
+
+  echo "Leser REDIS_PASSWORD fra secret $REDIS_PASSWORD_SECRET ..."
+  secret_payload=$(aws secretsmanager get-secret-value \
+    --region "$REGION" \
+    --secret-id "$REDIS_PASSWORD_SECRET" \
+    --query 'SecretString' \
+    --output text)
+
+  export REDIS_PASSWORD=$(jq -r '.authToken // empty' <<<"$secret_payload")
+  if [[ -z "$REDIS_PASSWORD" ]]; then
+    echo "Secret $REDIS_PASSWORD_SECRET inneholder ikke feltet authToken." >&2
+    return 1
+  fi
+
+  echo "REDIS_* er eksportert i dette shell-et. Kjører npm run check-examples-api ..."
+  npm run check-examples-api -- --url="$API_URL"
 }
 
-echo "Henter Parameter Store-/Secrets Manager-navn ..."
-REDIS_ENDPOINT_PARAMETER=$(describe_output "RedisEndpointParameterName")
-REDIS_PORT_PARAMETER=$(describe_output "RedisPortParameterName")
-REDIS_PASSWORD_SECRET=$(describe_output "RedisPasswordSecretName")
-
-require_value "$REDIS_ENDPOINT_PARAMETER" "RedisEndpointParameterName"
-require_value "$REDIS_PORT_PARAMETER" "RedisPortParameterName"
-require_value "$REDIS_PASSWORD_SECRET" "RedisPasswordSecretName"
-
-echo "Leser REDIS_ENDPOINT fra $REDIS_ENDPOINT_PARAMETER ..."
-export REDIS_ENDPOINT=$(aws ssm get-parameter \
-  --region "$REGION" \
-  --name "$REDIS_ENDPOINT_PARAMETER" \
-  --query 'Parameter.Value' \
-  --output text)
-
-echo "Leser REDIS_PORT fra $REDIS_PORT_PARAMETER ..."
-export REDIS_PORT=$(aws ssm get-parameter \
-  --region "$REGION" \
-  --name "$REDIS_PORT_PARAMETER" \
-  --query 'Parameter.Value' \
-  --output text)
-
-echo "Leser REDIS_PASSWORD fra secret $REDIS_PASSWORD_SECRET ..."
-secret_payload=$(aws secretsmanager get-secret-value \
-  --region "$REGION" \
-  --secret-id "$REDIS_PASSWORD_SECRET" \
-  --query 'SecretString' \
-  --output text)
-
-export REDIS_PASSWORD=$(jq -r '.authToken // empty' <<<"$secret_payload")
-if [[ -z "$REDIS_PASSWORD" ]]; then
-  echo "Secret $REDIS_PASSWORD_SECRET inneholder ikke feltet authToken." >&2
-  exit 1
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  run_seed "$@"
 fi
-
-echo "REDIS_* er eksportert i dette shell-et. Kjører npm run check-examples-api ..."
-npm run check-examples-api -- --url="$API_URL"
