@@ -296,6 +296,19 @@ Resources:
               QueryString: true
               Cookies:
                 Forward: none
+          - PathPattern: '/api/*'
+            TargetOriginId: ApiGatewayOrigin
+            ViewerProtocolPolicy: https-only
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+            Compress: true
+            CachePolicyId: 413fd3bd-6cbb-4b1c-969e-326cdc361f5c # Managed-CachingDisabled
+            OriginRequestPolicyId: !Ref ApiOriginRequestPolicy
           - PathPattern: '/bildearkiv/*'
             TargetOriginId: ApiGatewayOrigin
             ViewerProtocolPolicy: https-only
