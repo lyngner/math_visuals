@@ -66,6 +66,7 @@ if [[ -z "$CACHE_POLICY_ID" ]]; then
 fi
 
 echo "Deploying $STACK_NAME using parameters from the existing stack..."
+echo "  Cache policy: $CACHE_POLICY_ID"
 
 PARAM_OVERRIDES=(
   "SiteBucketName=$SITE_BUCKET_NAME"
