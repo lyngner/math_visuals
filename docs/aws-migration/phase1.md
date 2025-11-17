@@ -444,7 +444,7 @@ echo "Allow-list verdi:     $ALLOWLIST_VALUE"
 MV_BOOTSTRAP
 ```
 
-Kjør skriptet når en CloudShell-økt har restartet eller når `math-visuals-data` er i `ROLLBACK_COMPLETE`. Når blokken er ferdig kan du hente selve verdiene med `source scripts/cloudshell-check-examples.sh && run_seed` (som lar miljøvariablene leve videre i shell-et) eller `aws ssm get-parameter` som beskrevet over, og fortsette med Lambda/API-utrulling uten flere manuelle tilpasninger.
+Kjør skriptet når en CloudShell-økt har restartet eller når `math-visuals-data` er i `ROLLBACK_COMPLETE`. Når blokken er ferdig kan du hente selve verdiene med `source scripts/cloudshell-check-examples.sh && cloudshell_check_examples` (som lar miljøvariablene leve videre i shell-et) eller `aws ssm get-parameter` som beskrevet over, og fortsette med Lambda/API-utrulling uten flere manuelle tilpasninger.
 
 ### ACM-sertifikat, CloudFront-alias og DNS
 

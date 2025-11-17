@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Source-friendly helper: `source scripts/cloudshell-check-examples.sh && run_seed --url=...`
+# Source-friendly helper: `source scripts/cloudshell-check-examples.sh && cloudshell_check_examples --url=...`
 
 usage() {
   cat <<'USAGE'
@@ -20,11 +20,11 @@ Eksempel:
 Kilde og kjør manuelt:
   REGION=eu-west-1 DATA_STACK=math-visuals-data \
     API_URL="https://eksempel.no/api/examples" \
-    source scripts/cloudshell-check-examples.sh && run_seed
+    source scripts/cloudshell-check-examples.sh && cloudshell_check_examples
 USAGE
 }
 
-run_seed() {
+cloudshell_check_examples() {
   local -
   set -euo pipefail
 
@@ -134,6 +134,4 @@ run_seed() {
   npm run check-examples-api -- --url="$API_URL"
 }
 
-if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
-  run_seed "$@"
-fi
+[[ "${BASH_SOURCE[0]}" == "$0" ]] && cloudshell_check_examples "$@"
