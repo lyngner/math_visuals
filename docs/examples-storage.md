@@ -116,13 +116,13 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
    **CloudShell-snarvei:** I stedet for å lime inn blokken manuelt kan du be skriptet [`scripts/cloudshell-check-examples.sh`](../scripts/cloudshell-check-examples.sh) hente verdiene og kjøre `npm run check-examples-api` for deg:
 
    ```bash
-   REGION="eu-west-1" \
-   DATA_STACK="math-visuals-data" \
-   API_URL="https://<ditt-domene>/api/examples" \
-   bash scripts/cloudshell-check-examples.sh
+  REGION="eu-west-1" \
+  DATA_STACK="math-visuals-data" \
+  API_URL="https://<ditt-domene>/api/examples" \
+  source scripts/cloudshell-check-examples.sh && run_seed
    ```
 
-   Skriptet stopper med en tydelig feilmelding dersom stacken ikke finnes i regionen eller hvis secrets mangler `authToken`-feltet, i stedet for bare å avslutte med «exit».
+  Skriptet kan nå sources slik at `REDIS_*`-variablene blir værende i samme shell og stopper med en tydelig feilmelding dersom stacken ikke finnes i regionen eller hvis secrets mangler `authToken`-feltet.
 4. Injiser verdiene i Lambda (via `infra/shared-parameters.yaml`), GitHub Secrets eller lokalt shell, og redeploy API-stacken i [`infra/api/template.yaml`](../infra/api/template.yaml). For lokal utvikling holder det å legge verdiene i `.env.local` og starte `npx vercel dev` på nytt.
 5. Workflowen `.github/workflows/deploy-infra.yml` gjør de samme stegene automatisk: den leser outputsene, oppdaterer Secrets Manager/Parameter Store og kjører seeding/vedlikehold med `REDIS_*`-verdiene tilgjengelig.
 
