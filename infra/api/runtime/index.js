@@ -6,7 +6,19 @@ const express = require('express');
 const { URLSearchParams } = require('url');
 const serverlessExpress = require('@vendia/serverless-express');
 
-const API_ROOT = path.join(__dirname, 'api');
+function resolveApiRoot() {
+  const override = process.env.API_RUNTIME_API_ROOT;
+  if (typeof override === 'string' && override.trim()) {
+    const trimmed = override.trim();
+    if (path.isAbsolute(trimmed)) {
+      return trimmed;
+    }
+    return path.resolve(process.cwd(), trimmed);
+  }
+  return path.join(__dirname, 'api');
+}
+
+const API_ROOT = resolveApiRoot();
 const IGNORED_ROUTE_SEGMENTS = new Set(['_lib', '__tests__', '__mocks__']);
 const FIGURE_LIBRARY_ASSET_PATTERN = /\.(?:svg|png|jpg|jpeg|gif|webp|avif|json|zip|csv)$/i;
 const FRIENDLY_ROUTE_RULES = [
@@ -433,3 +445,7 @@ exports.handler = async function handler(event, context) {
 };
 
 exports.toSafeEvent = toSafeEvent;
+
+exports.__internals = {
+  createApp,
+};
