@@ -33,12 +33,13 @@ extension or includes an example slug.
 
 ## Parameters
 
-| Name                  | Description                                                   |
-| --------------------- | ------------------------------------------------------------- |
-| `SiteBucketName`      | Globally unique name of the S3 bucket that will host the site. |
-| `ApiGatewayDomainName`| Domain name of the API Gateway stage (e.g. `abc123.execute-api.us-east-1.amazonaws.com`). |
-| `ApiGatewayOriginPath`| Optional origin path that points to the API stage (default `/prod`). |
-| `CloudFrontPriceClass`| CloudFront price class to use (defaults to `PriceClass_100`). |
+| Name                   | Description                                                   |
+| ---------------------- | ------------------------------------------------------------- |
+| `SiteBucketName`       | Globally unique name of the S3 bucket that will host the site. |
+| `ApiGatewayDomainName` | Domain name of the API Gateway stage (e.g. `abc123.execute-api.us-east-1.amazonaws.com`). |
+| `ApiGatewayOriginPath` | Optional origin path that points to the API stage (default `/prod`). |
+| `CloudFrontPriceClass` | CloudFront price class to use (defaults to `PriceClass_100`). |
+| `CachePolicyId`        | CloudFront cache policy applied to API-backed behaviours (defaults to the managed `CachingDisabled` policy). |
 | `SharedParametersStackName` | Name of the stack created from `infra/shared-parameters.yaml`. |
 
 ## Outputs
@@ -69,6 +70,11 @@ CloudFront receives the latest behaviours even when the parameter values do not
 change. Override any of the values—along with `STACK_NAME`,
 `SHARED_STACK_NAME`, or `TEMPLATE_FILE`—by exporting the matching environment
 variables before running the script.
+
+To override the cache policy used for API behaviours, export
+`CACHE_POLICY_ID=<policy-id>` before running `scripts/deploy-static-site.sh`.
+If you omit it the deploy falls back to the template default value so existing
+stacks continue to inherit AWS's managed "CachingDisabled" policy.
 
 After the deployment finishes the script prints the CloudFront distribution ID
 and domain so you can immediately verify the behaviour updates.
