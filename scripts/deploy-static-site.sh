@@ -61,6 +61,10 @@ if [[ -z "$CLOUDFRONT_PRICE_CLASS" ]]; then
   CLOUDFRONT_PRICE_CLASS=$(read_parameter "CloudFrontPriceClass")
 fi
 
+if [[ -z "$CACHE_POLICY_ID" ]]; then
+  CACHE_POLICY_ID=$(read_parameter "CachePolicyId")
+fi
+
 echo "Deploying $STACK_NAME using parameters from the existing stack..."
 
 PARAM_OVERRIDES=(
@@ -68,12 +72,9 @@ PARAM_OVERRIDES=(
   "ApiGatewayDomainName=$API_GATEWAY_DOMAIN"
   "ApiGatewayOriginPath=$API_GATEWAY_ORIGIN_PATH"
   "CloudFrontPriceClass=$CLOUDFRONT_PRICE_CLASS"
+  "CachePolicyId=$CACHE_POLICY_ID"
   "SharedParametersStackName=$SHARED_STACK_NAME"
 )
-
-if [[ -n "$CACHE_POLICY_ID" ]]; then
-  PARAM_OVERRIDES+=("CachePolicyId=$CACHE_POLICY_ID")
-fi
 
 aws cloudformation deploy \
   --stack-name "$STACK_NAME" \
