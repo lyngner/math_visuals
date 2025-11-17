@@ -30,33 +30,37 @@ stacks:
 ```bash
 SHARED_STACK=math-visuals-shared
 STATIC_STACK=math-visuals-static-site
-REGION=eu-north-1
+SHARED_REGION=eu-north-1
+STATIC_REGION=eu-west-1
 
 REDIS_SECRET_NAME=$(aws cloudformation describe-stacks \
+  --region "$SHARED_REGION" \
   --stack-name "$SHARED_STACK" \
   --query 'Stacks[0].Outputs[?OutputKey==`RedisPasswordSecretName`].OutputValue' \
   --output text)
 
 EXAMPLES_ALLOWED_ORIGINS=$(aws cloudformation describe-stacks \
+  --region "$SHARED_REGION" \
   --stack-name "$SHARED_STACK" \
   --query 'Stacks[0].Outputs[?OutputKey==`ExamplesAllowedOriginsParameterName`].OutputValue' \
   --output text)
 
 SVG_ALLOWED_ORIGINS=$(aws cloudformation describe-stacks \
+  --region "$SHARED_REGION" \
   --stack-name "$SHARED_STACK" \
   --query 'Stacks[0].Outputs[?OutputKey==`SvgAllowedOriginsParameterName`].OutputValue' \
   --output text)
 
 # Update the Redis password/auth token stored in Secrets Manager
 aws secretsmanager put-secret-value \
-  --region "$REGION" \
+  --region "$SHARED_REGION" \
   --secret-id "$REDIS_SECRET_NAME" \
   --secret-string '{"authToken":"<redis-password>"}'
 
 # Update the Redis endpoint and port parameters
 aws ssm put-parameter \
-  --region "$REGION" \
-  --name "$(aws cloudformation describe-stacks --stack-name "$SHARED_STACK" \
+  --region "$SHARED_REGION" \
+  --name "$(aws cloudformation describe-stacks --region "$SHARED_REGION" --stack-name "$SHARED_STACK" \
       --query 'Stacks[0].Outputs[?OutputKey==`RedisEndpointParameterName`].OutputValue' \
       --output text)" \
   --type String \
@@ -64,8 +68,8 @@ aws ssm put-parameter \
   --overwrite
 
 aws ssm put-parameter \
-  --region "$REGION" \
-  --name "$(aws cloudformation describe-stacks --stack-name "$SHARED_STACK" \
+  --region "$SHARED_REGION" \
+  --name "$(aws cloudformation describe-stacks --region "$SHARED_REGION" --stack-name "$SHARED_STACK" \
       --query 'Stacks[0].Outputs[?OutputKey==`RedisPortParameterName`].OutputValue' \
       --output text)" \
   --type String \
@@ -74,6 +78,7 @@ aws ssm put-parameter \
 
 # Update the frontend allow-lists used by the API and CloudFront
 CLOUDFRONT_DOMAIN=$(aws cloudformation describe-stacks \
+  --region "$STATIC_REGION" \
   --stack-name "$STATIC_STACK" \
   --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionDomainName`].OutputValue' \
   --output text)
@@ -81,19 +86,24 @@ CLOUDFRONT_DOMAIN=$(aws cloudformation describe-stacks \
 ALLOWLIST_VALUE="https://$CLOUDFRONT_DOMAIN,https://mathvisuals.no,https://app.mathvisuals.no"
 
 aws ssm put-parameter \
-  --region "$REGION" \
+  --region "$SHARED_REGION" \
   --name "$EXAMPLES_ALLOWED_ORIGINS" \
   --type StringList \
   --value "$ALLOWLIST_VALUE" \
   --overwrite
 
 aws ssm put-parameter \
-  --region "$REGION" \
+  --region "$SHARED_REGION" \
   --name "$SVG_ALLOWED_ORIGINS" \
   --type StringList \
   --value "$ALLOWLIST_VALUE" \
   --overwrite
 ```
+
+We keep the shared stack (Secrets Manager/SSM) in `eu-north-1` together with the
+API and Redis cluster, while the static site stack runs in `eu-west-1` for lower
+latency to most visitors and proximity to the CloudFront/S3 origin. Using two
+region variables makes it explicit which AWS calls talk to which stack.
 
 Repeat the `put-secret-value` and `put-parameter` commands whenever the Redis or
 allowed-origins configuration changes. The next deployment will automatically
