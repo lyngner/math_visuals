@@ -11,7 +11,8 @@ module.exports = function express() {
     use() {
       return this;
     },
-    all() {
+    all(path, handler) {
+      handlers.push({ path, handler });
       return this;
     },
   };
