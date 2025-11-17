@@ -34,24 +34,13 @@ I fase 1 kan CloudFront-distribusjonen lanseres med det automatisk genererte `*
 ### GitHub Pages-redirect til ny distribusjon
 
 GitHub Pages brukes fortsatt som «landingsplass» for gamle lenker. `router.js`
-og `examples.js` sjekker nå flere kilder (globale variabler, `data-*`-attributt
-på `<html>` og en valgfri `<meta name="math-visuals:redirect-target-origin">`)
-for å finne destinasjonen og faller tilbake til `https://mathvisuals.no` når
-ingen eksplisitt verdi er satt. I ventetiden før et egendefinert domene er
-klargjort i Route 53 kan du overstyre verdien ved å legge til for eksempel
-
-```html
-<meta name="math-visuals:redirect-target-origin" content="https://d123456abcdef8.cloudfront.net" />
-```
-
-eller et lite inline-script rett før `router.js`/`examples.js` lastes:
-
-```html
-<script>window.MATH_VISUALS_REDIRECT_TARGET_ORIGIN = 'https://d123456abcdef8.cloudfront.net';</script>
-```
-
-Når DNS er peket til det permanente domenet kan overstyringen fjernes slik at
-GitHub Pages alltid sender brukerne til `https://mathvisuals.no`.
+og `examples.js` leter nå kun etter interne test-hooks (som
+`window.__MATH_VISUALS_REDIRECT_TARGET_ORIGIN__`) og eventuelle `data-*`
+attributter som settes direkte på script-taggen før de faller tilbake til
+`https://mathvisuals.no`. Mekanismen med `<meta name="math-visuals:redirect-
+target-origin">` eller det globale `window.MATH_VISUALS_REDIRECT_TARGET_ORIGIN`
+ble fjernet etter at DNS peker til det permanente domenet, slik at GitHub Pages
+alltid videresender til `https://mathvisuals.no` uten midlertidige overstyringer.
 
 ## 3. Backend-handlere og Lambda-adapter
 
