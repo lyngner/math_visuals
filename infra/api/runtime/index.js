@@ -3,10 +3,28 @@
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
+const { URLSearchParams } = require('url');
 const serverlessExpress = require('@vendia/serverless-express');
 
 const API_ROOT = path.join(__dirname, 'api');
 const IGNORED_ROUTE_SEGMENTS = new Set(['_lib', '__tests__', '__mocks__']);
+const FIGURE_LIBRARY_ASSET_PATTERN = /\.(?:svg|png|jpg|jpeg|gif|webp|avif|json|zip|csv)$/i;
+const FRIENDLY_ROUTE_RULES = [
+  {
+    targetPath: '/api/svg/raw',
+    prefixes: ['/bildearkiv/', '/svg/'],
+    shouldRewrite(slugPath) {
+      return Boolean(slugPath && slugPath !== '/');
+    },
+  },
+  {
+    targetPath: '/api/figure-library/raw',
+    prefixes: ['/figure-library/'],
+    shouldRewrite(slugPath) {
+      return FIGURE_LIBRARY_ASSET_PATTERN.test(slugPath || '');
+    },
+  },
+];
 
 function shouldIgnore(relativePath) {
   return relativePath
@@ -208,6 +226,113 @@ function normalizeRecordOfStringArrays(record) {
   return normalized;
 }
 
+function ensureLeadingSlash(value) {
+  if (typeof value !== 'string' || !value) {
+    return '';
+  }
+  return value.startsWith('/') ? value : `/${value}`;
+}
+
+function normalizePrefix(prefix) {
+  if (typeof prefix !== 'string' || !prefix) {
+    return null;
+  }
+  return prefix.endsWith('/') ? prefix : `${prefix}/`;
+}
+
+function pathMatchesPrefix(pathValue, prefix) {
+  if (!prefix) {
+    return false;
+  }
+  if (pathValue === prefix.slice(0, -1)) {
+    return true;
+  }
+  return pathValue.startsWith(prefix);
+}
+
+function extractFriendlySlug(pathValue, prefix) {
+  const normalizedPrefix = normalizePrefix(prefix);
+  if (!normalizedPrefix) {
+    return null;
+  }
+  if (!pathMatchesPrefix(pathValue, normalizedPrefix)) {
+    return null;
+  }
+  const startIndex = normalizedPrefix.length - 1;
+  const remainder = pathValue.slice(startIndex);
+  const slugPath = ensureLeadingSlash(remainder);
+  if (!slugPath || slugPath === '/') {
+    return null;
+  }
+  return slugPath;
+}
+
+function serializeSearchParams(searchParams) {
+  const entries = [];
+  searchParams.forEach((value, key) => {
+    entries.push([String(key), String(value)]);
+  });
+  return entries;
+}
+
+function applySearchParamsToEvent(event, entries) {
+  const single = {};
+  const multi = {};
+  for (const [key, value] of entries) {
+    single[key] = value;
+    if (!multi[key]) {
+      multi[key] = [];
+    }
+    multi[key].push(value);
+  }
+  event.queryStringParameters = single;
+  event.multiValueQueryStringParameters = multi;
+}
+
+function rewriteFriendlyRoutes(event) {
+  if (!event || typeof event !== 'object') {
+    return;
+  }
+  const rawPath = ensureString(event.rawPath) || '/';
+  const rawQuery = ensureString(event.rawQueryString);
+  const params = new URLSearchParams(rawQuery);
+
+  for (const rule of FRIENDLY_ROUTE_RULES) {
+    if (!rule || !Array.isArray(rule.prefixes) || !rule.targetPath) {
+      continue;
+    }
+    for (const prefix of rule.prefixes) {
+      const slug = extractFriendlySlug(rawPath, prefix);
+      if (!slug) {
+        continue;
+      }
+      if (typeof rule.shouldRewrite === 'function' && !rule.shouldRewrite(slug)) {
+        continue;
+      }
+      const existingPathParam = params.get('path');
+      if (!existingPathParam) {
+        params.set('path', slug);
+      }
+      const normalizedTarget = ensureLeadingSlash(rule.targetPath) || '/api';
+      const entries = serializeSearchParams(params);
+      event.rawPath = normalizedTarget;
+      event.path = normalizedTarget;
+      event.rawQueryString = params.toString();
+      applySearchParamsToEvent(event, entries);
+      const requestContext = ensurePlainObject(event.requestContext);
+      const httpContext = ensurePlainObject(requestContext.http);
+      event.requestContext = {
+        ...requestContext,
+        http: {
+          ...httpContext,
+          path: normalizedTarget,
+        },
+      };
+      return;
+    }
+  }
+}
+
 function sanitizeHttpContext(httpContext, fallbackPath) {
   const method = ensureString(httpContext.method) || 'GET';
   const pathValue = ensureString(httpContext.path) || fallbackPath;
@@ -268,7 +393,7 @@ function toSafeEvent(event = {}) {
     rawPath,
   );
 
-  return {
+  const safeEvent = {
     ...event,
     version: ensureString(event.version, '2.0'),
     rawPath,
@@ -293,6 +418,8 @@ function toSafeEvent(event = {}) {
       http: sanitizedHttpContext,
     },
   };
+  rewriteFriendlyRoutes(safeEvent);
+  return safeEvent;
 }
 
 exports.handler = async function handler(event, context) {

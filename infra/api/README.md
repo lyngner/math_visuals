@@ -6,7 +6,10 @@ Dette kataloget inneholder en AWS SAM-mal som oppretter en Node.js 18 Lambda-fun
 
 - IAM-rolle med CloudWatch-loggføring og leseadgang til Secrets Manager og Parameter Store.
 - Lambda-funksjon som kjører `infra/api/runtime/index.js` (aggregerer alle `/api`-ruter).
-- API Gateway HTTP API med `ANY`-ruter for `/api/examples`, `/api/examples/{proxy+}`, `/api/svg/raw` og `/api/figure-library/raw`.
+- API Gateway HTTP API med `ANY`-ruter for `/api/examples`, `/api/examples/{proxy+}`,
+  `/api/svg/raw`, `/api/figure-library/raw`, `/svg`, `/svg/{proxy+}`, `/bildearkiv`,
+  `/bildearkiv/{proxy+}`, `/figure-library` og `/figure-library/{proxy+}` slik at
+  vennlige URL-er treffer samme Lambda som `/api`-endepunktene.
 - CORS-oppsett som tillater at `Access-Control-Allow-*`-headerne som settes i handlerne videreformidles til klientene.
 
 ## Pakking av Lambda-koden
