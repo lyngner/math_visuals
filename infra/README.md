@@ -34,6 +34,13 @@ one go:
 ./scripts/update-shared-params.sh
 ```
 
+Override the defaults by exporting the environment variables beforehand, e.g.
+
+```bash
+SHARED_STACK=math-visuals-shared-staging SHARED_REGION=eu-north-1 \
+STATIC_STACK=math-visuals-static-site-staging STATIC_REGION=eu-west-1 ./scripts/update-shared-params.sh
+```
+
 The script:
 
 1. Defaults to the production stack/region names (`math-visuals-shared`,
