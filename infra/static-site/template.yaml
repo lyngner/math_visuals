@@ -335,6 +335,21 @@ Resources:
             Compress: true
             CachePolicyId: 413fd3bd-6cbb-4b1c-969e-326cdc361f5c # Managed-CachingDisabled
             OriginRequestPolicyId: !Ref ApiOriginRequestPolicy
+          - PathPattern: '/figure-library/*.js'
+            TargetOriginId: SiteBucketOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+            Compress: true
+            ForwardedValues:
+              QueryString: false
+              Cookies:
+                Forward: none
           - PathPattern: '/figure-library/*'
             TargetOriginId: ApiGatewayOrigin
             ViewerProtocolPolicy: https-only

@@ -22,6 +22,7 @@ The [`template.yaml`](./template.yaml) file configures the following resources:
 | `/sortering*`           | S3 static assets   | Yes                     |
 | `/bildearkiv/*`         | API Gateway origin | Yes                     |
 | `/svg/*`                | API Gateway origin | Yes                     |
+| `/figure-library/*.js`  | S3 static assets   | No                      |
 | `/figure-library/*`     | API Gateway origin | Yes                     |
 
 Viewer request rewrites are handled by an attached CloudFront Function that

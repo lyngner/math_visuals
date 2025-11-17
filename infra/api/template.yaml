@@ -171,6 +171,48 @@ Resources:
       RouteKey: ANY /api/figure-library/raw
       Target: !Sub integrations/${LambdaIntegration}
 
+  ApiRouteSvgProxy:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: ANY /svg/{proxy+}
+      Target: !Sub integrations/${LambdaIntegration}
+
+  ApiRouteSvgRoot:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: ANY /svg
+      Target: !Sub integrations/${LambdaIntegration}
+
+  ApiRouteBildearkivProxy:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: ANY /bildearkiv/{proxy+}
+      Target: !Sub integrations/${LambdaIntegration}
+
+  ApiRouteBildearkivRoot:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: ANY /bildearkiv
+      Target: !Sub integrations/${LambdaIntegration}
+
+  ApiRouteFigureLibraryProxy:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: ANY /figure-library/{proxy+}
+      Target: !Sub integrations/${LambdaIntegration}
+
+  ApiRouteFigureLibraryRoot:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: ANY /figure-library
+      Target: !Sub integrations/${LambdaIntegration}
+
   ApiFunctionPermission:
     Type: AWS::Lambda::Permission
     Properties:
