@@ -52,29 +52,60 @@ steps:
 
 ## Deploying the stack
 
-To deploy the infrastructure, use the AWS CLI's CloudFormation deploy command.
-Replace the parameter values with ones that match your environment:
+Use the helper script to redeploy the stack with the latest template changes and
+the parameter values that were already provisioned in AWS:
 
 ```bash
-aws cloudformation deploy \
-  --stack-name math-visuals-static-site \
-  --template-file infra/static-site/template.yaml \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --parameter-overrides \
-      SiteBucketName=my-unique-math-visuals-site-bucket \
-      ApiGatewayDomainName=abc123.execute-api.us-east-1.amazonaws.com \
-      ApiGatewayOriginPath=/prod \
-      SharedParametersStackName=math-visuals-shared
+# From the repository root
+scripts/deploy-static-site.sh
 ```
 
-After the deployment completes, you can retrieve the outputs with:
+The script reads the existing values for `SiteBucketName`,
+`ApiGatewayDomainName`, `ApiGatewayOriginPath` and `CloudFrontPriceClass` from
+the `math-visuals-static-site` stack and redeploys
+[`template.yaml`](./template.yaml) with `--force-upload` so that CloudFront
+receives the latest behaviours even when the parameters are unchanged. Override
+any of the values (or the stack names) by exporting the matching environment
+variables before running the script.
 
-```bash
-aws cloudformation describe-stacks \
-  --stack-name math-visuals-static-site \
-  --query 'Stacks[0].Outputs'
-```
+### Verification
 
-The outputs `ExamplesAllowedOriginsParameterName` and `SvgAllowedOriginsParameterName`
-mirror the shared stack so that deployment pipelines can retrieve the allow-list
-parameter names alongside the CloudFront distribution metadata.
+1. Confirm that the `/api/*` behaviour still targets the API Gateway origin:
+
+   ```bash
+   CLOUDFRONT_REGION=us-east-1
+   CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
+     --stack-name math-visuals-static-site \
+     --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
+     --output text)
+
+   aws cloudfront get-distribution-config \
+     --region "$CLOUDFRONT_REGION" \
+     --id "$CLOUDFRONT_ID" \
+     --query "DistributionConfig.CacheBehaviors.Items[?PathPattern=='/api/*'].{PathPattern:PathPattern,TargetOriginId:TargetOriginId}" \
+     --output table
+   ```
+
+   The table must show `PathPattern` `/api/*` with `TargetOriginId`
+   `ApiGatewayOrigin`.
+
+2. Run the verification curls against the deployed CloudFront domain:
+
+   ```bash
+   CLOUDFRONT_DOMAIN=$(aws cloudformation describe-stacks \
+     --stack-name math-visuals-static-site \
+     --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionDomainName`].OutputValue' \
+     --output text)
+
+   curl "https://$CLOUDFRONT_DOMAIN/api/examples" | jq '.mode'
+   curl -I "https://$CLOUDFRONT_DOMAIN/sortering/eksempel1"
+   ```
+
+   The `/api/examples` call should return the API response (JSON containing
+   `mode`), and the `/sortering/eksempel1` request should return a `200 OK` from
+   the S3 origin.
+
+The outputs `ExamplesAllowedOriginsParameterName` and
+`SvgAllowedOriginsParameterName` mirror the shared stack so that deployment
+pipelines can retrieve the allow-list parameter names alongside the CloudFront
+distribution metadata.
