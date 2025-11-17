@@ -24,7 +24,6 @@
     const doc = window.document;
     const candidates = [];
 
-    candidates.push(window.MATH_VISUALS_REDIRECT_TARGET_ORIGIN);
     candidates.push(window.__MATH_VISUALS_REDIRECT_TARGET_ORIGIN__);
 
     if (doc && doc.currentScript && doc.currentScript.dataset) {
@@ -36,13 +35,6 @@
       candidates.push(
         doc.documentElement.getAttribute('data-math-visuals-redirect-target-origin')
       );
-    }
-
-    if (doc) {
-      const meta = doc.querySelector('meta[name="math-visuals:redirect-target-origin"]');
-      if (meta && typeof meta.content === 'string') {
-        candidates.push(meta.content);
-      }
     }
 
     for (const candidate of candidates) {
