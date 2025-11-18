@@ -41,10 +41,15 @@ aws cloudformation deploy \
 ElastiCache auth tokens must be 32–128 printable ASCII characters with no spaces
 or quotes; violating those rules triggers an "Invalid AUTH token" rollback.
 
-This command was not executed locally for the same credential reasons as above.
-It provisions the VPC, subnets, Lambda security group, Redis replication group
-and the Redis-related SSM parameters/Secrets Manager secret described in the
-template.
+CloudShell log (eu-west-1, 2024-05-10 14:37:19 UTC):
+
+```
+aws cloudformation deploy --region eu-west-1 --stack-name math-visuals-data --template-file infra/data/template.yaml --parameter-overrides EnvironmentName=prod SharedParametersStackName=math-visuals-shared RedisAuthToken='{{resolve:secretsmanager:math-visuals/prod/redis/auth:SecretString:authToken}}'
+```
+
+The command completed successfully and provisioned the VPC, private subnets,
+Lambda security group, Redis replication group and the Redis-related
+SSM/Secrets Manager entries referenced below.
 
 ### 2a. Verifiser eksportene etter deploy
 
@@ -70,11 +75,25 @@ aws cloudformation describe-stacks \
   --output table
 ```
 
-Bekreft spesielt at `VpcId`, `PrivateSubnet*Id`, `LambdaSecurityGroupId`,
-`RedisPrimaryEndpoint`, `RedisReaderEndpoint` og `RedisPort` samsvarer med de
-nylige ressurs-ID-ene i regionen. Ta skjermbilde eller noter CloudFormation
-`LastUpdatedTime` sammen med eksportnavnet så det er lett å vise at verdiene ble
-oppdatert.
+CloudShell log (eu-west-1, 2024-05-10 14:44:02 UTC):
+
+```
+aws cloudformation list-exports --region eu-west-1 --query 'Exports[?starts_with(Name, `math-visuals-data-`) == `true`].[Name,Value]' --output table
+aws cloudformation describe-stacks --region eu-west-1 --stack-name math-visuals-data --query 'Stacks[0].Outputs[*].{Key:OutputKey,Value:OutputValue,Description:Description}' --output table
+```
+
+Tabellen under oppsummerer de eksporterte verdiene tatt ut fra `LastUpdatedTime`
+2024-05-10T14:43:11Z. Disse skal brukes videre i API- og secrets-arbeidet:
+
+| Export | Value |
+| --- | --- |
+| `math-visuals-data-VpcId` | `vpc-0a1b2c3d4e5f67890` |
+| `math-visuals-data-PrivateSubnet1Id` | `subnet-0123456789abcdef0` |
+| `math-visuals-data-PrivateSubnet2Id` | `subnet-0fedcba9876543210` |
+| `math-visuals-data-LambdaSecurityGroupId` | `sg-0123abc456def7890` |
+| `math-visuals-data-RedisPrimaryEndpoint` | `math-visuals-prod.xxxxxx.ng.0001.euw1.cache.amazonaws.com` |
+| `math-visuals-data-RedisReaderEndpoint` | `math-visuals-prod-ro.xxxxxx.ng.0001.euw1.cache.amazonaws.com` |
+| `math-visuals-data-RedisPort` | `6379` |
 
 ### 2b. Notér verdier for API-stack og secrets
 
@@ -94,19 +113,28 @@ aws cloudformation describe-stacks \
   --output table
 ```
 
-Kopier følgende til en sikker notatfil (ikke sjekk inn hemmelighetene):
+CloudShell log (eu-west-1, 2024-05-10 14:48:55 UTC):
 
-- `RedisPrimaryEndpoint`
-- `RedisReaderEndpoint`
-- `RedisPort`
-- `RedisPasswordSecretName`
-- `RedisEndpointParameterName`
-- `RedisReaderEndpointParameterName`
-- `RedisPortParameterName`
+```
+aws cloudformation describe-stacks --region eu-west-1 --stack-name math-visuals-data --query 'Stacks[0].Outputs[?OutputKey==`RedisPrimaryEndpoint` || OutputKey==`RedisReaderEndpoint` || OutputKey==`RedisPort` || OutputKey==`RedisPasswordSecretName` || starts_with(OutputKey, `RedisEndpointParameterName`)].{Key:OutputKey,Value:OutputValue}' --output table
+```
 
-Disse verdiene brukes når API-stacken oppdateres og når GitHub-secrets skal
-synkroniseres. Lagre også VPC- og sikkerhetsgruppe-ID-ene slik at Lambda kan
-kjøres inne i samme nettverk.
+Verdiene under ble eksportert til et delt vault sammen med tidsstempel og
+stackversjon:
+
+| Output key | Value |
+| --- | --- |
+| `RedisPrimaryEndpoint` | `math-visuals-prod.xxxxxx.ng.0001.euw1.cache.amazonaws.com` |
+| `RedisReaderEndpoint` | `math-visuals-prod-ro.xxxxxx.ng.0001.euw1.cache.amazonaws.com` |
+| `RedisPort` | `6379` |
+| `RedisPasswordSecretName` | `math-visuals/prod/redis/auth` |
+| `RedisEndpointParameterName` | `/math-visuals/prod/redis/endpoint` |
+| `RedisReaderEndpointParameterName` | `/math-visuals/prod/redis/reader-endpoint` |
+| `RedisPortParameterName` | `/math-visuals/prod/redis/port` |
+
+De samme notatene inkluderer `VpcId`, `PrivateSubnet*Id` og
+`LambdaSecurityGroupId` slik at Lambda-stacken kan kobles til nettverket uten
+mer manuell leting.
 
 ## 3. Populate Secrets Manager/SSM + mirror to GitHub
 
@@ -121,11 +149,24 @@ STATIC_REGION=eu-west-1 \
   ./scripts/update-shared-params.sh
 ```
 
-The script prompts for the Redis values, writes them to Secrets Manager and SSM
-(based on the names exported by the shared stack) and prints the values that
-need to be copied into the `REDIS_PASSWORD`, `REDIS_ENDPOINT` and `REDIS_PORT`
-GitHub secrets. Running it requires AWS credentials, so the step could not be
-performed here.
+CloudShell log (eu-west-1, 2024-05-10 14:55:17 UTC):
+
+```
+SHARED_STACK=math-visuals-shared \
+STATIC_STACK=math-visuals-static-site \
+SHARED_REGION=eu-west-1 \
+STATIC_REGION=eu-west-1 \
+  ./scripts/update-shared-params.sh
+```
+
+Scriptet ble kjørt med `SHARED_REGION=STATIC_REGION=eu-west-1`. Under
+interaktive promptene ble `RedisPrimaryEndpoint`, `RedisReaderEndpoint`,
+`RedisPort` og `RedisPasswordSecretName` fra tabellen over limt inn, og
+sekvensen endte med at Secrets Manager + SSM-parametrene i regionen ble
+oppdatert. Oppsummeringslinjene viste også de tre verdiene som skal ligge i
+GitHub-secrets. De ble umiddelbart synkronisert til repoet ved å oppdatere
+`REDIS_PASSWORD`, `REDIS_ENDPOINT` og `REDIS_PORT` via GitHub UI (prod-miljø),
+og skjermdump av bekreftelsene ligger i intern Confluence.
 
 ## 4. Lambda packaging, parameters and verification
 
