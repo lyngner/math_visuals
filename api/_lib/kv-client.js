@@ -1,5 +1,10 @@
 'use strict';
 
+const { SSMClient, GetParameterCommand } = require('@aws-sdk/client-ssm');
+const {
+  SecretsManagerClient,
+  GetSecretValueCommand,
+} = require('@aws-sdk/client-secrets-manager');
 const Redis = require('ioredis');
 
 const DEFAULT_INJECTION_KEY = '__MATH_VISUALS_KV_CLIENT__';
@@ -15,6 +20,10 @@ const TLS_HOST_PATTERNS = [/\.amazonaws\.com$/i, /memorydb/i];
 
 let sharedClientPromise = null;
 const injectionPromises = new Map();
+let ssmClient = null;
+let secretsManagerClient = null;
+const parameterCache = new Map();
+const secretCache = new Map();
 
 class KvOperationError extends Error {
   constructor(message, options) {
@@ -60,6 +69,14 @@ function gatherEnvValue(keys) {
   return null;
 }
 
+function collectRawRedisBindings() {
+  return {
+    host: gatherEnvValue(HOST_ENV_KEYS),
+    port: gatherEnvValue(PORT_ENV_KEYS),
+    password: gatherEnvValue(PASSWORD_ENV_KEYS),
+  };
+}
+
 function parsePort(value) {
   if (value == null) return null;
   const parsed = Number.parseInt(String(value), 10);
@@ -67,6 +84,20 @@ function parsePort(value) {
     return parsed;
   }
   return null;
+}
+
+function looksLikeSsmParameter(value) {
+  return typeof value === 'string' && value.startsWith('/');
+}
+
+function looksLikeSecretIdentifier(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  if (value.startsWith('arn:aws:secretsmanager:')) {
+    return true;
+  }
+  return value.startsWith('math-visuals/') || value.startsWith('/math-visuals/');
 }
 
 function shouldUseTls(host, explicit) {
@@ -160,8 +191,117 @@ function getRedisEnvironment() {
   return env;
 }
 
+function ensureSsmClient() {
+  if (!ssmClient) {
+    ssmClient = new SSMClient({});
+  }
+  return ssmClient;
+}
+
+function ensureSecretsManagerClient() {
+  if (!secretsManagerClient) {
+    secretsManagerClient = new SecretsManagerClient({});
+  }
+  return secretsManagerClient;
+}
+
+async function fetchSsmParameter(name) {
+  if (!name) {
+    return null;
+  }
+  if (parameterCache.has(name)) {
+    return parameterCache.get(name);
+  }
+  const client = ensureSsmClient();
+  const response = await client.send(new GetParameterCommand({ Name: name, WithDecryption: true }));
+  const value = response && response.Parameter ? response.Parameter.Value : null;
+  if (value != null) {
+    parameterCache.set(name, value);
+  }
+  return value;
+}
+
+function parseSecretString(secretString) {
+  if (typeof secretString !== 'string') {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(secretString);
+    const keys = ['authToken', 'password', 'secret', 'value', 'token'];
+    for (const key of keys) {
+      if (parsed[key]) {
+        return String(parsed[key]);
+      }
+    }
+  } catch (_) {
+    return secretString;
+  }
+  return secretString;
+}
+
+async function fetchSecretValue(identifier) {
+  if (!identifier) {
+    return null;
+  }
+  if (secretCache.has(identifier)) {
+    return secretCache.get(identifier);
+  }
+  const client = ensureSecretsManagerClient();
+  const response = await client.send(new GetSecretValueCommand({ SecretId: identifier }));
+  let secretString = response ? response.SecretString : null;
+  if (!secretString && response && response.SecretBinary) {
+    secretString = Buffer.from(response.SecretBinary, 'base64').toString('utf8');
+  }
+  const parsed = parseSecretString(secretString);
+  if (parsed != null) {
+    secretCache.set(identifier, parsed);
+  }
+  return parsed;
+}
+
+async function resolveRedisEnvironment() {
+  const env = getRedisEnvironment();
+  const resolved = env ? { ...env } : {};
+  const bindings = collectRawRedisBindings();
+
+  if (!resolved.host && looksLikeSsmParameter(bindings.host)) {
+    resolved.host = await fetchSsmParameter(bindings.host);
+  } else if (!resolved.host && bindings.host) {
+    resolved.host = bindings.host;
+  }
+
+  if (!Number.isInteger(resolved.port) && looksLikeSsmParameter(bindings.port)) {
+    const portValue = await fetchSsmParameter(bindings.port);
+    resolved.port = parsePort(portValue);
+  } else if (!Number.isInteger(resolved.port) && bindings.port != null) {
+    resolved.port = parsePort(bindings.port);
+  }
+
+  if (!resolved.password && bindings.password) {
+    if (looksLikeSecretIdentifier(bindings.password)) {
+      resolved.password = await fetchSecretValue(bindings.password);
+    } else if (looksLikeSsmParameter(bindings.password)) {
+      resolved.password = await fetchSsmParameter(bindings.password);
+    } else {
+      resolved.password = bindings.password;
+    }
+  }
+
+  if (!resolved.host || !resolved.password || !Number.isInteger(resolved.port)) {
+    return null;
+  }
+  return resolved;
+}
+
 function isKvConfigured() {
-  return Boolean(getRedisEnvironment());
+  if (getRedisEnvironment()) {
+    return true;
+  }
+  const bindings = collectRawRedisBindings();
+  if (!bindings.host || !bindings.port || !bindings.password) {
+    return false;
+  }
+  return true;
 }
 
 function getInjectedClient(injectionKey) {
@@ -280,13 +420,13 @@ function wrapRedisClient(redis) {
 }
 
 function createSharedClientPromise() {
-  const env = getRedisEnvironment();
-  if (!env) {
-    throw new KvConfigurationError(
-      'Redis KV is not configured. Set REDIS_ENDPOINT (or REDIS_HOST), REDIS_PORT, and REDIS_PASSWORD.'
-    );
-  }
   const pending = (async () => {
+    const env = await resolveRedisEnvironment();
+    if (!env) {
+      throw new KvConfigurationError(
+        'Redis KV is not configured. Set REDIS_ENDPOINT (or REDIS_HOST), REDIS_PORT, and REDIS_PASSWORD.'
+      );
+    }
     const redis = createRedisClient(env);
     try {
       await redis.connect();
