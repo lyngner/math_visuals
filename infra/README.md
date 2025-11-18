@@ -37,14 +37,14 @@ one go:
 Override the defaults by exporting the environment variables beforehand, e.g.
 
 ```bash
-SHARED_STACK=math-visuals-shared-staging SHARED_REGION=eu-north-1 \
+SHARED_STACK=math-visuals-shared-staging SHARED_REGION=eu-west-1 \
 STATIC_STACK=math-visuals-static-site-staging STATIC_REGION=eu-west-1 ./scripts/update-shared-params.sh
 ```
 
 The script:
 
 1. Defaults to the production stack/region names (`math-visuals-shared`,
-   `math-visuals-static-site`, `eu-north-1`, `eu-west-1`) but respects any of the
+   `math-visuals-static-site`, `eu-west-1`) but respects any of the
    `SHARED_STACK`, `STATIC_STACK`, `SHARED_REGION` and `STATIC_REGION`
    environment variables you export before running it.
 2. Looks up the Secrets Manager/Parameter Store resource names from CloudFormation
@@ -58,10 +58,10 @@ The script:
 4. Prints a masked summary of the values that should be mirrored to the
    `REDIS_*` GitHub Action secrets.
 
-We keep the shared stack (Secrets Manager/SSM) in `eu-north-1` together with the
-API and Redis cluster, while the static site stack runs in `eu-west-1` for lower
-latency to most visitors and proximity to the CloudFront/S3 origin. Using two
-region variables makes it explicit which AWS calls talk to which stack.
+All infrastructure now runs in `eu-west-1` to keep Secrets Manager, SSM,
+Lambda/API and the static site in the same region. Using explicit region
+variables in the scripts still makes it clear which AWS calls talk to which
+stack, but they default to this single region.
 
 Repeat the `put-secret-value` and `put-parameter` commands whenever the Redis or
 allowed-origins configuration changes. The next deployment will automatically

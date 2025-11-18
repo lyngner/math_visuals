@@ -33,7 +33,7 @@ Eksempel på deploy med AWS CLI:
 
 ```bash
 aws cloudformation deploy \
-  --region eu-north-1 \
+  --region eu-west-1 \
   --stack-name math-visuals-data \
   --template-file infra/data/template.yaml \
   --capabilities CAPABILITY_IAM \
@@ -97,7 +97,7 @@ Disse bør **ikke** hardkodes. Hent i stedet verdiene fra stacken slik:
 
 ```bash
 DATA_STACK=math-visuals-data
-REGION=eu-north-1
+REGION=eu-west-1
 
 REDIS_ENDPOINT_PARAMETER=$(aws cloudformation describe-stacks \
   --region "$REGION" \
@@ -167,7 +167,7 @@ fra stacken og kaller `aws lambda update-function-configuration` med korrekte
 miljøvariabler.
 
 ```bash
-DATA_STACK=math-visuals-data AWS_REGION=eu-north-1 \
+DATA_STACK=math-visuals-data AWS_REGION=eu-west-1 \
   ./scripts/configure-lambda-redis.sh math-visuals-api
 ```
 

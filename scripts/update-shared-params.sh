@@ -8,7 +8,7 @@ fi
 
 export SHARED_STACK="${SHARED_STACK:-math-visuals-shared}"
 export STATIC_STACK="${STATIC_STACK:-math-visuals-static-site}"
-export SHARED_REGION="${SHARED_REGION:-eu-north-1}"
+export SHARED_REGION="${SHARED_REGION:-eu-west-1}"
 export STATIC_REGION="${STATIC_REGION:-eu-west-1}"
 
 info() {

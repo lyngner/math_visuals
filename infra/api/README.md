@@ -59,15 +59,15 @@ aws cloudformation deploy \
       SharedParametersStackName=math-visuals-shared
 ```
 
-> **Regionkrav for LambdaCodeS3Bucket:** CloudFormation-stacken i produksjon kjøres i `eu-north-1`, og `LambdaCodeS3Bucket` må
+> **Regionkrav for LambdaCodeS3Bucket:** CloudFormation-stacken i produksjon kjøres i `eu-west-1`, og `LambdaCodeS3Bucket` må
 > peke til en bøtte i samme region (eller en region-spesifikk endpoint). Hvis bøtta ligger i en annen region svarer `aws
 > cloudformation deploy` med `PermanentRedirect`. Opprett bøtta i riktig region før du laster opp artefaktet:
 >
 > ```bash
 > aws s3api create-bucket \
 >   --bucket <artefakt-bucket> \
->   --region eu-north-1 \
->   --create-bucket-configuration LocationConstraint=eu-north-1
+>   --region eu-west-1 \
+>   --create-bucket-configuration LocationConstraint=eu-west-1
 > ```
 
 Hvis du bruker versjonerte objekter i S3, kan du sette `LambdaCodeS3ObjectVersion=<versjon-id>` i `--parameter-overrides`.

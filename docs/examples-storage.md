@@ -59,7 +59,7 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
 
 | Variabel | Beskrivelse |
 | --- | --- |
-| `REDIS_ENDPOINT` | Vert/adresse til Redis-klyngen (f.eks. `clustercfg.math-visuals-prod.xxxxxx.memorydb.eu-north-1.amazonaws.com`). Stacken `infra/data/template.yaml` eksponerer navnet på Systems Manager-parameteren via output-en `RedisEndpointParameterName`. |
+| `REDIS_ENDPOINT` | Vert/adresse til Redis-klyngen (f.eks. `clustercfg.math-visuals-prod.xxxxxx.memorydb.eu-west-1.amazonaws.com`). Stacken `infra/data/template.yaml` eksponerer navnet på Systems Manager-parameteren via output-en `RedisEndpointParameterName`. |
 | `REDIS_PORT` | TCP-porten Redis lytter på. Hentes på samme måte som `REDIS_ENDPOINT`, men via output-en `RedisPortParameterName`. |
 | `REDIS_PASSWORD` | Auth-tokenet som ble gitt til ElastiCache/MemoryDB da `infra/data/template.yaml` ble deployet. Output-en `RedisPasswordSecretName` peker på Secrets Manager-secreten som inneholder feltet `authToken`. |
 | `EXAMPLES_ALLOWED_ORIGINS` | Kommaseparert liste over opprinnelser som får gjøre cross-origin-kall mot `/api/examples`. Bruk `*` under lokal utvikling eller angi eksakte produksjonsdomener. |
@@ -73,7 +73,7 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
 2. Hent navnene (eller la GitHub Actions gjøre det) med `aws cloudformation describe-stacks --stack-name <data-stack> --query 'Stacks[0].Outputs'`.
 3. Slå opp verdiene fra Systems Manager/Secrets Manager og eksporter dem til shell-et eller GitHub Secrets. Eksempel:
    ```bash
-   REGION="eu-north-1"
+   REGION="eu-west-1"
    DATA_STACK="math-visuals-data"
 
    REDIS_ENDPOINT_PARAMETER=$(aws cloudformation describe-stacks \
@@ -127,7 +127,7 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
   Trenger du å kjøre sjekken **og** fylle Redis i én operasjon kan du bruke [`scripts/cloudshell-seed-examples.sh`](../scripts/cloudshell-seed-examples.sh). Det skriptet henter `REDIS_*`, kjører `npm run check-examples-api` og starter deretter `npm run seed-examples` med datasettet du oppgir:
 
   ```bash
-  REGION="eu-north-1" \
+  REGION="eu-west-1" \
   DATA_STACK="math-visuals-data" \
   API_URL="https://<ditt-domene>/api/examples" \
   bash scripts/cloudshell-seed-examples.sh --dataset=docs/examples-seed.sample.json

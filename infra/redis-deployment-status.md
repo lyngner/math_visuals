@@ -11,7 +11,7 @@ exported parameter/secret names exist:
 
 ```bash
 aws cloudformation deploy \
-  --region eu-north-1 \
+  --region eu-west-1 \
   --stack-name math-visuals-shared \
   --template-file infra/shared-parameters.yaml \
   --parameter-overrides EnvironmentName=prod
@@ -29,7 +29,7 @@ Secrets Manager reference to keep it out of plaintext:
 
 ```bash
 aws cloudformation deploy \
-  --region eu-north-1 \
+  --region eu-west-1 \
   --stack-name math-visuals-data \
   --template-file infra/data/template.yaml \
   --parameter-overrides \
@@ -54,7 +54,7 @@ and auth token and to update the frontend allow-lists:
 ```bash
 SHARED_STACK=math-visuals-shared \
 STATIC_STACK=math-visuals-static-site \
-SHARED_REGION=eu-north-1 \
+SHARED_REGION=eu-west-1 \
 STATIC_REGION=eu-west-1 \
   ./scripts/update-shared-params.sh
 ```
@@ -112,7 +112,7 @@ knows where to pull the Lambda code from:
 
 ```bash
 aws cloudformation deploy \
-  --region eu-north-1 \
+  --region eu-west-1 \
   --stack-name math-visuals-api \
   --template-file infra/api/template.yaml \
   --parameter-overrides \
@@ -127,7 +127,7 @@ inspecting the CloudWatch logs:
 
 ```bash
 aws logs tail /aws/lambda/math-visuals-api \
-  --region eu-north-1 \
+  --region eu-west-1 \
   --since 10m \
   --filter-pattern 'mode" "kv"'
 ```
