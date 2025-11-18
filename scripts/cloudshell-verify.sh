@@ -16,6 +16,7 @@ Tilgjengelige flagg:
   --cloudfront-region=REGION   Regionen som brukes for CloudFront API-kall (standard: us-east-1)
   --data-stack=STACK           CloudFormation-stacken som eier Redis-outputs (standard: math-visuals-data)
   --static-stack=STACK         CloudFormation-stacken som eier CloudFront/S3-outputs (standard: math-visuals-static-site)
+  --api-url=URL                Overstyr CloudFront-oppslaget og bruk denne URL-en for /api/examples-testene
   --log-group=NAME             CloudWatch-logggruppen til Lambdaen (standard: /aws/lambda/math-visuals-api)
   -h, --help                   Vis denne hjelpen
 
@@ -28,6 +29,7 @@ CLOUDFRONT_REGION=$DEFAULT_CLOUDFRONT_REGION
 DATA_STACK=$DEFAULT_DATA_STACK
 STATIC_STACK=$DEFAULT_STATIC_STACK
 LOG_GROUP=$DEFAULT_LOG_GROUP
+API_URL_OVERRIDE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -42,6 +44,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --static-stack=*)
       STATIC_STACK="${1#*=}"
+      ;;
+    --api-url=*)
+      API_URL_OVERRIDE="${1#*=}"
       ;;
     --log-group=*)
       LOG_GROUP="${1#*=}"
@@ -89,22 +94,70 @@ describe_output_for_stack() {
     --output text
 }
 
+stack_exists() {
+  local stack_name="$1"
+  if aws cloudformation describe-stacks \
+    --region "$REGION" \
+    --stack-name "$stack_name" \
+    --query 'length(Stacks)' \
+    --output text >/dev/null 2>&1; then
+    return 0
+  fi
+  return 1
+}
+
+extract_domain_from_url() {
+  local url="$1"
+  if [[ "$url" =~ ^https?://([^/]+)/? ]]; then
+    echo "${BASH_REMATCH[1]}"
+  else
+    return 1
+  fi
+}
+
 # 1. Hent Redis-konfig og sjekk API-et
 source "$CHECK_SCRIPT"
 echo "==> Verifiserer Redis-parametere og API via cloudshell_check_examples ..."
-if ! cloudshell_check_examples --region="$REGION" --stack="$DATA_STACK" --static-stack="$STATIC_STACK"; then
+CHECK_ARGS=(--region="$REGION" --stack="$DATA_STACK" --static-stack="$STATIC_STACK")
+if [[ -n "$API_URL_OVERRIDE" ]]; then
+  CHECK_ARGS+=(--url="$API_URL_OVERRIDE")
+fi
+if ! cloudshell_check_examples "${CHECK_ARGS[@]}"; then
   echo "cloudshell_check_examples feilet. Se meldingen over og fiks forutsetningene før du prøver igjen." >&2
   exit 1
 fi
 
 # 2. Finn CloudFront-domenet og test sluttpunkter
-CF_DOMAIN=$(describe_output_for_stack "$STATIC_STACK" "CloudFrontDistributionDomainName")
-if [[ -z "$CF_DOMAIN" || "$CF_DOMAIN" == "None" ]]; then
-  echo "Fant ikke CloudFrontDistributionDomainName i stacken $STATIC_STACK" >&2
-  exit 1
+CF_DOMAIN=""
+API_URL=""
+STATIC_STACK_FOUND=true
+if ! stack_exists "$STATIC_STACK"; then
+  STATIC_STACK_FOUND=false
+  echo "Fant ikke CloudFormation-stacken '$STATIC_STACK' i region '$REGION'." >&2
+  if [[ -z "$API_URL_OVERRIDE" ]]; then
+    echo "Oppgi --static-stack=<navn> eller --api-url=https://ditt-domene/api/examples for å fortsette." >&2
+    exit 1
+  else
+    echo "Fortsetter fordi --api-url er satt til $API_URL_OVERRIDE." >&2
+  fi
 fi
 
-API_URL="https://${CF_DOMAIN}/api/examples"
+if [[ -n "$API_URL_OVERRIDE" ]]; then
+  API_URL="$API_URL_OVERRIDE"
+  if ! CF_DOMAIN=$(extract_domain_from_url "$API_URL_OVERRIDE"); then
+    echo "Kunne ikke lese domenet fra --api-url=$API_URL_OVERRIDE. Oppgi en URL som starter med http(s)://" >&2
+    exit 1
+  fi
+else
+  if [[ "$STATIC_STACK_FOUND" == true ]]; then
+    CF_DOMAIN=$(describe_output_for_stack "$STATIC_STACK" "CloudFrontDistributionDomainName")
+  fi
+  if [[ -z "$CF_DOMAIN" || "$CF_DOMAIN" == "None" ]]; then
+    echo "Fant ikke CloudFrontDistributionDomainName i stacken $STATIC_STACK" >&2
+    exit 1
+  fi
+  API_URL="https://${CF_DOMAIN}/api/examples"
+fi
 echo "==> Slår opp CloudFront-domenet (${CF_DOMAIN}) og sjekker API-responsen for mode=kv ..."
 curl -fsS "$API_URL" | jq '{mode, storage, persistent, updatedAt}'
 
