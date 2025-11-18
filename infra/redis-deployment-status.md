@@ -94,6 +94,7 @@ Tabellen under oppsummerer de eksporterte verdiene tatt ut fra `LastUpdatedTime`
 | `math-visuals-data-RedisPrimaryEndpoint` | `math-visuals-prod.xxxxxx.ng.0001.euw1.cache.amazonaws.com` |
 | `math-visuals-data-RedisReaderEndpoint` | `math-visuals-prod-ro.xxxxxx.ng.0001.euw1.cache.amazonaws.com` |
 | `math-visuals-data-RedisPort` | `6379` |
+| `math-visuals-data-RedisPasswordSecretName` | `math-visuals/prod/redis/auth` |
 
 ### 2b. Notér verdier for API-stack og secrets
 
@@ -120,7 +121,8 @@ aws cloudformation describe-stacks --region eu-west-1 --stack-name math-visuals-
 ```
 
 Verdiene under ble eksportert til et delt vault sammen med tidsstempel og
-stackversjon:
+stackversjon, og speiler tabellen over slik at VPC/subnett + Redis-verdier
+ligger samlet:
 
 | Output key | Value |
 | --- | --- |
