@@ -38,6 +38,9 @@ jobs:
         with:
           node-version: 20
 
+      - name: Install workspace dependencies
+        run: npm ci
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -167,6 +170,14 @@ PY
               ApiGatewayDomainName=$STATIC_SITE_API_DOMAIN \
               ApiGatewayOriginPath=$STATIC_SITE_API_ORIGIN_PATH \
               CloudFrontPriceClass=$STATIC_SITE_CLOUDFRONT_PRICE_CLASS
+
+      - name: Build and upload static assets
+        env:
+          SITE_BUCKET_NAME: ${{ env.STATIC_SITE_BUCKET_NAME }}
+        run: |
+          set -euo pipefail
+          npm run build
+          aws s3 sync public/ "s3://$SITE_BUCKET_NAME/" --delete
 
       - name: Invalidate CloudFront cache
         if: ${{ env.STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID != '' }}
