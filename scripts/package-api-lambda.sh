@@ -10,6 +10,26 @@ API_SRC_DIR="$ROOT_DIR/api"
 PALETTE_SRC_DIR="$ROOT_DIR/palette"
 ARTIFACT_PATH="$ROOT_DIR/infra/api/api-lambda.zip"
 
+ensure_rsync() {
+  if command -v rsync >/dev/null 2>&1; then
+    return
+  fi
+
+  if command -v yum >/dev/null 2>&1; then
+    echo "rsync is not installed. Attempting to install it with 'sudo yum install -y rsync'..." >&2
+    if sudo yum install -y rsync; then
+      return
+    fi
+    echo "Automatic installation of rsync failed. Please install rsync manually and re-run this script." >&2
+    exit 1
+  fi
+
+  echo "rsync is required but was not found on PATH. Please install it (for example, 'sudo yum install -y rsync' on Amazon Linux) and re-run this script." >&2
+  exit 1
+}
+
+ensure_rsync
+
 # Install production dependencies for the Lambda runtime
 npm ci --omit=dev --prefix "$LAMBDA_DIR"
 

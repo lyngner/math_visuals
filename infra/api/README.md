@@ -113,6 +113,10 @@ deploy` og validere Lambda-konfigurasjonen) med
 [`scripts/cloudshell-deploy-api.sh`](../../scripts/cloudshell-deploy-api.sh).
 Skriptet krever at du har `jq` tilgjengelig og at du er autentisert med AWS CLI.
 
+> **Merk:** CloudShell-miljøet starter uten `rsync`. Kjør `sudo yum install -y rsync`
+> én gang per sesjon før du starter `scripts/cloudshell-deploy-api.sh`, ellers feiler
+> pakking av Lambda-artefakten.
+
 ```bash
 # Kjør bare denne hvis du ikke allerede er i repo-katalogen
 cd math_visuals
