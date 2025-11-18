@@ -114,20 +114,9 @@ deploy` og validere Lambda-konfigurasjonen) med
 Skriptet krever at du har `jq` tilgjengelig og at du er autentisert med AWS CLI.
 
 ```bash
+# Kjør bare denne hvis du ikke allerede er i repo-katalogen
 cd math_visuals
-AWS_REGION=eu-west-1 \
-STACK_NAME=math-visuals-api \
-DATA_STACK_NAME=math-visuals-data \
-SHARED_PARAMETERS_STACK_NAME=math-visuals-shared \
-  ./scripts/cloudshell-deploy-api.sh <artefakt-bucket>
-```
 
-> **Merk:** Bytt ut alle plassholdere (inkludert hakeparenteser) med faktiske verdier før du kjører kommandoen. `cd math_visuals` er bare nødvendig dersom du ikke allerede står i repo-katalogen i CloudShell.
-
-Eksempel med et faktisk bøttenavn:
-
-```bash
-cd math_visuals
 AWS_REGION=eu-west-1 \
 STACK_NAME=math-visuals-api \
 DATA_STACK_NAME=math-visuals-data \
@@ -135,7 +124,9 @@ SHARED_PARAMETERS_STACK_NAME=math-visuals-shared \
   ./scripts/cloudshell-deploy-api.sh math-visuals-artifacts-eu-west-1
 ```
 
-Hvis du trenger å overstyre S3-nøkkelen for zip-filen kan du sende inn et ekstra argument med ønsket sti:
+_Husk å erstatte alle plassholdere (inkludert hakeparenteser) med faktiske verdier og hopp over `cd math_visuals` dersom du allerede står i repoet._
+
+**Valgfritt:** Dersom du vil overstyre S3-nøkkelen for zip-filen, kan du sende inn et ekstra argument med ønsket sti:
 
 ```bash
 ./scripts/cloudshell-deploy-api.sh math-visuals-artifacts-eu-west-1 team-builds/prod/api-lambda.zip
