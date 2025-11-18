@@ -7,16 +7,33 @@ AWS CLI credentials with access to the production account and that the
 `math-visuals-static-site` stack has been deployed. Adapt the values (domain,
 stack names, regions) if you are working in another environment.
 
+> **Automation shortcut** – The helper script
+> [`infra/static-site/bin/setup-custom-domain.sh`](../../infra/static-site/bin/setup-custom-domain.sh)
+> implements the steps below. Run it from the repository root to request/lookup
+> the ACM certificate in `eu-west-1`, create/locate the Route 53 hosted zone,
+> update the CloudFront distribution aliases and certificate, and upsert alias
+> A/AAAA records that point `mathvisuals.no` at CloudFront:
+>
+> ```bash
+> infra/static-site/bin/setup-custom-domain.sh
+> ```
+>
+> Export `CUSTOM_DOMAIN`, `ALT_NAMES`, `HOSTED_ZONE_ID`, `DISTRIBUTION_ID`, or
+> `STACK_NAME` before running the script to override the defaults. The helper
+> writes the ACM validation CNAMEs to
+> `certificate-validation-records.json` and the hosted-zone name servers to
+> `nameservers.json` so you can finish any manual validation steps.
+
 ## 1. Request and validate an ACM certificate
 
-CloudFront only accepts certificates in the `us-east-1` region. Use the
+CloudFront only accepts certificates in the `eu-west-1` region. Use the
 [`phase1.md`](./phase1.md) instructions to request a public certificate for your
 root domain and any required subdomains. The snippet below mirrors the commands
 from that document:
 
 ```bash
 CUSTOM_DOMAIN=mathvisuals.no
-ACM_REGION=us-east-1
+ACM_REGION=eu-west-1
 
 CERTIFICATE_ARN=$(aws acm request-certificate \
   --region "$ACM_REGION" \
@@ -55,7 +72,7 @@ site distribution so it knows about the custom domain and certificate. The
 commands are the same as those documented in `phase1.md`:
 
 ```bash
-CLOUDFRONT_REGION=us-east-1
+CLOUDFRONT_REGION=eu-west-1
 DISTRIBUTION_ID=<distribution-id>
 
 aws cloudfront get-distribution-config \
