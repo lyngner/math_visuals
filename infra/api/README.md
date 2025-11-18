@@ -59,6 +59,8 @@ aws cloudformation deploy \
       SharedParametersStackName=math-visuals-shared
 ```
 
+> **Merk:** Erstatt alle plassholdere (inkludert hakeparenteser) med faktiske verdier før du kjører kommandoene, og pass på at `LambdaCodeS3Bucket` og `LambdaCodeS3Key` peker til samme artefakt som ble lastet opp i første steg.
+
 > **Regionkrav for LambdaCodeS3Bucket:** CloudFormation-stacken i produksjon kjøres i `eu-west-1`, og `LambdaCodeS3Bucket` må
 > peke til en bøtte i samme region (eller en region-spesifikk endpoint). Hvis bøtta ligger i en annen region svarer `aws
 > cloudformation deploy` med `PermanentRedirect`. Opprett bøtta i riktig region før du laster opp artefaktet:
@@ -69,6 +71,8 @@ aws cloudformation deploy \
 >   --region eu-west-1 \
 >   --create-bucket-configuration LocationConstraint=eu-west-1
 > ```
+>
+> Husk å oppdatere `<artefakt-bucket>` med navnet på bøtta du faktisk skal bruke før kommandoen kjøres.
 
 Hvis du bruker versjonerte objekter i S3, kan du sette `LambdaCodeS3ObjectVersion=<versjon-id>` i `--parameter-overrides`.
 
@@ -95,8 +99,29 @@ AWS_REGION=eu-west-1 \
 STACK_NAME=math-visuals-api \
 DATA_STACK_NAME=math-visuals-data \
 SHARED_PARAMETERS_STACK_NAME=math-visuals-shared \
-  ./scripts/cloudshell-deploy-api.sh <artefakt-bucket> [valgfri/<sti>/api-lambda.zip]
+  ./scripts/cloudshell-deploy-api.sh <artefakt-bucket>
 ```
+
+> **Merk:** Bytt ut alle plassholdere (inkludert hakeparenteser) med faktiske verdier før du kjører kommandoen. `cd math_visuals` er bare nødvendig dersom du ikke allerede står i repo-katalogen i CloudShell.
+
+Eksempel med et faktisk bøttenavn:
+
+```bash
+cd math_visuals
+AWS_REGION=eu-west-1 \
+STACK_NAME=math-visuals-api \
+DATA_STACK_NAME=math-visuals-data \
+SHARED_PARAMETERS_STACK_NAME=math-visuals-shared \
+  ./scripts/cloudshell-deploy-api.sh math-visuals-artifacts-eu-west-1
+```
+
+Hvis du trenger å overstyre S3-nøkkelen for zip-filen kan du sende inn et ekstra argument med ønsket sti:
+
+```bash
+./scripts/cloudshell-deploy-api.sh math-visuals-artifacts-eu-west-1 team-builds/prod/api-lambda.zip
+```
+
+I eksemplet over lastes zip-filen opp til `s3://math-visuals-artifacts-eu-west-1/team-builds/prod/api-lambda.zip`, men du kan erstatte stien med en hvilken som helst katalogstruktur i samme bøtte.
 
 Skriptet gjør følgende:
 
