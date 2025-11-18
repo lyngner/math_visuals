@@ -51,12 +51,15 @@ Math Visuals videreutvikles i tett dialog med lærere, elever og spesialpedagoge
 
 ## Drift og distribusjon
 
-Produksjonsmiljøet deployes via GitHub Actions-workflowen [`deploy-infra.yml`](.github/workflows/deploy-infra.yml). Den trigges både manuelt (`workflow_dispatch`) og automatisk ved push til `main`. Workflowen kjører et enkelt `deploy-iac`-jobbløp som
+Produksjonsmiljøet deployes via GitHub Actions-workflowen [`deploy-infra.yml`](.github/workflows/deploy-infra.yml). Den trigges enten manuelt (`workflow_dispatch`) eller automatisk når en pull request mot `main` merges. Workflowen kjører et enkelt `deploy-iac`-jobbløp som
 
 - konfigurerer AWS-legitimasjon ved hjelp av OIDC-rollens ARN,
+- pakker Lambda-koden (`scripts/package-api-lambda.sh`) og laster artefaktet opp i `API_ARTIFACT_BUCKET` med commit-hash i nøkkelen,
 - oppdaterer datastrukturen i [`infra/data/template.yaml`](infra/data/template.yaml),
 - synkroniserer `REDIS_*`-hemmelighetene inn i Secrets Manager og Systems Manager-parameterne som er definert i [`infra/shared-parameters.yaml`](infra/shared-parameters.yaml),
-- ruller ut API-stacken fra [`infra/api/template.yaml`](infra/api/template.yaml) med den forhåndsbyggede Lambda-pakken, og
+- ruller ut API-stacken fra [`infra/api/template.yaml`](infra/api/template.yaml) ved å sende inn `LambdaCodeS3Bucket`, `LambdaCodeS3Key`, `DataStackName` og `SharedParametersStackName`,
+- henter API-endepunktet (`ApiEndpoint`-output) og injiserer domenet/stien i `infra/static-site/template.yaml`,
+- kjører en helse-sjekk (`npm run check-examples-api -- --url=https://<endpoint>/api/examples`) mot det nydeployede API-et, og
 - oppdaterer den statiske nettsiden gjennom CloudFormation-malen [`infra/static-site/template.yaml`](infra/static-site/template.yaml).
 
 Når alle stacker er oppdatert kan workflowen (valgfritt) invalidere CloudFront-distribusjonen slik at nye filer serveres umiddelbart.
@@ -77,8 +80,8 @@ Følgende GitHub Secrets må være definert for at workflowen skal lykkes:
 | `AWS_IAC_ROLE_ARN` | ARN til IAM-rollen som Actions skal anta via OIDC. |
 | `STATIC_SITE_BUCKET_NAME` | Navnet på S3-bøtta som huser de statiske filene. |
 | `STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID` | ID til CloudFront-distribusjonen som skal invaliders etter opplasting. |
-| `STATIC_SITE_API_DOMAIN` | Domene til API Gateway-distribusjonen som CloudFront peker mot. |
-| `STATIC_SITE_API_ORIGIN_PATH` | Eventuelt underpath (f.eks. `/prod`) for API Gateway-opprinnelsen. |
+| `STATIC_SITE_API_DOMAIN` | *(Valgfritt)* Overstyr domene til API Gateway-opprinnelsen. Standardverdi hentes fra `ApiEndpoint`-outputen i API-stacken. |
+| `STATIC_SITE_API_ORIGIN_PATH` | *(Valgfritt)* Overstyr origin-path (f.eks. `/prod`). Standardverdi er stien som `ApiEndpoint`-outputen returnerer. |
 | `STATIC_SITE_CLOUDFRONT_PRICE_CLASS` | Prisnivå for CloudFront (`PriceClass_100`, `PriceClass_200` eller `PriceClass_All`). |
 | `API_ARTIFACT_BUCKET` | S3-bøtta som inneholder det pakkede Lambda-artefaktet. |
 | `API_ARTIFACT_KEY` | Objekt-nøkkel til Lambda-pakken i S3. |

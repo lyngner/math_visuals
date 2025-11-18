@@ -1,15 +1,18 @@
 name: Deploy infrastructure
 
 on:
-  push:
+  pull_request:
     branches:
       - main
+    types:
+      - closed
   workflow_dispatch:
 
 jobs:
   deploy-iac:
     name: Deploy CloudFormation stacks
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.merged }}
     env:
       # Required GitHub secrets for AWS access and stack configuration
       AWS_REGION: ${{ secrets.AWS_REGION }}
@@ -153,23 +156,69 @@ PY
           if [ -n "${LAMBDA_CODE_VERSION:-}" ]; then
             PARAM_OVERRIDES="$PARAM_OVERRIDES LambdaCodeS3ObjectVersion=$LAMBDA_CODE_VERSION"
           fi
+          PARAM_OVERRIDES="$PARAM_OVERRIDES DataStackName=$DATA_STACK_NAME SharedParametersStackName=$SHARED_PARAMETERS_STACK_NAME"
           aws cloudformation deploy \
             --stack-name "$API_STACK_NAME" \
             --template-file infra/api/template.yaml \
             --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
             --parameter-overrides $PARAM_OVERRIDES
 
+      - name: Resolve API endpoint for static site
+        run: |
+          set -euo pipefail
+          endpoint=$(aws cloudformation describe-stacks \
+            --stack-name "$API_STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" \
+            --output text)
+          if [ -z "$endpoint" ] || [ "$endpoint" = "None" ]; then
+            echo "Fant ikke ApiEndpoint-output fra $API_STACK_NAME" >&2
+            exit 1
+          fi
+          endpoint="${endpoint%%/}"
+          echo "API_ENDPOINT_URL=$endpoint" >> "$GITHUB_ENV"
+          python - <<'PY' >> "$GITHUB_ENV"
+import os
+from urllib.parse import urlparse
+
+endpoint = os.environ["API_ENDPOINT_URL"].rstrip("/")
+parsed = urlparse(endpoint)
+domain = parsed.netloc
+path = parsed.path or "/"
+if not path.startswith('/'):
+    path = '/' + path
+examples = endpoint.rstrip('/') + '/api/examples'
+print(f"API_GATEWAY_DOMAIN_NAME={domain}")
+print(f"API_GATEWAY_ORIGIN_PATH={path}")
+print(f"API_EXAMPLES_URL={examples}")
+PY
+
+      - name: Run examples API health check
+        run: |
+          set -euo pipefail
+          npm run check-examples-api -- --url="${API_EXAMPLES_URL}"
+
       - name: Deploy static site stack
         run: |
+          set -euo pipefail
+          api_domain="${STATIC_SITE_API_DOMAIN:-$API_GATEWAY_DOMAIN_NAME}"
+          api_origin_path="${STATIC_SITE_API_ORIGIN_PATH:-$API_GATEWAY_ORIGIN_PATH}"
+          if [ -z "$api_domain" ]; then
+            echo "Fant ikke API-domene for CloudFront-oppsettet" >&2
+            exit 1
+          fi
+          if [ -z "$api_origin_path" ]; then
+            api_origin_path="/"
+          fi
           aws cloudformation deploy \
             --stack-name "$STATIC_STACK_NAME" \
             --template-file infra/static-site/template.yaml \
             --capabilities CAPABILITY_IAM \
             --parameter-overrides \
               SiteBucketName=$STATIC_SITE_BUCKET_NAME \
-              ApiGatewayDomainName=$STATIC_SITE_API_DOMAIN \
-              ApiGatewayOriginPath=$STATIC_SITE_API_ORIGIN_PATH \
-              CloudFrontPriceClass=$STATIC_SITE_CLOUDFRONT_PRICE_CLASS
+              ApiGatewayDomainName=$api_domain \
+              ApiGatewayOriginPath=$api_origin_path \
+              CloudFrontPriceClass=$STATIC_SITE_CLOUDFRONT_PRICE_CLASS \
+              SharedParametersStackName=$SHARED_PARAMETERS_STACK_NAME
 
       - name: Build and upload static assets
         env:
