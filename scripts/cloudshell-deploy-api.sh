@@ -85,92 +85,12 @@ deploy_stack() {
       SharedParametersStackName="$SHARED_PARAMETERS_STACK_NAME"
 }
 
-stack_output() {
-  local stack_name="$1"
-  local key="$2"
-  aws cloudformation describe-stacks \
-    --stack-name "$stack_name" \
-    --region "$AWS_REGION" \
-    --query "Stacks[0].Outputs[?OutputKey==\`$key\`].OutputValue" \
-    --output text
-}
-
 verify_lambda() {
   info "Verifying Lambda configuration"
-  local subnet1 subnet2 lambda_sg redis_secret redis_endpoint_param redis_port_param
-  subnet1=$(stack_output "$DATA_STACK_NAME" PrivateSubnet1Id)
-  subnet2=$(stack_output "$DATA_STACK_NAME" PrivateSubnet2Id)
-  lambda_sg=$(stack_output "$DATA_STACK_NAME" LambdaSecurityGroupId)
-  redis_secret=$(stack_output "$DATA_STACK_NAME" RedisPasswordSecretName)
-  redis_endpoint_param=$(stack_output "$DATA_STACK_NAME" RedisEndpointParameterName)
-  redis_port_param=$(stack_output "$DATA_STACK_NAME" RedisPortParameterName)
-
-  local function_physical_id
-  function_physical_id=$(aws cloudformation describe-stack-resource \
-    --stack-name "$STACK_NAME" \
-    --region "$AWS_REGION" \
-    --logical-resource-id ApiFunction \
-    --query 'StackResourceDetail.PhysicalResourceId' \
-    --output text)
-
-  local lambda_config
-  lambda_config=$(aws lambda get-function-configuration \
-    --function-name "$function_physical_id" \
-    --region "$AWS_REGION")
-
-  local errors=0
-
-  contains_value() {
-    local needle="$1"
-    shift
-    for value in "$@"; do
-      if [[ "$value" == "$needle" ]]; then
-        return 0
-      fi
-    done
-    return 1
-  }
-
-  mapfile -t lambda_subnets < <(echo "$lambda_config" | jq -r '.VpcConfig.SubnetIds[]')
-  mapfile -t lambda_sgs < <(echo "$lambda_config" | jq -r '.VpcConfig.SecurityGroupIds[]')
-
-  if ! contains_value "$subnet1" "${lambda_subnets[@]}"; then
-    echo "Missing subnet $subnet1 in Lambda VpcConfig" >&2
-    errors=$((errors+1))
-  fi
-  if ! contains_value "$subnet2" "${lambda_subnets[@]}"; then
-    echo "Missing subnet $subnet2 in Lambda VpcConfig" >&2
-    errors=$((errors+1))
-  fi
-  if ! contains_value "$lambda_sg" "${lambda_sgs[@]}"; then
-    echo "Missing Lambda security group $lambda_sg" >&2
-    errors=$((errors+1))
-  fi
-
-  local redis_password_env redis_endpoint_env redis_port_env
-  redis_password_env=$(echo "$lambda_config" | jq -r '.Environment.Variables.REDIS_PASSWORD // ""')
-  redis_endpoint_env=$(echo "$lambda_config" | jq -r '.Environment.Variables.REDIS_ENDPOINT // ""')
-  redis_port_env=$(echo "$lambda_config" | jq -r '.Environment.Variables.REDIS_PORT // ""')
-
-  if [[ "$redis_password_env" != *"$redis_secret"* ]]; then
-    echo "REDIS_PASSWORD does not reference $redis_secret" >&2
-    errors=$((errors+1))
-  fi
-  if [[ "$redis_endpoint_env" != *"$redis_endpoint_param"* ]]; then
-    echo "REDIS_ENDPOINT does not resolve $redis_endpoint_param" >&2
-    errors=$((errors+1))
-  fi
-  if [[ "$redis_port_env" != *"$redis_port_param"* ]]; then
-    echo "REDIS_PORT does not resolve $redis_port_param" >&2
-    errors=$((errors+1))
-  fi
-
-  if [[ $errors -gt 0 ]]; then
-    echo "Lambda verification failed with $errors issue(s)" >&2
-    exit 1
-  fi
-
-  info "Lambda VPC and secret bindings verified"
+  AWS_REGION="$AWS_REGION" \
+  STACK_NAME="$STACK_NAME" \
+  DATA_STACK_NAME="$DATA_STACK_NAME" \
+  "$ROOT_DIR/scripts/verify-api-lambda.sh"
 }
 
 ensure_bucket

@@ -85,6 +85,26 @@ Redis.
 Parameter Store-navn fra `infra/shared-parameters.yaml`. Sørg for at
 shared-stacken er deployet og at verdiene er oppdatert før du kjører kommandoen.
 
+### Manuell verifisering av Lambda-konfigurasjonen
+
+Etter en `aws cloudformation deploy` kan du verifisere at Lambdaen bruker de to
+private subnettene, Lambda-sikkerhetsgruppen og Secrets Manager/SSM-ressursene i
+samme region ved å kjøre:
+
+```bash
+cd math_visuals
+AWS_REGION=eu-west-1 \
+STACK_NAME=math-visuals-api \
+DATA_STACK_NAME=math-visuals-data \
+  ./scripts/verify-api-lambda.sh
+```
+
+Skriptet feiler hvis subnett eller security groups ikke matcher
+CloudFormation-outputsene fra datastacken, eller hvis Lambdaens
+miljøvariabler ikke peker til de forventede Redis-secretene og -parameterne.
+Kjør skriptet igjen etter hver deploy for å bekrefte at Lambdaen er koblet til
+de riktige ressursene i `eu-west-1`.
+
 ## CloudShell-vennlig deployskript med verifikasjon
 
 Når du jobber i AWS CloudShell kan du automatisere hele flyten (pakke Lambda,
@@ -132,9 +152,10 @@ Skriptet gjør følgende:
 3. Laster opp zip-filen til S3 og kjører samme `aws cloudformation deploy`
    kommando som beskrevet over (med `StageName`, `DataStackName` og
    `SharedParametersStackName`).
-4. Henter `ApiFunction`-navnet fra stacken, leser stack-outputs fra datastacken
-   og verifiserer at Lambda-funksjonen bruker de to private subnettene,
-   Lambda-sikkerhetsgruppen og Secrets Manager/SSM-resursene i samme region.
+4. Kaller `scripts/verify-api-lambda.sh`, som henter `ApiFunction`-navnet fra
+   stacken, leser stack-outputs fra datastacken og bekrefter at
+   Lambda-funksjonen bruker de to private subnettene, Lambda-sikkerhetsgruppen
+   og Secrets Manager/SSM-ressursene i samme region.
 
 Hvis en av verifikasjonene feiler (manglende subnett, feil security group eller
 miljøvariabler som ikke peker til de forventede secret-/parameter-navnene)
