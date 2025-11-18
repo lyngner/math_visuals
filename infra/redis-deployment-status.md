@@ -93,10 +93,18 @@ rsync -a palette/ infra/api/build/palette/
 (cd infra/api/build && zip -qr ../api-lambda.zip .)
 ```
 
-Upload the artefact to S3 so CloudFormation can pick it up:
+Upload the artefact to S3 so CloudFormation can pick it up. Before running
+`aws s3 cp` or the API stack deploy, make sure the variables point to an
+existing artefact bucket in `eu-north-1`:
 
 ```bash
-aws s3 cp infra/api/api-lambda.zip s3://<artefact-bucket>/<path>/api-lambda.zip
+# Configure the destination; the bucket must already exist in eu-north-1
+export ARTIFACT_BUCKET=math-visuals-artifacts-eun1
+export ARTIFACT_KEY=api/api-lambda.zip
+# Optional: only set if you want to pin a specific object version
+export ARTIFACT_VERSION=
+
+aws s3 cp infra/api/api-lambda.zip s3://$ARTIFACT_BUCKET/$ARTIFACT_KEY
 ```
 
 When redeploying the API stack, include the required parameters so the template
@@ -108,9 +116,9 @@ aws cloudformation deploy \
   --stack-name math-visuals-api \
   --template-file infra/api/template.yaml \
   --parameter-overrides \
-    LambdaCodeS3Bucket=<artefact-bucket> \
-    LambdaCodeS3Key=<path>/api-lambda.zip \
-    LambdaCodeS3ObjectVersion=<optional-version> \
+    LambdaCodeS3Bucket=$ARTIFACT_BUCKET \
+    LambdaCodeS3Key=$ARTIFACT_KEY \
+    LambdaCodeS3ObjectVersion=$ARTIFACT_VERSION \
     # other parameters ...
 ```
 
