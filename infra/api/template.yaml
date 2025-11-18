@@ -84,18 +84,12 @@ Resources:
       Environment:
         Variables:
           NODE_OPTIONS: --enable-source-maps
-          REDIS_ENDPOINT: !Sub
-            - '{{resolve:ssm:${RedisEndpointParameterName}}}'
-            - RedisEndpointParameterName: !ImportValue
-                'Fn::Sub': '${DataStackName}-RedisEndpointParameterName'
-          REDIS_PORT: !Sub
-            - '{{resolve:ssm:${RedisPortParameterName}}}'
-            - RedisPortParameterName: !ImportValue
-                'Fn::Sub': '${DataStackName}-RedisPortParameterName'
-          REDIS_PASSWORD: !Sub
-            - '{{resolve:secretsmanager:${RedisPasswordSecretName}:SecretString}}'
-            - RedisPasswordSecretName: !ImportValue
-                'Fn::Sub': '${DataStackName}-RedisPasswordSecretName'
+          REDIS_ENDPOINT: !ImportValue
+            'Fn::Sub': '${DataStackName}-RedisEndpointParameterName'
+          REDIS_PORT: !ImportValue
+            'Fn::Sub': '${DataStackName}-RedisPortParameterName'
+          REDIS_PASSWORD: !ImportValue
+            'Fn::Sub': '${DataStackName}-RedisPasswordSecretName'
           EXAMPLES_ALLOWED_ORIGINS: !Sub
             - '{{resolve:ssm:${ExamplesAllowedOriginsParameterName}}}'
             - ExamplesAllowedOriginsParameterName: !ImportValue

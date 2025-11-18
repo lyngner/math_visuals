@@ -67,6 +67,8 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
 
 > **Del aldri hemmelighetene i repoet.** I stedet for å sjekke inn `.env`-filer skal verdiene lagres som GitHub Secrets, Parameter Store-verdier eller Secrets Manager-secrets knyttet til `infra/shared-parameters.yaml`.
 
+> **Merk:** I AWS lagres `REDIS_ENDPOINT`, `REDIS_PORT` og `REDIS_PASSWORD` som selve Systems Manager-/Secrets Manager-referansene (f.eks. `/math-visuals/prod/redis/endpoint` og `arn:aws:secretsmanager:…:secret:math-visuals/prod/redis/password-*`). Lambda-runtime-en leser Parameter Store og Secrets Manager før den oppretter Redis-klienten. Lokalt kan du fortsatt sette faktiske host/port/passord-strenger direkte.
+
 ### Hente verdiene via CloudFormation, SSM og Secrets Manager
 
 1. Deploy datastrukturen i [`infra/data/template.yaml`](../infra/data/template.yaml). Stacken eksponerer parameter- og secret-navn for Redis via outputsene `RedisEndpointParameterName`, `RedisPortParameterName` og `RedisPasswordSecretName`.
