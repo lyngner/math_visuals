@@ -35,8 +35,11 @@ aws cloudformation deploy \
   --parameter-overrides \
     EnvironmentName=prod \
     SharedParametersStackName=math-visuals-shared \
-    RedisAuthToken='{{resolve:secretsmanager:math-visuals/prod/redis/auth}}'
+    RedisAuthToken='{{resolve:secretsmanager:math-visuals/prod/redis/auth:SecretString:authToken}}'
 ```
+
+ElastiCache auth tokens must be 32–128 printable ASCII characters with no spaces
+or quotes; violating those rules triggers an "Invalid AUTH token" rollback.
 
 This command was not executed locally for the same credential reasons as above.
 It provisions the VPC, subnets, Lambda security group, Redis replication group
