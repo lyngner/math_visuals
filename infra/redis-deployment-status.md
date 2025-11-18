@@ -21,7 +21,32 @@ This step failed in CI because the execution environment does not expose AWS
 credentials. You must run it from an authenticated workstation or pipeline that
 has access to the target AWS account.
 
-## 2. Data plane (VPC + Redis)
+## 2. Redis auth secret
+
+Create or update the Secrets Manager secret that holds the Redis auth token
+before touching the data stack. The `math-visuals-data` template consumes the
+`RedisAuthToken` dynamic reference twice (for the managed secret and the
+ElastiCache `AuthToken` property), so the secret must already exist or the
+deployment fails. Use the same region as the stack (here `eu-north-1`) and keep
+the token in JSON form:
+
+```bash
+aws secretsmanager create-secret \
+  --region eu-north-1 \
+  --name math-visuals/prod/redis/auth \
+  --secret-string '{"authToken":"<token>"}'
+```
+
+If the secret already exists, update it instead:
+
+```bash
+aws secretsmanager put-secret-value \
+  --region eu-north-1 \
+  --secret-id math-visuals/prod/redis/auth \
+  --secret-string '{"authToken":"<token>"}'
+```
+
+## 3. Data plane (VPC + Redis)
 
 Deploy `infra/data/template.yaml` after the shared stack so the template can
 import the exported names. Provide the ElastiCache auth token via a dynamic
@@ -43,7 +68,7 @@ It provisions the VPC, subnets, Lambda security group, Redis replication group
 and the Redis-related SSM parameters/Secrets Manager secret described in the
 template.
 
-## 3. Populate Secrets Manager/SSM + mirror to GitHub
+## 4. Populate Secrets Manager/SSM + mirror to GitHub
 
 After the stacks are in place, run the helper to push the Redis endpoint, port
 and auth token and to update the frontend allow-lists:
@@ -62,7 +87,7 @@ need to be copied into the `REDIS_PASSWORD`, `REDIS_ENDPOINT` and `REDIS_PORT`
 GitHub secrets. Running it requires AWS credentials, so the step could not be
 performed here.
 
-## 4. Lambda environment variables and verification
+## 5. Lambda environment variables and verification
 
 The API stack already loads the Redis endpoint/port/secret via dynamic
 references (`REDIS_*` environment variables inside `infra/api/template.yaml`).
