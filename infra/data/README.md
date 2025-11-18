@@ -167,7 +167,7 @@ fra stacken og kaller `aws lambda update-function-configuration` med korrekte
 miljøvariabler.
 
 ```bash
-DATA_STACK=math-visuals-data AWS_REGION=eu-west-1 \
+DATA_STACK=math-visuals-data \
   ./scripts/configure-lambda-redis.sh math-visuals-api
 ```
 

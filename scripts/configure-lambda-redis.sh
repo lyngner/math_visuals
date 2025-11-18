@@ -4,8 +4,8 @@ set -euo pipefail
 DEFAULT_REGION="${DEFAULT_REGION:-eu-west-1}"
 
 usage() {
-  cat <<USAGE
-Usage: $(basename "$0") <lambda-function-name>
+  cat <<'USAGE'
+Usage: configure-lambda-redis.sh <lambda-function-name>
 
 Henter VPC- og Redis-verdier fra CloudFormation/SSM/Secrets Manager og oppdaterer
 Lambda-funksjonen slik at den kjører inne i VPC-en og bruker Secrets-baserte
@@ -22,7 +22,7 @@ Miljøvariabler:
   DEFAULT_REGION    Valgfritt. Eksplicit fallback-region (default: eu-west-1)
 
 Eksempel:
-  DATA_STACK=math-visuals-data AWS_REGION=eu-west-1 \
+  DATA_STACK=math-visuals-data \
     ./scripts/configure-lambda-redis.sh math-visuals-api
 USAGE
 }
