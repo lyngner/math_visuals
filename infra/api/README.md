@@ -81,6 +81,40 @@ Redis.
 Parameter Store-navn fra `infra/shared-parameters.yaml`. Sørg for at
 shared-stacken er deployet og at verdiene er oppdatert før du kjører kommandoen.
 
+## CloudShell-vennlig deployskript med verifikasjon
+
+Når du jobber i AWS CloudShell kan du automatisere hele flyten (pakke Lambda,
+opprette S3-bøtte i `eu-west-1`, laste opp artefaktet, kjøre `aws cloudformation
+deploy` og validere Lambda-konfigurasjonen) med
+[`scripts/cloudshell-deploy-api.sh`](../../scripts/cloudshell-deploy-api.sh).
+Skriptet krever at du har `jq` tilgjengelig og at du er autentisert med AWS CLI.
+
+```bash
+cd math_visuals
+AWS_REGION=eu-west-1 \
+STACK_NAME=math-visuals-api \
+DATA_STACK_NAME=math-visuals-data \
+SHARED_PARAMETERS_STACK_NAME=math-visuals-shared \
+  ./scripts/cloudshell-deploy-api.sh <artefakt-bucket> [valgfri/<sti>/api-lambda.zip]
+```
+
+Skriptet gjør følgende:
+
+1. Sørger for at artefakt-bøtta eksisterer i `eu-west-1` (oppretter den hvis
+   den mangler, og feiler hvis den finnes i feil region).
+2. Kjører `scripts/package-api-lambda.sh` slik at `infra/api/api-lambda.zip`
+   alltid inneholder `api/`, runtime og `palette/`.
+3. Laster opp zip-filen til S3 og kjører samme `aws cloudformation deploy`
+   kommando som beskrevet over (med `StageName`, `DataStackName` og
+   `SharedParametersStackName`).
+4. Henter `ApiFunction`-navnet fra stacken, leser stack-outputs fra datastacken
+   og verifiserer at Lambda-funksjonen bruker de to private subnettene,
+   Lambda-sikkerhetsgruppen og Secrets Manager/SSM-resursene i samme region.
+
+Hvis en av verifikasjonene feiler (manglende subnett, feil security group eller
+miljøvariabler som ikke peker til de forventede secret-/parameter-navnene)
+avslutter skriptet med en forklarende feilmelding.
+
 Etter deploy kan API-endepunktet finnes i stack-utsnittene:
 
 ```bash
