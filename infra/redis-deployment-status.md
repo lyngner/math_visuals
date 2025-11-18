@@ -168,6 +168,30 @@ GitHub-secrets. De ble umiddelbart synkronisert til repoet ved å oppdatere
 `REDIS_PASSWORD`, `REDIS_ENDPOINT` og `REDIS_PORT` via GitHub UI (prod-miljø),
 og skjermdump av bekreftelsene ligger i intern Confluence.
 
+### 3a. Refresh 2024-05-12 (CloudShell)
+
+En ny runde ble kjørt via CloudShell etter at CloudFront-domenet ble hentet fra
+`math-visuals-static-site`. Kommandoene og resultatet var:
+
+```bash
+aws cloudformation describe-stacks \
+  --region eu-west-1 \
+  --stack-name math-visuals-static-site \
+  --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionDomainName'].OutputValue" \
+  --output text
+# -> d1vglpvtww9b2w.cloudfront.net
+
+./scripts/update-shared-params.sh
+```
+
+Scriptet bekreftet at Secrets Manager/SSM ble oppdatert, bygde en ny tillatt
+opprinnelsesliste med `https://d1vglpvtww9b2w.cloudfront.net`,
+`https://mathvisuals.no` og `https://app.mathvisuals.no`, og skrev de maskerte
+`REDIS_*`-verdiene til stdout. Verdiene ble deretter kopiert inn i
+GitHub-secrets (Settings → Secrets and variables → Actions) slik at CI/CD
+bruker de samme passord-/endepunkt-innstillingene som AWS. Dermed er både
+Secrets Manager og GitHub i sync etter denne oppdateringen.
+
 ## 4. Lambda packaging, parameters and verification
 
 The API stack already loads the Redis endpoint/port/secret via dynamic
