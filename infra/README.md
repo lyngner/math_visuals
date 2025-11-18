@@ -67,6 +67,21 @@ Repeat the `put-secret-value` and `put-parameter` commands whenever the Redis or
 allowed-origins configuration changes. The next deployment will automatically
 pick up the updated values because the templates resolve them dynamically.
 
+## CloudShell helper for validating the examples API
+
+Operators can sanity-check the deployed `/api/examples` endpoint directly from
+AWS CloudShell with `scripts/cloudshell-check-examples.sh`. The script looks up
+the Redis connection info from the data stack (defaults to
+`math-visuals-data`) and runs `npm run check-examples-api` with the correct
+`REDIS_*` environment variables in place.
+
+You can pass `--region`, `--stack` and `--url` manually, or simply rely on the
+defaults. When `API_URL`/`--url` is omitted, the script now auto-detects the
+CloudFront hostname by querying the `CloudFrontDistributionDomainName` output on
+the static site stack (defaults to `math-visuals-static-site`). Override the
+lookup with `STATIC_STACK=<name>` or `--static-stack=<name>` whenever you need to
+point at staging/preview environments.
+
 ### CI-integrasjon og nødvendige secrets
 
 GitHub Actions-workflowen [`deploy-infra.yml`](../.github/workflows/deploy-infra.yml)

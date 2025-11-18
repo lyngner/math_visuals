@@ -12,6 +12,8 @@ Alternativt kan du oppgi flagg:
   --region=REGION          AWS-regionen som inneholder stacken (standard: verdien i
                            $REGION/$AWS_REGION/$AWS_DEFAULT_REGION/$DEFAULT_REGION eller eu-west-1)
   --stack=STACK            Navnet på CloudFormation-stacken for data (standard: verdien i $DATA_STACK eller math-visuals-data)
+  --static-stack=STACK     Navnet på CloudFormation-stacken for statisk web (brukes når API_URL ikke er satt,
+                           standard: verdien i $STATIC_STACK eller math-visuals-static-site)
   --url=URL                URL-en til /api/examples som skal testes (kan også settes via API_URL)
   -h, --help               Vis denne hjelpeteksten
 
@@ -33,6 +35,7 @@ cloudshell_check_examples() {
 
   REGION=${REGION:-${AWS_REGION:-${AWS_DEFAULT_REGION:-$DEFAULT_REGION}}}
   DATA_STACK=${DATA_STACK:-math-visuals-data}
+  STATIC_STACK=${STATIC_STACK:-math-visuals-static-site}
   API_URL=${API_URL:-}
 
   while [[ $# -gt 0 ]]; do
@@ -42,6 +45,9 @@ cloudshell_check_examples() {
         ;;
       --stack=*)
         DATA_STACK="${1#*=}"
+        ;;
+      --static-stack=*)
+        STATIC_STACK="${1#*=}"
         ;;
       --url=*)
         API_URL="${1#*=}"
@@ -59,12 +65,6 @@ cloudshell_check_examples() {
     shift
   done
 
-  if [[ -z "${API_URL}" ]]; then
-    echo "API_URL er ikke satt. Angi API_URL miljøvariabelen eller bruk --url=..." >&2
-    usage >&2
-    return 1
-  fi
-
   if ! command -v aws >/dev/null 2>&1; then
     echo "aws CLI mangler. Installer den (CloudShell har den ferdig installert)." >&2
     return 1
@@ -75,18 +75,37 @@ cloudshell_check_examples() {
     return 1
   fi
 
-  echo "Region:        $REGION"
-  echo "Data-stack:    $DATA_STACK"
-  echo "API-URL:       $API_URL"
-
-  describe_output() {
-    local key="$1"
+  describe_output_for_stack() {
+    local stack_name="$1"
+    local key="$2"
     aws cloudformation describe-stacks \
       --region "$REGION" \
-      --stack-name "$DATA_STACK" \
+      --stack-name "$stack_name" \
       --query "Stacks[0].Outputs[?OutputKey==\`$key\`].OutputValue" \
       --output text
   }
+
+  describe_output() {
+    describe_output_for_stack "$DATA_STACK" "$1"
+  }
+
+  if [[ -z "${API_URL}" ]]; then
+    echo "API_URL er ikke satt. Forsøker å finne CloudFront-domenet fra stacken $STATIC_STACK ..."
+    local static_domain
+    static_domain=$(describe_output_for_stack "$STATIC_STACK" "CloudFrontDistributionDomainName")
+    if [[ -n "$static_domain" && "$static_domain" != "None" ]]; then
+      API_URL="https://${static_domain}/api/examples"
+      echo "Fant CloudFrontDistributionDomainName=$static_domain i stacken $STATIC_STACK. Bruker API_URL=$API_URL"
+    else
+      echo "Fant ikke CloudFrontDistributionDomainName i stacken $STATIC_STACK. Angi API_URL eller --url=..." >&2
+      return 1
+    fi
+  fi
+
+  echo "Region:        $REGION"
+  echo "Data-stack:    $DATA_STACK"
+  echo "Static-stack:  $STATIC_STACK"
+  echo "API-URL:       $API_URL"
 
   require_value() {
     local value="$1"
