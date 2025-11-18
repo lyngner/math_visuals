@@ -46,6 +46,68 @@ It provisions the VPC, subnets, Lambda security group, Redis replication group
 and the Redis-related SSM parameters/Secrets Manager secret described in the
 template.
 
+### 2a. Verifiser eksportene etter deploy
+
+Når stacken er ferdig, dobbeltsjekk at eksportene i `eu-west-1` peker til de nye
+ressursene (VPC, subnett, sikkerhetsgrupper og Redis-endepunkter). I
+CloudShell/CLI kan du kjøre:
+
+```bash
+aws cloudformation list-exports \
+  --region eu-west-1 \
+  --query 'Exports[?starts_with(Name, `math-visuals-data-`) == `true`].[Name,Value]' \
+  --output table
+```
+
+Bruk `describe-stacks` for å hente de menneskevennlige beskrivelsene dersom noe
+ser uklart ut:
+
+```bash
+aws cloudformation describe-stacks \
+  --region eu-west-1 \
+  --stack-name math-visuals-data \
+  --query 'Stacks[0].Outputs[*].{Key:OutputKey,Value:OutputValue,Description:Description}' \
+  --output table
+```
+
+Bekreft spesielt at `VpcId`, `PrivateSubnet*Id`, `LambdaSecurityGroupId`,
+`RedisPrimaryEndpoint`, `RedisReaderEndpoint` og `RedisPort` samsvarer med de
+nylige ressurs-ID-ene i regionen. Ta skjermbilde eller noter CloudFormation
+`LastUpdatedTime` sammen med eksportnavnet så det er lett å vise at verdiene ble
+oppdatert.
+
+### 2b. Notér verdier for API-stack og secrets
+
+API-stacken og GitHub-secrets forventer tre operasjonelle verdier: Redis-endepunkt,
+port og passord. Hent dem fra outputs og skriv dem ned i et sikkert vault (f.eks.
+1Password eller AWS Secrets Manager) sammen med tidsstempel og stack-versjon.
+En enkel måte å hente verdiene på er:
+
+```bash
+DATA_STACK=math-visuals-data
+REGION=eu-west-1
+
+aws cloudformation describe-stacks \
+  --region "$REGION" \
+  --stack-name "$DATA_STACK" \
+  --query 'Stacks[0].Outputs[?OutputKey==`RedisPrimaryEndpoint` || OutputKey==`RedisReaderEndpoint` || OutputKey==`RedisPort` || OutputKey==`RedisPasswordSecretName` || starts_with(OutputKey, `RedisEndpointParameterName`)].{Key:OutputKey,Value:OutputValue}' \
+  --output table
+```
+
+Kopier følgende til en sikker notatfil (ikke sjekk inn hemmelighetene):
+
+- `RedisPrimaryEndpoint`
+- `RedisReaderEndpoint`
+- `RedisPort`
+- `RedisPasswordSecretName`
+- `RedisEndpointParameterName`
+- `RedisReaderEndpointParameterName`
+- `RedisPortParameterName`
+
+Disse verdiene brukes når API-stacken oppdateres og når GitHub-secrets skal
+synkroniseres. Lagre også VPC- og sikkerhetsgruppe-ID-ene slik at Lambda kan
+kjøres inne i samme nettverk.
+
 ## 3. Populate Secrets Manager/SSM + mirror to GitHub
 
 After the stacks are in place, run the helper to push the Redis endpoint, port
