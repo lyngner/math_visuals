@@ -42,30 +42,29 @@ cd -
 
 Disse stegene finnes også automatisert i `scripts/package-api-lambda.sh`, som brukes til å produsere en zip hvor `palette/`-mappen alltid er inkludert.
 
-Last opp `infra/api/api-lambda.zip` til ønsket S3-bucket og nøkkel, og bruk deretter CloudFormation/SAM til å deploye:
+Produksjonsstacken henter Lambda-koden fra `math-visuals-artifacts-eu-west-1` i `eu-west-1`. Last opp `infra/api/api-lambda.zip`
+til denne bøtta (standardnøkkel `lambda/api-lambda.zip`), og bruk deretter CloudFormation/SAM til å deploye:
 
 ```bash
-aws s3 cp infra/api/api-lambda.zip s3://<artefakt-bucket>/<sti>/api-lambda.zip
+aws s3 cp infra/api/api-lambda.zip s3://math-visuals-artifacts-eu-west-1/lambda/api-lambda.zip
 
 aws cloudformation deploy \
   --stack-name math-visuals-api \
   --template-file infra/api/template.yaml \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides \
-      LambdaCodeS3Bucket=<artefakt-bucket> \
-      LambdaCodeS3Key=<sti>/api-lambda.zip \
+      LambdaCodeS3Bucket=math-visuals-artifacts-eu-west-1 \
+      LambdaCodeS3Key=lambda/api-lambda.zip \
       StageName=prod \
       DataStackName=math-visuals-data \
       SharedParametersStackName=math-visuals-shared
 ```
 
-> **Regionkrav for LambdaCodeS3Bucket:** CloudFormation-stacken i produksjon kjøres i `eu-west-1`, og `LambdaCodeS3Bucket` må
-> peke til en bøtte i samme region (eller en region-spesifikk endpoint). Hvis bøtta ligger i en annen region svarer `aws
-> cloudformation deploy` med `PermanentRedirect`. Opprett bøtta i riktig region før du laster opp artefaktet:
+> **Regionkrav for LambdaCodeS3Bucket:** CloudFormation-stacken i produksjon kjøres i `eu-west-1`, og `LambdaCodeS3Bucket` må peke til en bøtte i samme region (eller en region-spesifikk endpoint). Prod-miljøet bruker bøtta `math-visuals-artifacts-eu-west-1`, men hvis du trenger en separat testbøtte må den også ligge i `eu-west-1`:
 >
 > ```bash
 > aws s3api create-bucket \
->   --bucket <artefakt-bucket> \
+>   --bucket <egen-testbucket> \
 >   --region eu-west-1 \
 >   --create-bucket-configuration LocationConstraint=eu-west-1
 > ```
@@ -95,8 +94,16 @@ AWS_REGION=eu-west-1 \
 STACK_NAME=math-visuals-api \
 DATA_STACK_NAME=math-visuals-data \
 SHARED_PARAMETERS_STACK_NAME=math-visuals-shared \
-  ./scripts/cloudshell-deploy-api.sh <artefakt-bucket> [valgfri/<sti>/api-lambda.zip]
+  ./scripts/cloudshell-deploy-api.sh math-visuals-artifacts-eu-west-1
 ```
+
+Hvis du trenger å overstyre S3-nøkkelen for zip-filen kan du sende inn et ekstra argument med ønsket sti:
+
+```bash
+./scripts/cloudshell-deploy-api.sh math-visuals-artifacts-eu-west-1 team-builds/prod/api-lambda.zip
+```
+
+I eksemplet over lastes zip-filen opp til `s3://math-visuals-artifacts-eu-west-1/team-builds/prod/api-lambda.zip`, men du kan erstatte stien med en hvilken som helst katalogstruktur i samme bøtte.
 
 Skriptet gjør følgende:
 
