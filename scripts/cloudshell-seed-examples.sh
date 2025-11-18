@@ -7,7 +7,8 @@ Bruk: REGION=<region> DATA_STACK=<stack-navn> API_URL="https://<domene>/api/exam
   bash scripts/cloudshell-seed-examples.sh [--dataset=fil]
 
 Flagg:
-  --region=REGION          AWS-regionen som inneholder data-stacken (standard: verdien i $REGION eller eu-west-1)
+  --region=REGION          AWS-regionen som inneholder data-stacken (standard: verdien i
+                           $REGION/$AWS_REGION/$AWS_DEFAULT_REGION/$DEFAULT_REGION eller eu-west-1)
   --stack=STACK            Navnet på CloudFormation-stacken for data (standard: verdien i $DATA_STACK eller math-visuals-data)
   --url=URL                URL-en til /api/examples som skal testes (kan også settes via API_URL)
   --dataset=FIL            JSON-fil som skal brukes når datasettene seedes (standard: docs/examples-seed.sample.json)

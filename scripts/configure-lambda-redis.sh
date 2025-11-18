@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+DEFAULT_REGION="${DEFAULT_REGION:-eu-west-1}"
+
 usage() {
   cat <<USAGE
 Usage: $(basename "$0") <lambda-function-name>
@@ -14,8 +16,10 @@ Obligatoriske argumenter:
 
 Miljøvariabler:
   DATA_STACK        Navn på data-stack (default: math-visuals-data)
-  AWS_REGION        Region for ressursene (default: eu-west-1)
+  AWS_REGION        Region for ressursene (default: verdien i
+                    $AWS_REGION/$AWS_DEFAULT_REGION/$DEFAULT_REGION eller eu-west-1)
   AWS_PROFILE       Valgfritt. Brukes av AWS CLI ved behov.
+  DEFAULT_REGION    Valgfritt. Eksplicit fallback-region (default: eu-west-1)
 
 Eksempel:
   DATA_STACK=math-visuals-data AWS_REGION=eu-west-1 \
@@ -46,7 +50,7 @@ fi
 
 FUNCTION_NAME=$1
 DATA_STACK=${DATA_STACK:-math-visuals-data}
-REGION=${AWS_REGION:-${AWS_DEFAULT_REGION:-eu-west-1}}
+REGION=${AWS_REGION:-${AWS_DEFAULT_REGION:-$DEFAULT_REGION}}
 
 fetch_output() {
   local output_key=$1

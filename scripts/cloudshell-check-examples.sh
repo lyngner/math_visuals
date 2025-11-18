@@ -2,12 +2,15 @@
 
 # Source-friendly helper: `source scripts/cloudshell-check-examples.sh && cloudshell_check_examples --url=...`
 
+DEFAULT_REGION="${DEFAULT_REGION:-eu-west-1}"
+
 usage() {
   cat <<'USAGE'
 Bruk: REGION=<region> DATA_STACK=<stack-navn> API_URL="https://<domene>/api/examples" bash scripts/cloudshell-check-examples.sh
 
 Alternativt kan du oppgi flagg:
-  --region=REGION          AWS-regionen som inneholder stacken (standard: verdien i $REGION eller eu-west-1)
+  --region=REGION          AWS-regionen som inneholder stacken (standard: verdien i
+                           $REGION/$AWS_REGION/$AWS_DEFAULT_REGION/$DEFAULT_REGION eller eu-west-1)
   --stack=STACK            Navnet på CloudFormation-stacken for data (standard: verdien i $DATA_STACK eller math-visuals-data)
   --url=URL                URL-en til /api/examples som skal testes (kan også settes via API_URL)
   -h, --help               Vis denne hjelpeteksten
@@ -28,7 +31,7 @@ cloudshell_check_examples() {
   local -
   set -euo pipefail
 
-  REGION=${REGION:-eu-west-1}
+  REGION=${REGION:-${AWS_REGION:-${AWS_DEFAULT_REGION:-$DEFAULT_REGION}}}
   DATA_STACK=${DATA_STACK:-math-visuals-data}
   API_URL=${API_URL:-}
 
