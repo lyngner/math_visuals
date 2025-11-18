@@ -88,10 +88,10 @@ npm run check-examples-api
 
 ## 6. Legg inn Redis-hemmeligheter når du trenger permanent lagring
 
-1. Sett `REGION` og `DATA_STACK` til de samme verdiene som i AWS (for eksempel `eu-north-1` og `math-visuals-data`).
+1. Sett `REGION` og `DATA_STACK` til de samme verdiene som i AWS (for eksempel `eu-west-1` og `math-visuals-data`).
 2. Kjør de samme kommandoene som beskrevet i `docs/examples-storage.md` for å hente Parameter Store- og Secrets Manager-verdiene:
    ```bash
-   REGION=eu-north-1
+   REGION=eu-west-1
    DATA_STACK=math-visuals-data
 
    REDIS_ENDPOINT_PARAMETER=$(aws cloudformation describe-stacks \

@@ -14,11 +14,11 @@ Obligatoriske argumenter:
 
 Miljøvariabler:
   DATA_STACK        Navn på data-stack (default: math-visuals-data)
-  AWS_REGION        Region for ressursene (default: eu-north-1)
+  AWS_REGION        Region for ressursene (default: eu-west-1)
   AWS_PROFILE       Valgfritt. Brukes av AWS CLI ved behov.
 
 Eksempel:
-  DATA_STACK=math-visuals-data AWS_REGION=eu-north-1 \
+  DATA_STACK=math-visuals-data AWS_REGION=eu-west-1 \
     ./scripts/configure-lambda-redis.sh math-visuals-api
 USAGE
 }
@@ -46,7 +46,7 @@ fi
 
 FUNCTION_NAME=$1
 DATA_STACK=${DATA_STACK:-math-visuals-data}
-REGION=${AWS_REGION:-${AWS_DEFAULT_REGION:-eu-north-1}}
+REGION=${AWS_REGION:-${AWS_DEFAULT_REGION:-eu-west-1}}
 
 fetch_output() {
   local output_key=$1

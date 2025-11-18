@@ -271,7 +271,7 @@ Når klyngen er opprettet, hent `PrimaryEndpoint` (`ConfigurationEndpoint` for M
 Legg inn Redis-tilkobling og CORS-opprinnelser slik at Lambda kan hente dem ved oppstart. Parameternavnene kommer fra `infra/shared-parameters.yaml` og CloudFront-domenet hentes direkte fra den statiske stacken slik at allow-listen alltid samsvarer med aktiv distribusjon:
 
 ```bash
-REGION=eu-north-1
+REGION=eu-west-1
 ENVIRONMENT_NAME=prod
 SHARED_STACK=math-visuals-shared
 STATIC_STACK=math-visuals-static-site
@@ -336,7 +336,7 @@ need_cmd openssl
 prompt() { local label="$1" default="$2" value; read -rp "$label [$default]: " value; printf '%s' "${value:-$default}"; }
 
 RUNTIME_REGION=$(prompt "Region for S3/Lambda/API" "eu-west-1")
-INFRA_REGION=$(prompt "Region for data/shared stacker" "eu-north-1")
+INFRA_REGION=$(prompt "Region for data/shared stacker" "eu-west-1")
 ENVIRONMENT=$(prompt "Miljønavn" "prod")
 SHARED_STACK=$(prompt "Navn på shared-parameterstack" "math-visuals-shared")
 DATA_STACK=$(prompt "Navn på data-stack" "math-visuals-data")
