@@ -6,7 +6,7 @@ DEFAULT_REGION="${DEFAULT_REGION:-eu-west-1}"
 
 usage() {
   cat <<'USAGE'
-Bruk: REGION=<region> DATA_STACK=<stack-navn> API_URL="https://<domene>/api/examples" bash scripts/cloudshell-check-examples.sh
+Bruk: DATA_STACK=<stack-navn> API_URL="https://<domene>/api/examples" bash scripts/cloudshell-check-examples.sh
 
 Alternativt kan du oppgi flagg:
   --region=REGION          AWS-regionen som inneholder stacken (standard: verdien i
@@ -16,12 +16,12 @@ Alternativt kan du oppgi flagg:
   -h, --help               Vis denne hjelpeteksten
 
 Eksempel:
-  REGION=eu-west-1 DATA_STACK=math-visuals-data \
+  DATA_STACK=math-visuals-data \
     API_URL="https://eksempel.no/api/examples" \
     bash scripts/cloudshell-check-examples.sh
 
 Kilde og kjør manuelt:
-  REGION=eu-west-1 DATA_STACK=math-visuals-data \
+  DATA_STACK=math-visuals-data \
     API_URL="https://eksempel.no/api/examples" \
     source scripts/cloudshell-check-examples.sh && cloudshell_check_examples
 USAGE

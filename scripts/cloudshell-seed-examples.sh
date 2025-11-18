@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'USAGE'
-Bruk: REGION=<region> DATA_STACK=<stack-navn> API_URL="https://<domene>/api/examples" \
+Bruk: DATA_STACK=<stack-navn> API_URL="https://<domene>/api/examples" \
   bash scripts/cloudshell-seed-examples.sh [--dataset=fil]
 
 Flagg:
@@ -15,7 +15,7 @@ Flagg:
   -h, --help               Vis denne hjelpeteksten
 
 Eksempel:
-  REGION=eu-west-1 DATA_STACK=math-visuals-data \
+  DATA_STACK=math-visuals-data \
     API_URL="https://example.org/api/examples" \
     bash scripts/cloudshell-seed-examples.sh --dataset=docs/examples-seed.sample.json
 USAGE

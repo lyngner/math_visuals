@@ -116,7 +116,6 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
    **CloudShell-snarvei:** I stedet for å lime inn blokken manuelt kan du be skriptet [`scripts/cloudshell-check-examples.sh`](../scripts/cloudshell-check-examples.sh) hente verdiene og kjøre `npm run check-examples-api` for deg:
 
    ```bash
-  REGION="eu-west-1" \
   DATA_STACK="math-visuals-data" \
   API_URL="https://<ditt-domene>/api/examples" \
   source scripts/cloudshell-check-examples.sh && cloudshell_check_examples
@@ -127,7 +126,6 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
   Trenger du å kjøre sjekken **og** fylle Redis i én operasjon kan du bruke [`scripts/cloudshell-seed-examples.sh`](../scripts/cloudshell-seed-examples.sh). Det skriptet henter `REDIS_*`, kjører `npm run check-examples-api` og starter deretter `npm run seed-examples` med datasettet du oppgir:
 
   ```bash
-  REGION="eu-west-1" \
   DATA_STACK="math-visuals-data" \
   API_URL="https://<ditt-domene>/api/examples" \
   bash scripts/cloudshell-seed-examples.sh --dataset=docs/examples-seed.sample.json
