@@ -15,6 +15,7 @@ Alternativt kan du oppgi flagg:
   --static-stack=STACK     Navnet på CloudFormation-stacken for statisk web (brukes når API_URL ikke er satt,
                            standard: verdien i $STATIC_STACK eller math-visuals-static-site)
   --url=URL                URL-en til /api/examples som skal testes (kan også settes via API_URL)
+  --trace                  Slå på shell-tracing for feilsøking
   -h, --help               Vis denne hjelpeteksten
 
 Eksempel:
@@ -51,6 +52,9 @@ cloudshell_check_examples() {
         ;;
       --url=*)
         API_URL="${1#*=}"
+        ;;
+      --trace)
+        set -x
         ;;
       -h|--help)
         usage
