@@ -123,11 +123,14 @@ if [[ -n "$API_URL_OVERRIDE" ]]; then
   CHECK_ARGS+=(--url="$API_URL_OVERRIDE")
 fi
 CHECK_LOG=$(mktemp)
-if ! cloudshell_check_examples "${CHECK_ARGS[@]}" > >(tee "$CHECK_LOG") 2> >(tee -a "$CHECK_LOG" >&2); then
-  echo "cloudshell_check_examples feilet. Full utskrift av helperen følger:" >&2
-  cat "$CHECK_LOG" >&2
+set +e
+cloudshell_check_examples "${CHECK_ARGS[@]}" > >(tee "$CHECK_LOG") 2> >(tee -a "$CHECK_LOG" >&2)
+CLOUDSHELL_STATUS=$?
+set -e
+if [[ "$CLOUDSHELL_STATUS" -ne 0 ]]; then
+  echo "cloudshell_check_examples stoppet før CloudFront-sjekkene; se over for AWS/SSM/Secrets-feil." >&2
   rm -f "$CHECK_LOG"
-  exit 1
+  exit "$CLOUDSHELL_STATUS"
 fi
 rm -f "$CHECK_LOG"
 
