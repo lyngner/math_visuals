@@ -165,4 +165,8 @@ cloudshell_check_examples() {
   npm run check-examples-api -- --url="$API_URL"
 }
 
-[[ "${BASH_SOURCE[0]}" == "$0" ]] && cloudshell_check_examples "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  cloudshell_check_examples "$@"
+else
+  return 0
+fi
