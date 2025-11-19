@@ -115,15 +115,23 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
    ```
    > Tips: `REGION`, `DATA_STACK` og `API_URL` bør stå i anførselstegn slik at copy/paste fungerer selv før du erstatter plassholderne.
 
-   **CloudShell-snarvei:** I stedet for å lime inn blokken manuelt kan du be skriptet [`scripts/cloudshell-check-examples.sh`](../scripts/cloudshell-check-examples.sh) hente verdiene og kjøre `npm run check-examples-api` for deg:
+  **CloudShell-snarvei:** I stedet for å lime inn blokken manuelt kan du be skriptet [`scripts/cloudshell-check-examples.sh`](../scripts/cloudshell-check-examples.sh) hente verdiene og kjøre `npm run check-examples-api` for deg:
 
-   ```bash
+  ```bash
   DATA_STACK="math-visuals-data" \
   API_URL="https://<ditt-domene>/api/examples" \
   source scripts/cloudshell-check-examples.sh && cloudshell_check_examples
-   ```
+  ```
 
   Skriptet kan nå sources slik at `REDIS_*`-variablene blir værende i samme shell og stopper med en tydelig feilmelding dersom stacken ikke finnes i regionen eller hvis secrets mangler `authToken`-feltet.
+
+**Full helsesjekk i CloudShell:** Når du vil bekrefte hele kjeden (Redis → Lambda → CloudFront), kan du kjøre [`./cloudshell-verify.sh`](../cloudshell-verify.sh) (en tynn wrapper) eller direkte [`scripts/cloudshell-verify.sh`](../scripts/cloudshell-verify.sh). Skriptet slår automatisk opp CloudFront-domenet, bruker det for både helperen og curl-testene, tester `/api/examples` og `/sortering/eksempel1` via distribusjonen, viser `Origins`-konfigurasjonen og tailer CloudWatch-loggene etter `mode: "kv"`-meldinger:
+
+  ```bash
+  bash scripts/cloudshell-verify.sh
+  ```
+
+  Overstyr regioner, stack-navn eller logggruppen ved å sende flagg som `--region=eu-west-1 --static-stack=math-visuals-static-site --log-group=/aws/lambda/math-visuals-api`. Legg til `--trace` for å slå på shell-tracing dersom du må se nøyaktig hvilket steg som feiler. Hvis CloudFront-stacken ikke kan slås opp, kan du overstyre API-endepunktet med `--api-url=https://<ditt-domene>/api/examples`; skriptet bruker denne URL-en for helperen og curl-testene og hopper over CloudFront-oppslagene hvis domenet ikke kan avledes.
 
   Trenger du å kjøre sjekken **og** fylle Redis i én operasjon kan du bruke [`scripts/cloudshell-seed-examples.sh`](../scripts/cloudshell-seed-examples.sh). Det skriptet henter `REDIS_*`, kjører `npm run check-examples-api` og starter deretter `npm run seed-examples` med datasettet du oppgir:
 
