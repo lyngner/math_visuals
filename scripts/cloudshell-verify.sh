@@ -5,6 +5,7 @@ DEFAULT_REGION=${DEFAULT_REGION:-eu-west-1}
 DEFAULT_CLOUDFRONT_REGION=${DEFAULT_CLOUDFRONT_REGION:-us-east-1}
 DEFAULT_DATA_STACK=${DEFAULT_DATA_STACK:-math-visuals-data}
 DEFAULT_STATIC_STACK=${DEFAULT_STATIC_STACK:-math-visuals-static-site}
+DEFAULT_API_STACK=${DEFAULT_API_STACK:-math-visuals-api}
 DEFAULT_LOG_GROUP=${DEFAULT_LOG_GROUP:-/aws/lambda/math-visuals-api}
 
 usage() {
@@ -15,6 +16,7 @@ Tilgjengelige flagg:
   --region=REGION              Regionen der data/API-stakkene ligger (standard: eu-west-1)
   --cloudfront-region=REGION   Regionen som brukes for CloudFront API-kall (standard: us-east-1)
   --data-stack=STACK           CloudFormation-stacken som eier Redis-outputs (standard: math-visuals-data)
+  --api-stack=STACK            CloudFormation-stacken som eier API-et (for logg-lookup, standard: math-visuals-api)
   --static-stack=STACK         CloudFormation-stacken som eier CloudFront/S3-outputs (standard: math-visuals-static-site)
   --api-url=URL                Overstyr CloudFront-oppslaget og bruk denne URL-en for /api/examples-testene (hopper over describe-stacks)
   --log-group=NAME             CloudWatch-logggruppen til Lambdaen (standard: /aws/lambda/math-visuals-api)
@@ -29,10 +31,12 @@ REGION=$DEFAULT_REGION
 CLOUDFRONT_REGION=$DEFAULT_CLOUDFRONT_REGION
 DATA_STACK=$DEFAULT_DATA_STACK
 STATIC_STACK=$DEFAULT_STATIC_STACK
+API_STACK=$DEFAULT_API_STACK
 LOG_GROUP=$DEFAULT_LOG_GROUP
 API_URL_OVERRIDE=""
 TRACE=false
 SHOW_HELP=false
+LOG_GROUP_SET=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -45,6 +49,9 @@ while [[ $# -gt 0 ]]; do
     --data-stack=*)
       DATA_STACK="${1#*=}"
       ;;
+    --api-stack=*)
+      API_STACK="${1#*=}"
+      ;;
     --static-stack=*)
       STATIC_STACK="${1#*=}"
       ;;
@@ -53,6 +60,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --log-group=*)
       LOG_GROUP="${1#*=}"
+      LOG_GROUP_SET=true
       ;;
     --trace)
       TRACE=true
@@ -127,6 +135,57 @@ extract_domain_from_url() {
   else
     return 1
   fi
+}
+
+log_group_has_streams() {
+  local log_group_name="$1"
+  if [[ -z "$log_group_name" ]]; then
+    return 1
+  fi
+
+  local stream_count
+  stream_count=$(aws cloudwatch logs describe-log-streams \
+    --region "$REGION" \
+    --log-group-name "$log_group_name" \
+    --limit 1 \
+    --query 'length(logStreams)' \
+    --output text 2>/dev/null || echo "0")
+
+  if [[ "$stream_count" != "0" && "$stream_count" != "None" ]]; then
+    return 0
+  fi
+  return 1
+}
+
+discover_log_groups() {
+  local results=()
+
+  if stack_exists "$API_STACK"; then
+    local api_fn_arn
+    api_fn_arn=$(describe_output_for_stack "$API_STACK" "ApiFunctionArn")
+    if [[ -n "$api_fn_arn" && "$api_fn_arn" != "None" ]]; then
+      local api_fn_name
+      api_fn_name="${api_fn_arn##*:function:}"
+      if [[ -n "$api_fn_name" ]]; then
+        results+=("/aws/lambda/${api_fn_name}")
+      fi
+    fi
+  fi
+
+  local described
+  if described=$(aws logs describe-log-groups \
+    --region "$REGION" \
+    --log-group-name-prefix "$DEFAULT_LOG_GROUP" \
+    --query 'logGroups[].logGroupName' \
+    --output text 2>/dev/null); then
+    while IFS=$'\t' read -r lg; do
+      if [[ -n "$lg" ]]; then
+        results+=("$lg")
+      fi
+    done <<< "$described"
+  fi
+
+  echo "${results[@]}"
 }
 
 # 1. Hent Redis-konfig og sjekk API-et
@@ -207,6 +266,24 @@ aws cloudfront get-distribution-config \
   | jq '.DistributionConfig.Origins.Items'
 
 # 4. Tail CloudWatch-loggene
+if [[ "$LOG_GROUP_SET" == false ]]; then
+  mapfile -t DISCOVERED_LOG_GROUPS < <(discover_log_groups)
+
+  for candidate in "${DISCOVERED_LOG_GROUPS[@]}"; do
+    if log_group_has_streams "$candidate"; then
+      LOG_GROUP="$candidate"
+      break
+    fi
+  done
+
+  if [[ -z "$LOG_GROUP" || "$LOG_GROUP" == "$DEFAULT_LOG_GROUP" ]]; then
+    if ! log_group_has_streams "$LOG_GROUP"; then
+      echo "Fant ingen loggstrømmer i standardgruppen '${DEFAULT_LOG_GROUP}'. Sett --log-group til den faktiske Lambda-gruppen (f.eks. /aws/lambda/math-visuals-api-ApiFunction-...) og kjør skriptet på nytt." >&2
+      LOG_GROUP=""
+    fi
+  fi
+fi
+
 if [[ -n "$LOG_GROUP" ]]; then
   echo "==> Tailer de siste 15 minuttene med Lambda-logger for å se etter Redis/advarsler ..."
   aws cloudwatch logs tail "$LOG_GROUP" \
