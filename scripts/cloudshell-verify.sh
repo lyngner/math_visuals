@@ -37,6 +37,23 @@ API_URL_OVERRIDE=""
 TRACE=false
 SHOW_HELP=false
 LOG_GROUP_SET=false
+CF_DOMAIN=""
+API_URL=""
+HELPER_STATUS="not-run"
+OVERALL_STATUS=""
+
+print_summary() {
+  local exit_code=$?
+  local api_value="${API_URL:-}"
+  local cf_value="${CF_DOMAIN:-}"
+  local redis_value="${REDIS_ENDPOINT:-}"
+  local helper_value="${HELPER_STATUS:-not-set}"
+  local overall_value="${OVERALL_STATUS:-$exit_code}"
+
+  echo "==> Summary: API_URL=${api_value:-<unset>} CF_DOMAIN=${cf_value:-<unset>} REDIS_ENDPOINT=${redis_value:-<unset>} HELPER_STATUS=${helper_value} OVERALL_STATUS=${overall_value}"
+}
+
+trap 'print_summary' EXIT
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -292,8 +309,10 @@ set +e
 }
 CLOUDSHELL_STATUS=$?
 set -e
+HELPER_STATUS=$CLOUDSHELL_STATUS
 if [[ "$CLOUDSHELL_STATUS" -ne 0 ]]; then
   echo "cloudshell_check_examples stoppet med exit $CLOUDSHELL_STATUS; sjekk loggen i $CHECK_LOG eller utskriften over." >&2
+  OVERALL_STATUS="$CLOUDSHELL_STATUS"
   exit "$CLOUDSHELL_STATUS"
 fi
 rm -f "$CHECK_LOG"
