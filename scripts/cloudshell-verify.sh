@@ -209,10 +209,31 @@ aws cloudfront get-distribution-config \
 # 4. Tail CloudWatch-loggene
 if [[ -n "$LOG_GROUP" ]]; then
   echo "==> Tailer de siste 15 minuttene med Lambda-logger for å se etter Redis/advarsler ..."
-  aws cloudwatch logs tail "$LOG_GROUP" \
-    --region "$REGION" \
-    --since 15m \
-    --format short | grep -Ei 'mode|kv' || true
+  TAIL_STATUS=0
+  set +e
+  if aws cloudwatch logs tail --help >/dev/null 2>&1; then
+    aws cloudwatch logs tail "$LOG_GROUP" \
+      --region "$REGION" \
+      --since 15m \
+      --format short | grep -Ei 'mode|kv'
+    TAIL_STATUS=$?
+  else
+    echo "aws cloudwatch logs tail er ikke tilgjengelig (krever AWS CLI v2); prøver filter-log-events som fallback ..." >&2
+    local_end_ts=$(date -u +%s)
+    local_start_ts=$((local_end_ts - 1800)) # 30 minutter tilbakeblikk
+    aws logs filter-log-events \
+      --log-group-name "$LOG_GROUP" \
+      --region "$REGION" \
+      --start-time $((local_start_ts * 1000)) \
+      --end-time $((local_end_ts * 1000)) \
+      --query 'events[].message' \
+      --output text | grep -Ei 'mode|kv'
+    TAIL_STATUS=$?
+  fi
+  set -e
+  if [[ "$TAIL_STATUS" -ne 0 ]]; then
+    echo "CloudWatch-loggtrinnet feilet eller ga ingen treff; fortsetter verifiseringen." >&2
+  fi
 else
   echo "LOG_GROUP er tom. Hopper over CloudWatch-tail."
 fi
