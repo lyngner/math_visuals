@@ -23,6 +23,7 @@ Tilgjengelige flagg:
   --cloudfront-region=REGION   Regionen som brukes for CloudFront API-kall (standard: us-east-1)
   --data-stack=STACK           CloudFormation-stacken som eier Redis-outputs (standard: math-visuals-data)
   --static-stack=STACK         CloudFormation-stacken som eier CloudFront/S3-outputs (standard: math-visuals-static-site)
+  --api-url=URL                Overstyr CloudFront-oppslaget og bruk denne URL-en for /api/examples-testene (hopper over describe-stacks)
   --log-group=NAME             CloudWatch-logggruppen til Lambdaen (standard: /aws/lambda/math-visuals-api)
   --trace                      Slå på shell-tracing for å se hvert steg i skriptet (nyttig for feilsøking)
   -h, --help                   Vis denne hjelpen
@@ -36,6 +37,7 @@ CLOUDFRONT_REGION=$DEFAULT_CLOUDFRONT_REGION
 DATA_STACK=$DEFAULT_DATA_STACK
 STATIC_STACK=$DEFAULT_STATIC_STACK
 LOG_GROUP=$DEFAULT_LOG_GROUP
+API_URL=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -53,6 +55,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --static-stack=*)
       STATIC_STACK="${1#*=}"
+      ;;
+    --api-url=*)
+      API_URL="${1#*=}"
       ;;
     --log-group=*)
       LOG_GROUP="${1#*=}"
@@ -101,13 +106,23 @@ describe_output_for_stack() {
 }
 
 # Finn CloudFront-domenet på forhånd slik at helperen også bruker korrekt API-URL
-CF_DOMAIN=$(describe_output_for_stack "$STATIC_STACK" "CloudFrontDistributionDomainName")
-if [[ -z "$CF_DOMAIN" || "$CF_DOMAIN" == "None" ]]; then
-  echo "Fant ikke CloudFrontDistributionDomainName i stacken $STATIC_STACK" >&2
-  exit 1
+if [[ -z "$API_URL" ]]; then
+  CF_DOMAIN=$(describe_output_for_stack "$STATIC_STACK" "CloudFrontDistributionDomainName")
+  if [[ -z "$CF_DOMAIN" || "$CF_DOMAIN" == "None" ]]; then
+    echo "Fant ikke CloudFrontDistributionDomainName i stacken $STATIC_STACK" >&2
+    echo "Tips: Oppgi --api-url=https://<ditt-domene>/api/examples dersom CloudFront-stacken har et annet navn." >&2
+    exit 1
+  fi
+  API_URL="https://${CF_DOMAIN}/api/examples"
+else
+  # Prøv å trekke ut domenet fra API_URL for å bruke det i CloudFront-sjekkene
+  CF_DOMAIN=$(printf '%s' "$API_URL" | sed -E 's#^[a-zA-Z]+://([^/]+)/?.*$#\1#')
 fi
 
-API_URL="https://${CF_DOMAIN}/api/examples"
+if [[ -z "$API_URL" ]]; then
+  echo "API_URL kunne ikke bestemmes. Sett --api-url=... eller sørg for CloudFront-outputs." >&2
+  exit 1
+fi
 
 # 1. Hent Redis-konfig og sjekk API-et
 source "$CHECK_SCRIPT"
@@ -118,28 +133,32 @@ if ! API_URL="$API_URL" cloudshell_check_examples --region="$REGION" --stack="$D
 fi
 
 # 2. Bruk CloudFront-domenet til å teste sluttpunkter
-echo "==> Slår opp CloudFront-domenet (${CF_DOMAIN}) og sjekker API-responsen for mode=kv ..."
+echo "==> Slår opp CloudFront-domenet (${CF_DOMAIN:-<ukjent>}) og sjekker API-responsen for mode=kv ..."
 curl -fsS "$API_URL" | jq '{mode, storage, persistent, updatedAt}'
 
-echo "==> Bekrefter at /sortering/eksempel1 fungerer via CloudFront ..."
-curl -I "https://${CF_DOMAIN}/sortering/eksempel1"
+if [[ -n "$CF_DOMAIN" ]]; then
+  echo "==> Bekrefter at /sortering/eksempel1 fungerer via CloudFront ..."
+  curl -I "https://${CF_DOMAIN}/sortering/eksempel1"
 
-# 3. Valider CloudFront-origins
-DISTRIBUTION_ID=$(aws cloudfront list-distributions \
-  --region "$CLOUDFRONT_REGION" \
-  --query "DistributionList.Items[?DomainName=='${CF_DOMAIN}'].Id" \
-  --output text)
+  # 3. Valider CloudFront-origins
+  DISTRIBUTION_ID=$(aws cloudfront list-distributions \
+    --region "$CLOUDFRONT_REGION" \
+    --query "DistributionList.Items[?DomainName=='${CF_DOMAIN}'].Id" \
+    --output text)
 
-if [[ -z "$DISTRIBUTION_ID" || "$DISTRIBUTION_ID" == "None" ]]; then
-  echo "Fant ikke en CloudFront-distribusjon for $CF_DOMAIN i region $CLOUDFRONT_REGION" >&2
-  exit 1
+  if [[ -z "$DISTRIBUTION_ID" || "$DISTRIBUTION_ID" == "None" ]]; then
+    echo "Fant ikke en CloudFront-distribusjon for $CF_DOMAIN i region $CLOUDFRONT_REGION" >&2
+    exit 1
+  fi
+
+  echo "==> Henter CloudFront-distribusjonen (${DISTRIBUTION_ID}) og viser origins ..."
+  aws cloudfront get-distribution-config \
+    --region "$CLOUDFRONT_REGION" \
+    --id "$DISTRIBUTION_ID" \
+    | jq '.DistributionConfig.Origins.Items'
+else
+  echo "Advarsel: CF_DOMAIN ble ikke satt (brukte --api-url uten CloudFront-lookup). Hopper over CloudFront- og /sortering-sjekkene." >&2
 fi
-
-echo "==> Henter CloudFront-distribusjonen (${DISTRIBUTION_ID}) og viser origins ..."
-aws cloudfront get-distribution-config \
-  --region "$CLOUDFRONT_REGION" \
-  --id "$DISTRIBUTION_ID" \
-  | jq '.DistributionConfig.Origins.Items'
 
 # 4. Tail CloudWatch-loggene
 if [[ -n "$LOG_GROUP" ]]; then
