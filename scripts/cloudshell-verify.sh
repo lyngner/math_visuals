@@ -7,6 +7,7 @@ DEFAULT_DATA_STACK=${DEFAULT_DATA_STACK:-math-visuals-data}
 DEFAULT_STATIC_STACK=${DEFAULT_STATIC_STACK:-math-visuals-static-site}
 DEFAULT_API_STACK=${DEFAULT_API_STACK:-math-visuals-api}
 DEFAULT_LOG_GROUP=${DEFAULT_LOG_GROUP:-/aws/lambda/math-visuals-api}
+OVERALL_STATUS=0
 
 usage() {
   cat <<'USAGE'
@@ -92,6 +93,27 @@ require_cmd() {
 for cmd in aws jq curl npm; do
   require_cmd "$cmd"
 done
+
+record_status() {
+  local status="$1"
+  local label="$2"
+  local message="${3:-}"
+
+  if [[ "$status" -ne 0 ]]; then
+    OVERALL_STATUS=1
+    if [[ -n "$message" ]]; then
+      echo "$label feilet: $message" >&2
+    else
+      echo "$label feilet" >&2
+    fi
+  else
+    if [[ -n "$message" ]]; then
+      echo "$label: $message"
+    else
+      echo "$label: OK"
+    fi
+  fi
+}
 
 if [[ "$TRACE" == true ]]; then
   set -x
@@ -272,6 +294,45 @@ tail_logs() {
   fi
 }
 
+ping_redis() {
+  echo "==> Kjører direkte PING mot Redis for å validere REDIS_* verdiene ..."
+
+  local redis_client=""
+  if command -v redis-cli >/dev/null 2>&1; then
+    redis_client="redis-cli"
+  elif command -v valkey-cli >/dev/null 2>&1; then
+    redis_client="valkey-cli"
+  fi
+
+  if [[ -z "$redis_client" ]]; then
+    record_status 1 "Redis PING" "redis-cli/valkey-cli mangler i PATH"
+    return
+  fi
+
+  set +e
+  local ping_output
+  ping_output=$($redis_client --tls -h "$REDIS_ENDPOINT" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" PING 2>&1)
+  local ping_status=$?
+  set -e
+
+  if [[ "$ping_status" -eq 0 && "$ping_output" =~ PONG ]]; then
+    record_status 0 "Redis PING" "$ping_output"
+  else
+    local reason="ukjent feil"
+    local lower_output
+    lower_output=$(echo "$ping_output" | tr '[:upper:]' '[:lower:]')
+    if [[ "$lower_output" == *"wrongpass"* || "$lower_output" == *"noauth"* || "$lower_output" == *"auth"* ]]; then
+      reason="Redis auth failed"
+    elif [[ "$lower_output" == *"timeout"* ]]; then
+      reason="network timeout"
+    elif [[ "$lower_output" == *"refused"* ]]; then
+      reason="connection refused"
+    fi
+    echo "$ping_output" >&2
+    record_status 1 "Redis PING" "$reason"
+  fi
+}
+
 # 1. Hent Redis-konfig og sjekk API-et
 source "$CHECK_SCRIPT"
 echo "==> Verifiserer Redis-parametere og API via cloudshell_check_examples ..."
@@ -297,6 +358,8 @@ if [[ "$CLOUDSHELL_STATUS" -ne 0 ]]; then
   exit "$CLOUDSHELL_STATUS"
 fi
 rm -f "$CHECK_LOG"
+
+ping_redis
 
 # 2. Finn CloudFront-domenet og test sluttpunkter
 CF_DOMAIN=""
@@ -358,3 +421,4 @@ else
 fi
 
 echo "\nAlt ferdig. Bekreft at curl/jq- og loggutskriftene viser mode=\"kv\" for å sikre at Redis brukes."
+exit "$OVERALL_STATUS"
