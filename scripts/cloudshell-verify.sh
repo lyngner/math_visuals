@@ -16,7 +16,7 @@ Tilgjengelige flagg:
   --cloudfront-region=REGION   Regionen som brukes for CloudFront API-kall (standard: us-east-1)
   --data-stack=STACK           CloudFormation-stacken som eier Redis-outputs (standard: math-visuals-data)
   --static-stack=STACK         CloudFormation-stacken som eier CloudFront/S3-outputs (standard: math-visuals-static-site)
-  --api-url=URL                Overstyr CloudFront-oppslaget og bruk denne URL-en for /api/examples-testene
+  --api-url=URL                Overstyr CloudFront-oppslaget og bruk denne URL-en for /api/examples-testene (hopper over describe-stacks)
   --log-group=NAME             CloudWatch-logggruppen til Lambdaen (standard: /aws/lambda/math-visuals-api)
   -h, --help                   Vis denne hjelpen
 
@@ -137,17 +137,6 @@ rm -f "$CHECK_LOG"
 # 2. Finn CloudFront-domenet og test sluttpunkter
 CF_DOMAIN=""
 API_URL=""
-STATIC_STACK_FOUND=true
-if ! stack_exists "$STATIC_STACK"; then
-  STATIC_STACK_FOUND=false
-  echo "Fant ikke CloudFormation-stacken '$STATIC_STACK' i region '$REGION'." >&2
-  if [[ -z "$API_URL_OVERRIDE" ]]; then
-    echo "Oppgi --static-stack=<navn> eller --api-url=https://ditt-domene/api/examples for å fortsette." >&2
-    exit 1
-  else
-    echo "Fortsetter fordi --api-url er satt til $API_URL_OVERRIDE." >&2
-  fi
-fi
 
 if [[ -n "$API_URL_OVERRIDE" ]]; then
   API_URL="$API_URL_OVERRIDE"
@@ -156,6 +145,14 @@ if [[ -n "$API_URL_OVERRIDE" ]]; then
     exit 1
   fi
 else
+  STATIC_STACK_FOUND=true
+  if ! stack_exists "$STATIC_STACK"; then
+    STATIC_STACK_FOUND=false
+    echo "Fant ikke CloudFormation-stacken '$STATIC_STACK' i region '$REGION'." >&2
+    echo "Oppgi --static-stack=<navn> eller --api-url=https://ditt-domene/api/examples for å fortsette." >&2
+    exit 1
+  fi
+
   if [[ "$STATIC_STACK_FOUND" == true ]]; then
     CF_DOMAIN=$(describe_output_for_stack "$STATIC_STACK" "CloudFrontDistributionDomainName")
   fi
