@@ -15,6 +15,7 @@ Alternativt kan du oppgi flagg:
   --static-stack=STACK     Navnet på CloudFormation-stacken for statisk web (brukes når API_URL ikke er satt,
                            standard: verdien i $STATIC_STACK eller math-visuals-static-site)
   --url=URL                URL-en til /api/examples som skal testes (kan også settes via API_URL)
+  --trace                  Slå på shell tracing (set -x) for feilsøking
   -h, --help               Vis denne hjelpeteksten
 
 Eksempel:
@@ -37,6 +38,7 @@ cloudshell_check_examples() {
   DATA_STACK=${DATA_STACK:-math-visuals-data}
   STATIC_STACK=${STATIC_STACK:-math-visuals-static-site}
   API_URL=${API_URL:-}
+  local trace=false
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -52,6 +54,9 @@ cloudshell_check_examples() {
       --url=*)
         API_URL="${1#*=}"
         ;;
+      --trace)
+        trace=true
+        ;;
       -h|--help)
         usage
         return 0
@@ -64,6 +69,10 @@ cloudshell_check_examples() {
     esac
     shift
   done
+
+  if [[ "$trace" == true ]] || [[ "${CLOUDSHELL_TRACE:-false}" == true ]]; then
+    set -x
+  fi
 
   if ! command -v aws >/dev/null 2>&1; then
     echo "aws CLI mangler. Installer den (CloudShell har den ferdig installert)." >&2

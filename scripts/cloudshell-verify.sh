@@ -18,6 +18,7 @@ Tilgjengelige flagg:
   --static-stack=STACK         CloudFormation-stacken som eier CloudFront/S3-outputs (standard: math-visuals-static-site)
   --api-url=URL                Overstyr CloudFront-oppslaget og bruk denne URL-en for /api/examples-testene (hopper over describe-stacks)
   --log-group=NAME             CloudWatch-logggruppen til Lambdaen (standard: /aws/lambda/math-visuals-api)
+  --trace                      Slå på shell tracing (set -x) for å feilsøke tidlige stopp
   -h, --help                   Vis denne hjelpen
 
 Skriptet krever at du allerede har kjørt `aws configure` eller `aws sso login`.
@@ -30,6 +31,8 @@ DATA_STACK=$DEFAULT_DATA_STACK
 STATIC_STACK=$DEFAULT_STATIC_STACK
 LOG_GROUP=$DEFAULT_LOG_GROUP
 API_URL_OVERRIDE=""
+TRACE=false
+SHOW_HELP=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -51,9 +54,11 @@ while [[ $# -gt 0 ]]; do
     --log-group=*)
       LOG_GROUP="${1#*=}"
       ;;
+    --trace)
+      TRACE=true
+      ;;
     -h|--help)
-      usage
-      exit 0
+      SHOW_HELP=true
       ;;
     *)
       echo "Ukjent flagg: $1" >&2
@@ -63,6 +68,11 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+
+if [[ "$SHOW_HELP" == true ]]; then
+  usage
+  exit 0
+fi
 
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -74,6 +84,10 @@ require_cmd() {
 for cmd in aws jq curl npm; do
   require_cmd "$cmd"
 done
+
+if [[ "$TRACE" == true ]]; then
+  set -x
+fi
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 CHECK_SCRIPT="$SCRIPT_DIR/cloudshell-check-examples.sh"
@@ -121,6 +135,9 @@ echo "==> Verifiserer Redis-parametere og API via cloudshell_check_examples ..."
 CHECK_ARGS=(--region="$REGION" --stack="$DATA_STACK" --static-stack="$STATIC_STACK")
 if [[ -n "$API_URL_OVERRIDE" ]]; then
   CHECK_ARGS+=(--url="$API_URL_OVERRIDE")
+fi
+if [[ "$TRACE" == true ]]; then
+  CHECK_ARGS+=(--trace)
 fi
 CHECK_LOG=$(mktemp)
 set +e
