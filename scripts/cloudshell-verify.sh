@@ -188,6 +188,90 @@ discover_log_groups() {
   echo "${results[@]}"
 }
 
+has_cloudwatch_tail() {
+  local aws_version
+  if aws_version=$(aws --version 2>/dev/null); then
+    if [[ "$aws_version" =~ aws-cli/2 ]] && aws cloudwatch logs tail --help >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+resolve_log_group() {
+  if [[ "$LOG_GROUP_SET" == true ]]; then
+    return
+  fi
+
+  mapfile -t DISCOVERED_LOG_GROUPS < <(discover_log_groups)
+
+  for candidate in "${DISCOVERED_LOG_GROUPS[@]}"; do
+    if log_group_has_streams "$candidate"; then
+      LOG_GROUP="$candidate"
+      return
+    fi
+  done
+
+  local api_fn_prefix
+  api_fn_prefix="${DEFAULT_LOG_GROUP}-ApiFunction"
+  local described
+  if described=$(aws logs describe-log-groups \
+    --region "$REGION" \
+    --log-group-name-prefix "$api_fn_prefix" \
+    --query 'logGroups[].logGroupName' \
+    --output text 2>/dev/null); then
+    while IFS=$'\t' read -r lg; do
+      if log_group_has_streams "$lg"; then
+        LOG_GROUP="$lg"
+        return
+      fi
+    done <<< "$described"
+  fi
+
+  if log_group_has_streams "$LOG_GROUP"; then
+    return
+  fi
+
+  LOG_GROUP=""
+}
+
+tail_logs() {
+  if [[ -z "$LOG_GROUP" ]]; then
+    echo "LOG_GROUP er tom. Hopper over CloudWatch-tail."
+    return
+  fi
+
+  echo "==> Tailer de siste 15 minuttene med Lambda-logger for å se etter Redis/advarsler ..."
+  local TAIL_STATUS=0
+  set +e
+  if has_cloudwatch_tail; then
+    aws cloudwatch logs tail "$LOG_GROUP" \
+      --region "$REGION" \
+      --since 15m \
+      --format short | grep -Ei 'mode|kv'
+    TAIL_STATUS=$?
+  else
+    echo "aws cloudwatch logs tail er ikke tilgjengelig (krever AWS CLI v2); prøver filter-log-events som fallback ..." >&2
+    local local_end_ts
+    local local_start_ts
+    local_end_ts=$(date -u +%s)
+    local_start_ts=$((local_end_ts - 1800)) # 30 minutter tilbakeblikk
+    aws logs filter-log-events \
+      --log-group-name "$LOG_GROUP" \
+      --region "$REGION" \
+      --start-time $((local_start_ts * 1000)) \
+      --end-time $((local_end_ts * 1000)) \
+      --query 'events[].message' \
+      --output text | grep -Ei 'mode|kv'
+    TAIL_STATUS=$?
+  fi
+  set -e
+  if [[ "$TAIL_STATUS" -ne 0 ]]; then
+    echo "CloudWatch-loggtrinnet feilet eller ga ingen treff; fortsetter verifiseringen." >&2
+  fi
+}
+
 # 1. Hent Redis-konfig og sjekk API-et
 source "$CHECK_SCRIPT"
 echo "==> Verifiserer Redis-parametere og API via cloudshell_check_examples ..."
@@ -266,53 +350,11 @@ aws cloudfront get-distribution-config \
   | jq '.DistributionConfig.Origins.Items'
 
 # 4. Tail CloudWatch-loggene
-if [[ "$LOG_GROUP_SET" == false ]]; then
-  mapfile -t DISCOVERED_LOG_GROUPS < <(discover_log_groups)
-
-  for candidate in "${DISCOVERED_LOG_GROUPS[@]}"; do
-    if log_group_has_streams "$candidate"; then
-      LOG_GROUP="$candidate"
-      break
-    fi
-  done
-
-  if [[ -z "$LOG_GROUP" || "$LOG_GROUP" == "$DEFAULT_LOG_GROUP" ]]; then
-    if ! log_group_has_streams "$LOG_GROUP"; then
-      echo "Fant ingen loggstrømmer i standardgruppen '${DEFAULT_LOG_GROUP}'. Sett --log-group til den faktiske Lambda-gruppen (f.eks. /aws/lambda/math-visuals-api-ApiFunction-...) og kjør skriptet på nytt." >&2
-      LOG_GROUP=""
-    fi
-  fi
-fi
-
-if [[ -n "$LOG_GROUP" ]]; then
-  echo "==> Tailer de siste 15 minuttene med Lambda-logger for å se etter Redis/advarsler ..."
-  TAIL_STATUS=0
-  set +e
-  if aws cloudwatch logs tail --help >/dev/null 2>&1; then
-    aws cloudwatch logs tail "$LOG_GROUP" \
-      --region "$REGION" \
-      --since 15m \
-      --format short | grep -Ei 'mode|kv'
-    TAIL_STATUS=$?
-  else
-    echo "aws cloudwatch logs tail er ikke tilgjengelig (krever AWS CLI v2); prøver filter-log-events som fallback ..." >&2
-    local_end_ts=$(date -u +%s)
-    local_start_ts=$((local_end_ts - 1800)) # 30 minutter tilbakeblikk
-    aws logs filter-log-events \
-      --log-group-name "$LOG_GROUP" \
-      --region "$REGION" \
-      --start-time $((local_start_ts * 1000)) \
-      --end-time $((local_end_ts * 1000)) \
-      --query 'events[].message' \
-      --output text | grep -Ei 'mode|kv'
-    TAIL_STATUS=$?
-  fi
-  set -e
-  if [[ "$TAIL_STATUS" -ne 0 ]]; then
-    echo "CloudWatch-loggtrinnet feilet eller ga ingen treff; fortsetter verifiseringen." >&2
-  fi
+resolve_log_group
+if [[ -z "$LOG_GROUP" ]]; then
+  echo "Fant ingen logggruppe med loggstrømmer. Sett --log-group til den faktiske Lambda-gruppen (f.eks. /aws/lambda/math-visuals-api-ApiFunction-...) og kjør skriptet på nytt." >&2
 else
-  echo "LOG_GROUP er tom. Hopper over CloudWatch-tail."
+  tail_logs
 fi
 
 echo "\nAlt ferdig. Bekreft at curl/jq- og loggutskriftene viser mode=\"kv\" for å sikre at Redis brukes."
