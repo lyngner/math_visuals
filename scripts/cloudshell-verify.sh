@@ -122,10 +122,14 @@ CHECK_ARGS=(--region="$REGION" --stack="$DATA_STACK" --static-stack="$STATIC_STA
 if [[ -n "$API_URL_OVERRIDE" ]]; then
   CHECK_ARGS+=(--url="$API_URL_OVERRIDE")
 fi
-if ! cloudshell_check_examples "${CHECK_ARGS[@]}"; then
-  echo "cloudshell_check_examples feilet. Se meldingen over og fiks forutsetningene før du prøver igjen." >&2
+CHECK_LOG=$(mktemp)
+if ! cloudshell_check_examples "${CHECK_ARGS[@]}" > >(tee "$CHECK_LOG") 2> >(tee -a "$CHECK_LOG" >&2); then
+  echo "cloudshell_check_examples feilet. Full utskrift av helperen følger:" >&2
+  cat "$CHECK_LOG" >&2
+  rm -f "$CHECK_LOG"
   exit 1
 fi
+rm -f "$CHECK_LOG"
 
 # 2. Finn CloudFront-domenet og test sluttpunkter
 CF_DOMAIN=""
