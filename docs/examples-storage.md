@@ -131,7 +131,7 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
   bash scripts/cloudshell-verify.sh
   ```
 
-  Overstyr regioner, stack-navn eller logggruppen ved å sende flagg som `--region=eu-west-1 --static-stack=math-visuals-static-site --log-group=/aws/lambda/math-visuals-api`. Skriptet avbryter tidlig med hjelpetekst dersom AWS CLI/jq mangler eller hvis CloudFormation-outputs ikke finnes i kontoen.
+  Overstyr regioner, stack-navn eller logggruppen ved å sende flagg som `--region=eu-west-1 --static-stack=math-visuals-static-site --log-group=/aws/lambda/math-visuals-api`. Legg til `--trace` for å slå på shell-tracing dersom du må se nøyaktig hvilket steg som feiler. Skriptet avbryter tidlig med hjelpetekst dersom AWS CLI/jq mangler eller hvis CloudFormation-outputs ikke finnes i kontoen.
 
   Trenger du å kjøre sjekken **og** fylle Redis i én operasjon kan du bruke [`scripts/cloudshell-seed-examples.sh`](../scripts/cloudshell-seed-examples.sh). Det skriptet henter `REDIS_*`, kjører `npm run check-examples-api` og starter deretter `npm run seed-examples` med datasettet du oppgir:
 

@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eEuo pipefail
+
+err_report() {
+  local status=$?
+  echo "[cloudshell-verify] Feil (exit=${status}) i kommando: ${BASH_COMMAND}" >&2
+}
+
+trap err_report ERR
 
 DEFAULT_REGION=${DEFAULT_REGION:-eu-west-1}
 DEFAULT_CLOUDFRONT_REGION=${DEFAULT_CLOUDFRONT_REGION:-us-east-1}
@@ -17,6 +24,7 @@ Tilgjengelige flagg:
   --data-stack=STACK           CloudFormation-stacken som eier Redis-outputs (standard: math-visuals-data)
   --static-stack=STACK         CloudFormation-stacken som eier CloudFront/S3-outputs (standard: math-visuals-static-site)
   --log-group=NAME             CloudWatch-logggruppen til Lambdaen (standard: /aws/lambda/math-visuals-api)
+  --trace                      Slå på shell-tracing for å se hvert steg i skriptet (nyttig for feilsøking)
   -h, --help                   Vis denne hjelpen
 
 Skriptet krever at du allerede har kjørt `aws configure` eller `aws sso login`.
@@ -31,6 +39,9 @@ LOG_GROUP=$DEFAULT_LOG_GROUP
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --trace)
+      set -x
+      ;;
     --region=*)
       REGION="${1#*=}"
       ;;
