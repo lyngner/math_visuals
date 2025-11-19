@@ -125,7 +125,7 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
 
   Skriptet kan nå sources slik at `REDIS_*`-variablene blir værende i samme shell og stopper med en tydelig feilmelding dersom stacken ikke finnes i regionen eller hvis secrets mangler `authToken`-feltet.
 
-  **Full helsesjekk i CloudShell:** Når du vil bekrefte hele kjeden (Redis → Lambda → CloudFront), kan du kjøre [`scripts/cloudshell-verify.sh`](../scripts/cloudshell-verify.sh). Skriptet slår automatisk opp CloudFront-domenet, bruker det for både helperen og curl-testene, tester `/api/examples` og `/sortering/eksempel1` via distribusjonen, viser `Origins`-konfigurasjonen og tailer CloudWatch-loggene etter `mode: "kv"`-meldinger:
+**Full helsesjekk i CloudShell:** Når du vil bekrefte hele kjeden (Redis → Lambda → CloudFront), kan du kjøre [`./cloudshell-verify.sh`](../cloudshell-verify.sh) (en tynn wrapper) eller direkte [`scripts/cloudshell-verify.sh`](../scripts/cloudshell-verify.sh). Skriptet slår automatisk opp CloudFront-domenet, bruker det for både helperen og curl-testene, tester `/api/examples` og `/sortering/eksempel1` via distribusjonen, viser `Origins`-konfigurasjonen og tailer CloudWatch-loggene etter `mode: "kv"`-meldinger:
 
   ```bash
   bash scripts/cloudshell-verify.sh
