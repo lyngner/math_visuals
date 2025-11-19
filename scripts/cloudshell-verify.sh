@@ -124,12 +124,16 @@ if [[ -n "$API_URL_OVERRIDE" ]]; then
 fi
 CHECK_LOG=$(mktemp)
 set +e
-cloudshell_check_examples "${CHECK_ARGS[@]}" > >(tee "$CHECK_LOG") 2> >(tee -a "$CHECK_LOG" >&2)
+{
+  set -o pipefail
+  cloudshell_check_examples "${CHECK_ARGS[@]}" \
+    2> >(tee -a "$CHECK_LOG" >&2) \
+    | tee "$CHECK_LOG"
+}
 CLOUDSHELL_STATUS=$?
 set -e
 if [[ "$CLOUDSHELL_STATUS" -ne 0 ]]; then
-  echo "cloudshell_check_examples stoppet før CloudFront-sjekkene; se over for AWS/SSM/Secrets-feil." >&2
-  rm -f "$CHECK_LOG"
+  echo "cloudshell_check_examples stoppet med exit $CLOUDSHELL_STATUS; sjekk loggen i $CHECK_LOG eller utskriften over." >&2
   exit "$CLOUDSHELL_STATUS"
 fi
 rm -f "$CHECK_LOG"

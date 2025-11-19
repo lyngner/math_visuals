@@ -142,6 +142,8 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
 
   Skriptet avbryter tidlig med hjelpetekst dersom AWS CLI/jq mangler eller hvis CloudFormation-outputs ikke finnes i kontoen og du ikke har oppgitt et alternativt `--api-url`.
 
+  Uansett exit-kode printer helperen loggen sin til terminalen slik at du ser AWS/SSM/Secrets-feil uten ekstra flagg. Bruk `--trace` for full tracing hvis helsesjekken stopper tidlig og du trenger flere detaljer.
+
   Trenger du å kjøre sjekken **og** fylle Redis i én operasjon kan du bruke [`scripts/cloudshell-seed-examples.sh`](../scripts/cloudshell-seed-examples.sh). Det skriptet henter `REDIS_*`, kjører `npm run check-examples-api` og starter deretter `npm run seed-examples` med datasettet du oppgir:
 
   ```bash
