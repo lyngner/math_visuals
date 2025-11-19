@@ -30,6 +30,7 @@ CLOUDFRONT_REGION=$DEFAULT_CLOUDFRONT_REGION
 DATA_STACK=$DEFAULT_DATA_STACK
 STATIC_STACK=$DEFAULT_STATIC_STACK
 LOG_GROUP=$DEFAULT_LOG_GROUP
+LOG_GROUP_PROVIDED=false
 API_URL_OVERRIDE=""
 TRACE=false
 SHOW_HELP=false
@@ -53,6 +54,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --log-group=*)
       LOG_GROUP="${1#*=}"
+      LOG_GROUP_PROVIDED=true
       ;;
     --trace)
       TRACE=true
@@ -126,6 +128,73 @@ extract_domain_from_url() {
     echo "${BASH_REMATCH[1]}"
   else
     return 1
+  fi
+}
+
+has_cloudwatch_tail() {
+  if aws --version 2>/dev/null | grep -q 'aws-cli/2'; then
+    return 0
+  fi
+  return 1
+}
+
+describe_log_stream_count() {
+  local group="$1"
+  aws logs describe-log-streams \
+    --region "$REGION" \
+    --log-group-name "$group" \
+    --order-by LastEventTime \
+    --descending \
+    --max-items 1 \
+    --query 'length(logStreams)' \
+    --output text 2>/dev/null || echo 0
+}
+
+resolve_log_group() {
+  local candidate="$LOG_GROUP"
+  local stream_count
+
+  stream_count=$(describe_log_stream_count "$candidate")
+  if [[ "$stream_count" -eq 0 && "$LOG_GROUP_PROVIDED" != true ]]; then
+    # Prøv å finne en gruppe med samme prefiks (typisk -ApiFunction- suffiks)
+    local alt_prefix="${LOG_GROUP}-"
+    local alt_group
+    alt_group=$(aws logs describe-log-groups \
+      --region "$REGION" \
+      --log-group-name-prefix "$alt_prefix" \
+      --query 'logGroups[0].logGroupName' \
+      --output text 2>/dev/null || echo "")
+    if [[ -n "$alt_group" && "$alt_group" != "None" ]]; then
+      candidate="$alt_group"
+      stream_count=$(describe_log_stream_count "$candidate")
+    fi
+  fi
+
+  echo "$candidate"
+}
+
+tail_logs() {
+  local group="$1"
+  if [[ -z "$group" ]]; then
+    echo "LOG_GROUP er tom. Hopper over CloudWatch-tail."
+    return
+  fi
+
+  echo "==> Tailer de siste 15 minuttene med Lambda-logger (gruppe: $group) ..."
+  if has_cloudwatch_tail; then
+    aws cloudwatch logs tail "$group" \
+      --region "$REGION" \
+      --since 15m \
+      --format short | grep -Ei 'mode|kv|redis|error' || true
+  else
+    # CLI v1 fallback: filter siste 15 minutter.
+    local start_ms=$(( $(date -u -d '-15 minutes' +%s) * 1000 ))
+    aws logs filter-log-events \
+      --region "$REGION" \
+      --log-group-name "$group" \
+      --start-time "$start_ms" \
+      --limit 200 \
+      --output text | grep -Ei 'mode|kv|redis|error' || true
   fi
 }
 
@@ -207,14 +276,11 @@ aws cloudfront get-distribution-config \
   | jq '.DistributionConfig.Origins.Items'
 
 # 4. Tail CloudWatch-loggene
-if [[ -n "$LOG_GROUP" ]]; then
-  echo "==> Tailer de siste 15 minuttene med Lambda-logger for å se etter Redis/advarsler ..."
-  aws cloudwatch logs tail "$LOG_GROUP" \
-    --region "$REGION" \
-    --since 15m \
-    --format short | grep -Ei 'mode|kv' || true
-else
-  echo "LOG_GROUP er tom. Hopper over CloudWatch-tail."
+RESOLVED_LOG_GROUP=$(resolve_log_group)
+if [[ "$RESOLVED_LOG_GROUP" != "$LOG_GROUP" ]]; then
+  echo "Bruker logggruppe med strømmer: $RESOLVED_LOG_GROUP (tidligere: $LOG_GROUP)"
 fi
+
+tail_logs "$RESOLVED_LOG_GROUP"
 
 echo "\nAlt ferdig. Bekreft at curl/jq- og loggutskriftene viser mode=\"kv\" for å sikre at Redis brukes."
