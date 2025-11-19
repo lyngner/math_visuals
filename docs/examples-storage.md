@@ -142,7 +142,18 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
 
   Skriptet avbryter tidlig med hjelpetekst dersom AWS CLI/jq mangler eller hvis CloudFormation-outputs ikke finnes i kontoen og du ikke har oppgitt et alternativt `--api-url`.
 
-  Uansett exit-kode printer helperen loggen sin til terminalen slik at du ser AWS/SSM/Secrets-feil uten ekstra flagg. Skriptet avslutter også med en oppsummeringslinje (API_URL/CF_DOMAIN/REDIS_ENDPOINT + status) som hjelper deg å forstå 503-responser uten å kjøre på nytt med `--trace`. Bruk `--trace` for full tracing hvis helsesjekken stopper tidlig og du trenger flere detaljer.
+  Uansett exit-kode printer helperen loggen sin til terminalen slik at du ser AWS/SSM/Secrets-feil uten ekstra flagg. Skriptet avslutter også med en sluttblokk som viser API_URL, CF_DOMAIN, REDIS_ENDPOINT og statusfeltene:
+
+  ```
+  ==> Sluttstatus
+  API_URL=https://ditt-domene/api/examples
+  CF_DOMAIN=abc123.cloudfront.net
+  REDIS_ENDPOINT=clustercfg.math-visuals-prod.xxxxxx.memorydb.eu-west-1.amazonaws.com
+  HELPER_STATUS=0
+  OVERALL_STATUS=0
+  ```
+
+  Hvis `HELPER_STATUS` er 0 men `OVERALL_STATUS` er 22 og curl-kommandoen mot `/sortering/eksempel1` viste `HTTP/2 503`, betyr det at helperen hentet Redis-verdier og API-URL riktig, men CloudFront/API svarte med 503. Bruk verdiene i blokken til å sjekke riktig CloudFront-distribusjon, logggruppe og Redis-endepunkt. `--trace` gir full tracing hvis helsesjekken stopper tidlig og du trenger flere detaljer.
 
   Trenger du å kjøre sjekken **og** fylle Redis i én operasjon kan du bruke [`scripts/cloudshell-seed-examples.sh`](../scripts/cloudshell-seed-examples.sh). Det skriptet henter `REDIS_*`, kjører `npm run check-examples-api` og starter deretter `npm run seed-examples` med datasettet du oppgir:
 

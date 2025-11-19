@@ -44,17 +44,25 @@ HELPER_STATUS="not-run"
 OVERALL_STATUS=""
 
 print_summary() {
-  local exit_code=$?
-  local api_value="${API_URL:-}"
-  local cf_value="${CF_DOMAIN:-}"
-  local redis_value="${REDIS_ENDPOINT:-}"
+  local exit_code="$1"
+  local api_value="${API_URL:-<unset>}"
+  local cf_value="${CF_DOMAIN:-<unset>}"
+  local redis_value="${REDIS_ENDPOINT:-<unset>}"
   local helper_value="${HELPER_STATUS:-not-set}"
   local overall_value="${OVERALL_STATUS:-$exit_code}"
 
-  echo "==> Summary: API_URL=${api_value:-<unset>} CF_DOMAIN=${cf_value:-<unset>} REDIS_ENDPOINT=${redis_value:-<unset>} HELPER_STATUS=${helper_value} OVERALL_STATUS=${overall_value}"
+  cat <<EOF
+
+==> Sluttstatus
+API_URL=${api_value}
+CF_DOMAIN=${cf_value}
+REDIS_ENDPOINT=${redis_value}
+HELPER_STATUS=${helper_value}
+OVERALL_STATUS=${overall_value}
+EOF
 }
 
-trap 'print_summary' EXIT
+trap 'exit_code=$?; print_summary "$exit_code"; exit "$exit_code"' EXIT
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
