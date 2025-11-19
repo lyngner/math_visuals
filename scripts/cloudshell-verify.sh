@@ -41,7 +41,7 @@ LOG_GROUP_SET=false
 CF_DOMAIN=""
 API_URL=""
 HELPER_STATUS="not-run"
-OVERALL_STATUS=""
+OVERALL_STATUS=0
 
 print_summary() {
   local exit_code="$1"
@@ -356,6 +356,9 @@ ping_redis() {
     echo "$ping_output" >&2
     record_status 1 "Redis PING" "$reason"
   fi
+
+  # Ikke stopp skriptet dersom PING feiler; la resten av sjekkene kjøre for mer kontekst.
+  return 0
 }
 
 # 1. Hent Redis-konfig og sjekk API-et
