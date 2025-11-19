@@ -95,3 +95,7 @@ Følgende GitHub Secrets må være definert for at workflowen skal lykkes:
 Secretsene over injiseres som miljøvariabler i de respektive deploy-stegene. Dersom `STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID` er tom hoppes invalidasjonssteget over automatisk.
 
 Se også den dedikerte veiledningen i [`docs/github-actions-setup.md`](docs/github-actions-setup.md) for en komplett gjennomgang av hvordan du aktiverer Actions, oppretter OIDC-rollen i AWS og verifiserer at workflowene kjører som forventet.
+
+## Drift og feilsøking
+
+Se [docs/redis-troubleshooting.md](docs/redis-troubleshooting.md) for Redis/Lambda 503- og WRONGPASS-feilsøking fra CloudShell.
