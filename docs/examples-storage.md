@@ -131,7 +131,7 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
   bash scripts/cloudshell-verify.sh
   ```
 
-  Overstyr regioner, stack-navn eller logggruppen ved å sende flagg som `--region=eu-west-1 --static-stack=math-visuals-static-site --log-group=/aws/lambda/math-visuals-api`. Skal du teste et miljø der CloudFront-stacken har et annet navn eller der du kun kjenner API-endepunktet, kan du i tillegg angi `--api-url=https://ditt-domene/api/examples`. For eksempel:
+  Overstyr regioner, stack-navn eller logggruppen ved å sende flagg som `--region=eu-west-1 --static-stack=math-visuals-static-site --log-group=/aws/lambda/math-visuals-api`. Dersom CloudFront-stacken mangler output-en `CloudFrontDistributionDomainName`, eller dersom du kun kjenner selve API-endepunktet (f.eks. i et miljø med avvikende stack-navn), kan du hoppe over CloudFormation-oppslaget med `--api-url=https://ditt-domene/api/examples`. For eksempel:
 
   ```bash
   bash scripts/cloudshell-verify.sh \
@@ -140,7 +140,7 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
     --api-url=https://underdomene.eksperiment.no/api/examples
   ```
 
-  Skriptet avbryter tidlig med hjelpetekst dersom AWS CLI/jq mangler eller hvis CloudFormation-outputs ikke finnes i kontoen.
+  Skriptet avbryter tidlig med hjelpetekst dersom AWS CLI/jq mangler eller hvis CloudFormation-outputs ikke finnes i kontoen og du ikke har oppgitt et alternativt `--api-url`.
 
   Trenger du å kjøre sjekken **og** fylle Redis i én operasjon kan du bruke [`scripts/cloudshell-seed-examples.sh`](../scripts/cloudshell-seed-examples.sh). Det skriptet henter `REDIS_*`, kjører `npm run check-examples-api` og starter deretter `npm run seed-examples` med datasettet du oppgir:
 
