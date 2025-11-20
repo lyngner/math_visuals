@@ -25,6 +25,7 @@ Tilgjengelige flagg:
   -h, --help                   Vis denne hjelpen
 
 Skriptet krever at du allerede har kjørt `aws configure` eller `aws sso login`.
+Logg-trinnet støtter AWS CLI v2 (`aws cloudwatch logs tail`) eller AWS CLI v1 med `aws logs tail`; eldre v1-versjoner faller tilbake til `filter-log-events`.
 USAGE
 }
 
@@ -42,6 +43,9 @@ CF_DOMAIN=""
 API_URL=""
 HELPER_STATUS="not-run"
 OVERALL_STATUS=0
+AWS_TAIL_CMD=()
+AWS_TAIL_NAME=""
+AWS_VERSION_STRING=""
 
 print_summary() {
   local exit_code="$1"
@@ -235,12 +239,36 @@ discover_log_groups() {
   echo "${results[@]}"
 }
 
-has_cloudwatch_tail() {
-  local aws_version
-  if aws_version=$(aws --version 2>/dev/null); then
-    if [[ "$aws_version" =~ aws-cli/2 ]] && aws cloudwatch logs tail --help >/dev/null 2>&1; then
-      return 0
+detect_tail_command() {
+  if AWS_VERSION_STRING=$(aws --version 2>/dev/null); then
+    if [[ "$AWS_VERSION_STRING" =~ aws-cli/([0-9]+)\. ]]; then
+      local aws_major_version
+      aws_major_version="${BASH_REMATCH[1]}"
+
+      if [[ "$aws_major_version" -ge 2 ]] && aws cloudwatch logs tail --help >/dev/null 2>&1; then
+        AWS_TAIL_CMD=(aws cloudwatch logs tail)
+        AWS_TAIL_NAME="aws cloudwatch logs tail (AWS CLI v${aws_major_version})"
+        return 0
+      fi
+
+      if [[ "$aws_major_version" -eq 1 ]] && aws logs tail --help >/dev/null 2>&1; then
+        AWS_TAIL_CMD=(aws logs tail)
+        AWS_TAIL_NAME="aws logs tail (AWS CLI v${aws_major_version})"
+        return 0
+      fi
     fi
+  fi
+
+  if aws cloudwatch logs tail --help >/dev/null 2>&1; then
+    AWS_TAIL_CMD=(aws cloudwatch logs tail)
+    AWS_TAIL_NAME="aws cloudwatch logs tail"
+    return 0
+  fi
+
+  if aws logs tail --help >/dev/null 2>&1; then
+    AWS_TAIL_CMD=(aws logs tail)
+    AWS_TAIL_NAME="aws logs tail"
+    return 0
   fi
 
   return 1
@@ -292,14 +320,21 @@ tail_logs() {
   echo "==> Tailer de siste 15 minuttene med Lambda-logger for å se etter Redis/advarsler ..."
   local TAIL_STATUS=0
   set +e
-  if has_cloudwatch_tail; then
-    aws cloudwatch logs tail "$LOG_GROUP" \
+  if detect_tail_command; then
+    if [[ -n "$AWS_VERSION_STRING" ]]; then
+      echo "Fant $AWS_TAIL_NAME basert på $AWS_VERSION_STRING"
+    else
+      echo "Fant $AWS_TAIL_NAME"
+    fi
+
+    "${AWS_TAIL_CMD[@]}" "$LOG_GROUP" \
       --region "$REGION" \
       --since 15m \
       --format short | grep -Ei 'mode|kv'
     TAIL_STATUS=$?
   else
-    echo "aws cloudwatch logs tail er ikke tilgjengelig (krever AWS CLI v2); prøver filter-log-events som fallback ..." >&2
+    echo "Fant verken aws cloudwatch logs tail (AWS CLI v2) eller aws logs tail (AWS CLI v1). Prøver filter-log-events som fallback ..." >&2
+    echo "Installer AWS CLI v2 eller en nyere v1 med 'aws logs tail' for raskere loggvisning." >&2
     local local_end_ts
     local local_start_ts
     local_end_ts=$(date -u +%s)
