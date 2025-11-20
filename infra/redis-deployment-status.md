@@ -194,7 +194,28 @@ GitHub-secrets (Settings → Secrets and variables → Actions) slik at CI/CD
 bruker de samme passord-/endepunkt-innstillingene som AWS. Dermed er både
 Secrets Manager og GitHub i sync etter denne oppdateringen.
 
-## 4. Lambda packaging, parameters and verification
+## 4. Nettverks- og tilkoblingssjekker
+
+Etter at Redis er provisjonert bør nettverket valideres før API-et tas i bruk:
+
+1. Oppdater ElastiCache-replikasettets Security Group med inbound-regel på port
+   6379 for både Lambda/VPC-subnett og CloudShell. Bruk
+   `aws ec2 describe-network-interfaces` på Lambda- og CloudShell-interfaces for
+   å hente SG-ID-er før du legger til reglene.
+2. Bekreft at Redis-klyngen ligger i private subnetter med riktige route
+   tables/NAT. Lambda må være i samme VPC og ha egress til Redis-SG.
+3. Test fra CloudShell med Redis-passordet tilgjengelig:
+
+   ```bash
+   redis-cli -h master.mv-prod-redis.laadhx.euw1.cache.amazonaws.com -p 6379 -a "$REDIS_PASSWORD" PING
+   ```
+
+   - Hvis du fortsatt får timeout: test fra en bastion/EC2 i samme VPC for å
+     isolere hvor trafikken stoppes.
+4. Når `PING` svarer `PONG`, kjør `bash scripts/cloudshell-verify.sh --trace`
+   for endelig grønn status.
+
+## 5. Lambda packaging, parameters and verification
 
 The API stack already loads the Redis endpoint/port/secret via dynamic
 references (`REDIS_*` environment variables inside `infra/api/template.yaml`).
