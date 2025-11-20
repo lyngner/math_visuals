@@ -56,6 +56,13 @@ steps:
 Use the helper script to redeploy the stack with the latest template changes and
 the parameter values that were already provisioned in AWS:
 
+Prerequisites:
+
+- AWS CLI v2 installed and available on your PATH
+- A configured profile or environment credentials that can read the existing
+  stack parameters and deploy CloudFormation resources
+- A default region set (for example by exporting `AWS_DEFAULT_REGION=eu-west-1`)
+
 ```bash
 # From the repository root
 scripts/deploy-static-site.sh
