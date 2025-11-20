@@ -127,8 +127,18 @@ record_status() {
   local status="$1"
   local label="$2"
   local message="${3:-}"
+  local severity="${4:-fail}"
 
   if [[ "$status" -ne 0 ]]; then
+    if [[ "$severity" == "warn" ]]; then
+      if [[ -n "$message" ]]; then
+        echo "$label (advarsel): $message"
+      else
+        echo "$label (advarsel): uavklart problem"
+      fi
+      return
+    fi
+
     OVERALL_STATUS=1
     if [[ -n "$message" ]]; then
       echo "$label feilet: $message" >&2
@@ -379,17 +389,27 @@ ping_redis() {
     record_status 0 "Redis PING" "$ping_output"
   else
     local reason="ukjent feil"
+    local severity="fail"
     local lower_output
     lower_output=$(echo "$ping_output" | tr '[:upper:]' '[:lower:]')
     if [[ "$lower_output" == *"wrongpass"* || "$lower_output" == *"noauth"* || "$lower_output" == *"auth"* ]]; then
       reason="Redis auth failed"
+      severity="fail"
     elif [[ "$lower_output" == *"timeout"* ]]; then
       reason="network timeout"
+      severity="warn"
     elif [[ "$lower_output" == *"refused"* ]]; then
       reason="connection refused"
+      severity="warn"
+    elif [[ "$lower_output" == *"unreachable"* || "$lower_output" == *"no route"* ]]; then
+      reason="network unreachable"
+      severity="warn"
     fi
     echo "$ping_output" >&2
-    record_status 1 "Redis PING" "$reason"
+    if [[ "$severity" == "warn" ]]; then
+      reason+=" (API-testen passerte, så CloudShell kan mangle direkte tilgang til Redis. Behandle dette som en advarsel med mindre API-kallene feiler.)"
+    fi
+    record_status 1 "Redis PING" "$reason" "$severity"
   fi
 
   # Ikke stopp skriptet dersom PING feiler; la resten av sjekkene kjøre for mer kontekst.
