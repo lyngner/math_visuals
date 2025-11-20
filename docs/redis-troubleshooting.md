@@ -92,9 +92,10 @@ aws elasticache modify-replication-group \
 Oppdater Parameter Store (dersom endepunkt/port er endret) og tving
 Lambda til å laste miljøet på nytt. Feilen "Expected: '=', received: '"'
 kan oppstå hvis `--environment`-verdien ikke er JSON. Kommandoen under
-henter gjeldende environment, legger til en ny `CONFIG_REFRESH`-timestamp
-for å trigge ny deploy-konfig og konstruerer et valid JSON-objekt på
-formen `{"Variables":{...}}` slik AWS CLI forventer:
+henter gjeldende environment, leser auth-tokenet fra hemmeligheten,
+legger til en ny `CONFIG_REFRESH`-timestamp for å trigge ny deploy-
+konfig og konstruerer et valid JSON-objekt på formen `{"Variables":{...}}`
+slik AWS CLI forventer:
 
 ```bash
 LAMBDA_FN="math-visuals-api-ApiFunction-o6bkBzPH7ZPu"
@@ -104,9 +105,6 @@ aws lambda get-function-configuration \
   --function-name "$LAMBDA_FN" \
   --query 'Environment.Variables' \
   --output json > /tmp/env.json
-
-# Legg til en nop-variabel for å tvinge refresh
-jq '.CONFIG_REFRESH = (now | tostring)' /tmp/env.json > /tmp/env-updated.json
 
 REDIS_AUTH_TOKEN=$(aws secretsmanager get-secret-value \
   --region "$REGION" \
