@@ -50,6 +50,15 @@ Parameters:
     Type: String
     Default: sun:23:00-mon:01:30
     Description: Preferred maintenance window in UTC.
+  CloudShellSecurityGroupId:
+    Type: String
+    Default: ''
+    Description: >-
+      Optional security group ID for AWS CloudShell sessions that need direct
+      Redis access for troubleshooting.
+
+Conditions:
+  AllowCloudShellIngress: !Not [!Equals [!Ref CloudShellSecurityGroupId, '']]
 
 Resources:
   Vpc:
@@ -106,6 +115,13 @@ Resources:
           FromPort: 6379
           ToPort: 6379
           SourceSecurityGroupId: !Ref LambdaSecurityGroup
+        - !If
+          - AllowCloudShellIngress
+          - IpProtocol: tcp
+            FromPort: 6379
+            ToPort: 6379
+            SourceSecurityGroupId: !Ref CloudShellSecurityGroupId
+          - !Ref AWS::NoValue
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0

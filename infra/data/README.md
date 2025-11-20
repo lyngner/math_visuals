@@ -23,6 +23,7 @@ fullisolert AWS-datastack for Redis. Malen oppretter
 | `RedisEngineVersion` | Redis-versjon (standard `7.1`). |
 | `RedisReplicasPerNodeGroup` | Antall replikaser per shard (0 = kun primær). |
 | `RedisMaintenanceWindow` | Vedlikeholdsvindu i UTC (standard `sun:23:00-mon:01:30`). |
+| `CloudShellSecurityGroupId` | (Valgfri) Security Group-ID for AWS CloudShell slik at operatører kan kjøre `redis-cli` direkte mot klyngen på port 6379. |
 | `RedisAuthToken` | Auth-tokenet som sendes til ElastiCache. Oppgi dette som en [dynamic reference](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html) til Secrets Manager slik at hemmeligheten ikke sjekkes inn i koden. |
 
 `SharedParametersStackName` gjør at malen kan importere de kanoniske navnene på Secrets Manager- og Systems Manager-ressursene fra `infra/shared-parameters.yaml`. `RedisAuthToken` lagres også som et Secrets Manager-secret (navnet kommer fra den delte stacken) slik at andre stacks kan slå det opp senere uten å sjekke CloudFormation-parametre.
@@ -60,7 +61,9 @@ Stacken eksporterer følgende verdier, slik at andre stacks kan hente dem via
 
 - `VpcId`, `PrivateSubnet1Id`, `PrivateSubnet2Id` – brukes i Lambda `VpcConfig`.
 - `LambdaSecurityGroupId`, `RedisSecurityGroupId` – sikrer at Lambda kun får
-  tilgang til Redis.
+  tilgang til Redis. Redis-SG-en kan også åpnes for CloudShell ved å sette
+  `CloudShellSecurityGroupId` når stacken deployes, slik at feilsøking med
+  `redis-cli --tls` fungerer direkte fra CloudShell.
 - `RedisPrimaryEndpoint`, `RedisReaderEndpoint`, `RedisPort`, `RedisTlsRequired`
   – beskriver hvordan klienter kobler seg til klyngen.
 - `RedisEndpointParameterName`, `RedisReaderEndpointParameterName`,
