@@ -411,8 +411,8 @@ set +e
 {
   set -o pipefail
   cloudshell_check_examples "${CHECK_ARGS[@]}" \
-    2> >(tee -a "$CHECK_LOG" >&2) \
-    | tee "$CHECK_LOG"
+    > >(tee "$CHECK_LOG") \
+    2> >(tee -a "$CHECK_LOG" >&2)
 }
 CLOUDSHELL_STATUS=$?
 set -e
@@ -423,6 +423,12 @@ if [[ "$CLOUDSHELL_STATUS" -ne 0 ]]; then
   exit "$CLOUDSHELL_STATUS"
 fi
 rm -f "$CHECK_LOG"
+
+if [[ -z ${REDIS_ENDPOINT:-} || -z ${REDIS_PORT:-} || -z ${REDIS_PASSWORD:-} ]]; then
+  echo "cloudshell_check_examples satte ikke REDIS_* variablene i miljøet" >&2
+  OVERALL_STATUS=1
+  exit 1
+fi
 
 ping_redis
 
