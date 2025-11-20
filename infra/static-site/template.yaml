@@ -202,7 +202,7 @@ Resources:
             { target: '/trefigurer.html', aliases: ['/trefigurer', '/3dfigurer'], includeExamples: true },
             { target: '/brøkvegg.html', aliases: ['/br%C3%B8kvegg', '/brkvegg'], includeExamples: true },
             { target: '/måling.html', aliases: ['/m%C3%A5ling', '/malingbeta'], includeExamples: false },
-            { target: '/sortering.html', aliases: ['/sortering', '/sorteringbeta'], includeExamples: true },
+            { target: '/sortering.html', aliases: ['/sortering', '/sorteringbeta'], includeExamples: true, exampleTarget: '/index.html' },
             { target: '/prikktilprikk.html', aliases: ['/prikktilprikk', '/prikktilprikkbeta'], includeExamples: true },
             { target: '/fortegnsskjema.html', aliases: ['/fortegnsskjema', '/fortegnsskjemaunderutvikling'], includeExamples: true },
             { target: '/bibliotek.html', aliases: ['/bibliotek', '/bibliotekbeta'], includeExamples: true },
@@ -223,7 +223,7 @@ Resources:
                 return request;
               }
               if (route.includeExamples && matchesExample(lowerUri, normalized)) {
-                request.uri = route.target;
+                request.uri = route.exampleTarget || route.target;
                 return request;
               }
             }
@@ -370,6 +370,15 @@ Resources:
             Compress: true
             CachePolicyId: !Ref CachePolicyId
             OriginRequestPolicyId: !Ref ApiOriginRequestPolicy
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
         ViewerCertificate:
           CloudFrontDefaultCertificate: true
 
