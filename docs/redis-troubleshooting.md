@@ -4,6 +4,101 @@ Når `scripts/cloudshell-verify.sh` feiler med 503 og loggene viser
 `WRONGPASS invalid username-password pair`, betyr det at Redis-klusteret
 ikke aksepterer auth-tokenet som brukes av Lambda.
 
+## Hurtigsjekkliste
+
+1. **Hent riktig `RG_ID` med `describe-stack-resources`**
+   - *Advarsel:* Ikke la placeholders som `<rg-id>` stå igjen; `modify-replication-group` feiler hvis ID mangler.
+   - Kommandoer:
+     ```bash
+     REGION="eu-west-1"
+     DATA_STACK="math-visuals-data"
+
+     aws cloudformation describe-stack-resources \
+       --region "$REGION" \
+       --stack-name "$DATA_STACK" \
+       --query "StackResources[?ResourceType=='AWS::ElastiCache::ReplicationGroup'].PhysicalResourceId" \
+       --output text
+     ```
+
+2. **Skriv nytt token til Secrets Manager**
+   - *Advarsel:* Sett `NEW_REDIS_TOKEN` til en faktisk verdi før du kjører kommandoen; ikke bruk `<ny_random_token>` som er placeholder.
+   - Kommandoer:
+     ```bash
+     SECRET_NAME="math-visuals/prod/redis/password"
+     NEW_REDIS_TOKEN="<ny_random_token>"
+
+     aws secretsmanager put-secret-value \
+       --region "$REGION" \
+       --secret-id "$SECRET_NAME" \
+       --secret-string "{\"authToken\":\"${NEW_REDIS_TOKEN}\"}"
+     ```
+
+3. **Oppdater ElastiCache med `modify-replication-group`**
+   - *Advarsel:* Bekreft at `RG_ID` ikke er tom eller `None` før du kjører; ellers får du feilen «ReplicationGroupId must be provided».
+   - Kommandoer:
+     ```bash
+     RG_ID="$(aws cloudformation describe-stack-resources \
+       --region "$REGION" \
+       --stack-name "$DATA_STACK" \
+       --query "StackResources[?ResourceType=='AWS::ElastiCache::ReplicationGroup'].PhysicalResourceId" \
+       --output text)"
+
+     [ -z "$RG_ID" ] && echo "Fant ikke gyldig RG_ID" >&2 && exit 1
+
+     aws elasticache modify-replication-group \
+       --region "$REGION" \
+       --replication-group-id "$RG_ID" \
+       --auth-token "$NEW_REDIS_TOKEN" \
+       --apply-immediately
+     ```
+
+4. **Bygg `ENV_JSON` med `REDIS_PASSWORD` og oppdater Lambda**
+   - *Advarsel:* `aws lambda update-function-configuration` krever at `--environment` er gyldig JSON; bruk `jq` i stedet for å lime inn `Variables=` manuelt.
+   - Kommandoer:
+     ```bash
+     LAMBDA_FN="math-visuals-api-ApiFunction-o6bkBzPH7ZPu"
+
+     aws lambda get-function-configuration \
+       --region "$REGION" \
+       --function-name "$LAMBDA_FN" \
+       --query 'Environment.Variables' \
+       --output json > /tmp/env.json
+
+     REDIS_AUTH_TOKEN=$(aws secretsmanager get-secret-value \
+       --region "$REGION" \
+       --secret-id "$SECRET_NAME" \
+       --query SecretString \
+       --output json | jq -r 'fromjson.authToken')
+
+     ENV_JSON=$(jq -c --arg REDIS_PASSWORD "$REDIS_AUTH_TOKEN" '{Variables:(. + {CONFIG_REFRESH:(now|tostring), REDIS_PASSWORD:$REDIS_PASSWORD})}' /tmp/env.json)
+
+     aws lambda update-function-configuration \
+       --region "$REGION" \
+       --function-name "$LAMBDA_FN" \
+       --environment "$ENV_JSON"
+     ```
+
+5. **Kjør verifikasjonsskriptet på nytt**
+   - Kommando:
+     ```bash
+     bash scripts/cloudshell-verify.sh --trace
+     ```
+
+6. **Hvis det fortsatt feiler, sjekk Lambda-loggene**
+   - *Advarsel:* `describe-log-groups` og `filter-log-events` krever korrekt logggruppe; bruk utdataene til å bekrefte navnet før du tailer.
+   - Kommandoer:
+     ```bash
+     aws logs describe-log-groups \
+       --region "$REGION" \
+       --log-group-name-prefix "/aws/lambda/${LAMBDA_FN}" \
+       --query 'logGroups[].logGroupName' \
+       --output text
+
+     aws logs tail "/aws/lambda/${LAMBDA_FN}" \
+       --region "$REGION" \
+       --since 1h
+     ```
+
 ## 1) Les gjeldende verdier
 
 ```bash
