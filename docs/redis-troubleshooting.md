@@ -7,7 +7,7 @@ ikke aksepterer auth-tokenet som brukes av Lambda.
 ## Hurtigsjekkliste
 
 1. **Hent riktig `RG_ID` med `describe-stack-resources`**
-   - *Advarsel:* Ikke la placeholders som `<rg-id>` stå igjen; `modify-replication-group` feiler hvis ID mangler.
+   - *Advarsel:* Ikke la placeholders som `<rg-id>` eller tomme verdier slippe gjennom; `modify-replication-group` feiler hvis ID mangler. `--query` returnerer `None` når ressursen ikke finnes, så sjekk utdataen før du bruker den.
    - Kommandoer:
      ```bash
      REGION="eu-west-1"
@@ -21,7 +21,7 @@ ikke aksepterer auth-tokenet som brukes av Lambda.
      ```
 
 2. **Skriv nytt token til Secrets Manager**
-   - *Advarsel:* Sett `NEW_REDIS_TOKEN` til en faktisk verdi før du kjører kommandoen; ikke bruk `<ny_random_token>` som er placeholder.
+   - *Advarsel:* Sett `NEW_REDIS_TOKEN` til en faktisk verdi før du kjører kommandoen; ikke bruk `<ny_random_token>` som placeholder.
    - Kommandoer:
      ```bash
      SECRET_NAME="math-visuals/prod/redis/password"
@@ -34,7 +34,7 @@ ikke aksepterer auth-tokenet som brukes av Lambda.
      ```
 
 3. **Oppdater ElastiCache med `modify-replication-group`**
-   - *Advarsel:* Bekreft at `RG_ID` ikke er tom eller `None` før du kjører; ellers får du feilen «ReplicationGroupId must be provided».
+   - *Advarsel:* Bekreft at `RG_ID` ikke er tom, `None` eller en placeholder før du kjører; ellers får du feilen «ReplicationGroupId must be provided». Bruk `--output text` slik at du ikke får JSON som må parses manuelt.
    - Kommandoer:
      ```bash
      RG_ID="$(aws cloudformation describe-stack-resources \
@@ -53,7 +53,7 @@ ikke aksepterer auth-tokenet som brukes av Lambda.
      ```
 
 4. **Bygg `ENV_JSON` med `REDIS_PASSWORD` og oppdater Lambda**
-   - *Advarsel:* `aws lambda update-function-configuration` krever at `--environment` er gyldig JSON; bruk `jq` i stedet for å lime inn `Variables=` manuelt.
+   - *Advarsel:* `aws lambda update-function-configuration` krever at `--environment` er gyldig JSON. Bruk `jq -c` for å produsere ett-linjers JSON; ikke lim inn `Variables=`-streng manuelt, og unngå å bruke `--query ... --output text` på hemmeligheten (det vil strippe anførselstegn og ødelegge JSON-parsingen).
    - Kommandoer:
      ```bash
      LAMBDA_FN="math-visuals-api-ApiFunction-o6bkBzPH7ZPu"
@@ -85,7 +85,7 @@ ikke aksepterer auth-tokenet som brukes av Lambda.
      ```
 
 6. **Hvis det fortsatt feiler, sjekk Lambda-loggene**
-   - *Advarsel:* `describe-log-groups` og `filter-log-events` krever korrekt logggruppe; bruk utdataene til å bekrefte navnet før du tailer.
+   - *Advarsel:* `describe-log-groups` og `tail` krever korrekt logggruppe; bekreft navnet fra første kommando før du tailer. Bruk tidsfilter (`--since`) for å slippe store JSON-svar.
    - Kommandoer:
      ```bash
      aws logs describe-log-groups \
