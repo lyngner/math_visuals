@@ -53,6 +53,22 @@ RG_ID=$(aws cloudformation describe-stacks \
   --stack-name "$DATA_STACK" \
   --query "Stacks[0].Outputs[?OutputKey=='RedisReplicationGroupId'].OutputValue" \
   --output text)
+
+# Alternativ kommando som henter ID fra stack-ressursene
+RG_ID_RESOURCES=$(aws cloudformation describe-stack-resources \
+  --region "$REGION" \
+  --stack-name "$DATA_STACK" \
+  --query "StackResources[?ResourceType=='AWS::ElastiCache::ReplicationGroup'].PhysicalResourceId" \
+  --output text)
+echo "RG_ID_RESOURCES=${RG_ID_RESOURCES}"
+
+# Avbryt hvis ID er tom eller placeholder – vi må være sikre på at modify-replication-group får en gyldig ID
+if [ -z "$RG_ID_RESOURCES" ] || [ "$RG_ID_RESOURCES" = "None" ] || [[ "$RG_ID_RESOURCES" == *"<"*">"* ]]; then
+  echo "Fant ikke gyldig ReplicationGroupId i describe-stack-resources – avbryter." >&2
+  exit 1
+fi
+
+RG_ID=${RG_ID_RESOURCES:-$RG_ID}
 echo "RG_ID=${RG_ID}"
 if [ -z "$RG_ID" ] || [ "$RG_ID" = "None" ]; then
   echo "Fant ikke RedisReplicationGroupId – avbryter." >&2
