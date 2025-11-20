@@ -93,7 +93,8 @@ Oppdater Parameter Store (dersom endepunkt/port er endret) og tving
 Lambda til å laste miljøet på nytt. Feilen "Expected: '=', received: '"'
 kan oppstå hvis `--environment`-verdien ikke er JSON. Kommandoen under
 henter gjeldende environment, legger til en ny `CONFIG_REFRESH`-timestamp
-for å trigge ny deploy-konfig og sender inn gyldig JSON:
+for å trigge ny deploy-konfig og konstruerer et valid JSON-objekt på
+formen `{"Variables":{...}}` slik AWS CLI forventer:
 
 ```bash
 LAMBDA_FN="math-visuals-api-ApiFunction-o6bkBzPH7ZPu"
@@ -107,12 +108,19 @@ aws lambda get-function-configuration \
 # Legg til en nop-variabel for å tvinge refresh
 jq '.CONFIG_REFRESH = (now | tostring)' /tmp/env.json > /tmp/env-updated.json
 
-ENV_JSON=$(jq -c '.CONFIG_REFRESH = (now | tostring)' /tmp/env.json)
+ENV_JSON=$(jq -c '{Variables:(. + {CONFIG_REFRESH:(now|tostring)})}' /tmp/env.json)
 
 aws lambda update-function-configuration \
   --region "$REGION" \
   --function-name "$LAMBDA_FN" \
-  --environment "Variables=${ENV_JSON}"
+  --environment "$ENV_JSON"
+
+# (Alternativt med eksplisitt escaped JSON hvis du foretrekker hele strengen
+# inline, f.eks.: --environment '{"Variables":{"CONFIG_REFRESH":"1700000000"}}')
+
+Denne varianten samsvarer med `aws lambda update-function-configuration` sine
+forventninger til JSON og unngår parse-feilen som kan oppstå med `Variables=`-
+prefikset.
 ```
 
 
