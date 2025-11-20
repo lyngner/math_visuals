@@ -99,6 +99,16 @@ aws lambda update-function-configuration \
   --environment "Variables=${ENV_JSON}"
 ```
 
+
+Hvis du bare trenger å rulle Lambda på nytt etter en secret-endring (uten å
+huske parametrene til stacken), kan du bruke helperen som pakker alle
+ParameterKey-er som `UsePreviousValue=true` og kaller `update-stack` med
+forrige template:
+
+```bash
+bash scripts/cloudshell-redeploy-api.sh --region="$REGION" --stack="math-visuals-api"
+```
+
 Hvis CloudShell mister tilkoblingen midt i en kommando (f.eks. `[exited]`),
 kjør siste kommando på nytt. Det er trygt å re-kjøre `put-secret-value` og
 `modify-replication-group` med samme token.
