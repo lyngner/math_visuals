@@ -131,6 +131,8 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
   bash scripts/cloudshell-verify.sh
   ```
 
+  Skriptet finner automatisk riktig logg-tail-kommando: AWS CLI v2 bruker `aws cloudwatch logs tail`, mens CloudShells AWS CLI v1 bruker `aws logs tail`. Hvis den siste varianten mangler (eldre v1), faller skriptet tilbake til `filter-log-events` og ber deg oppgradere.
+
   Overstyr regioner, stack-navn eller logggruppen ved å sende flagg som `--region=eu-west-1 --static-stack=math-visuals-static-site --log-group=/aws/lambda/math-visuals-api`. Dersom CloudFront-stacken mangler output-en `CloudFrontDistributionDomainName`, eller dersom du kun kjenner selve API-endepunktet (f.eks. i et miljø med avvikende stack-navn), kan du hoppe over CloudFormation-oppslaget med `--api-url=https://ditt-domene/api/examples`. For eksempel:
 
   ```bash
