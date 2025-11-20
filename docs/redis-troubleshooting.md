@@ -108,7 +108,13 @@ aws lambda get-function-configuration \
 # Legg til en nop-variabel for å tvinge refresh
 jq '.CONFIG_REFRESH = (now | tostring)' /tmp/env.json > /tmp/env-updated.json
 
-ENV_JSON=$(jq -c '{Variables:(. + {CONFIG_REFRESH:(now|tostring)})}' /tmp/env.json)
+REDIS_AUTH_TOKEN=$(aws secretsmanager get-secret-value \
+  --region "$REGION" \
+  --secret-id "math-visuals/prod/redis/password" \
+  --query SecretString \
+  --output json | jq -r 'fromjson.authToken')
+
+ENV_JSON=$(jq -c --arg REDIS_PASSWORD "$REDIS_AUTH_TOKEN" '{Variables:(. + {CONFIG_REFRESH:(now|tostring), REDIS_PASSWORD:$REDIS_PASSWORD})}' /tmp/env.json)
 
 aws lambda update-function-configuration \
   --region "$REGION" \
@@ -120,7 +126,9 @@ aws lambda update-function-configuration \
 
 Denne varianten samsvarer med `aws lambda update-function-configuration` sine
 forventninger til JSON og unngår parse-feilen som kan oppstå med `Variables=`-
-prefikset.
+prefikset. Hvis `REDIS_PASSWORD` ikke blir satt i `ENV_JSON`, blir
+placeholderen liggende igjen i Lambda og den gamle hardkodede verdien blir
+stående.
 ```
 
 
