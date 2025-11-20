@@ -408,14 +408,10 @@ if [[ "$TRACE" == true ]]; then
 fi
 CHECK_LOG=$(mktemp)
 set +e
-{
-  set -o pipefail
-  cloudshell_check_examples "${CHECK_ARGS[@]}" \
-    > >(tee "$CHECK_LOG") \
-    2> >(tee -a "$CHECK_LOG" >&2)
-}
+cloudshell_check_examples "${CHECK_ARGS[@]}" >"$CHECK_LOG" 2>&1
 CLOUDSHELL_STATUS=$?
 set -e
+cat "$CHECK_LOG"
 HELPER_STATUS=$CLOUDSHELL_STATUS
 if [[ "$CLOUDSHELL_STATUS" -ne 0 ]]; then
   echo "cloudshell_check_examples stoppet med exit $CLOUDSHELL_STATUS; sjekk loggen i $CHECK_LOG eller utskriften over." >&2
