@@ -99,37 +99,34 @@ formen `{"Variables":{...}}` slik AWS CLI forventer:
 ```bash
 LAMBDA_FN="math-visuals-api-ApiFunction-o6bkBzPH7ZPu"
 
-aws lambda get-function-configuration \
-  --region "$REGION" \
-  --function-name "$LAMBDA_FN" \
-  --query 'Environment.Variables' \
+aws lambda get-function-configuration \\
+  --region "$REGION" \\
+  --function-name "$LAMBDA_FN" \\
+  --query 'Environment.Variables' \\
   --output json > /tmp/env.json
 
-# Legg til en nop-variabel for å tvinge refresh
-jq '.CONFIG_REFRESH = (now | tostring)' /tmp/env.json > /tmp/env-updated.json
-
-REDIS_AUTH_TOKEN=$(aws secretsmanager get-secret-value \
-  --region "$REGION" \
-  --secret-id "math-visuals/prod/redis/password" \
-  --query SecretString \
+REDIS_AUTH_TOKEN=$(aws secretsmanager get-secret-value \\
+  --region "$REGION" \\
+  --secret-id "math-visuals/prod/redis/password" \\
+  --query SecretString \\
   --output json | jq -r 'fromjson.authToken')
 
-ENV_JSON=$(jq -c --arg REDIS_PASSWORD "$REDIS_AUTH_TOKEN" '{Variables:(. + {CONFIG_REFRESH:(now|tostring), REDIS_PASSWORD:$REDIS_PASSWORD})}' /tmp/env.json)
+ENV_JSON=$(jq -c '{Variables:(. + {CONFIG_REFRESH:(now|tostring)})}' /tmp/env.json)
+# Hvis du også skal sette nytt Redis-passord i Lambda-environmentet, kan du
+# i stedet kjøre:
+# ENV_JSON=$(jq -c --arg REDIS_PASSWORD "$REDIS_AUTH_TOKEN" '{Variables:(. + {CONFIG_REFRESH:(now|tostring), REDIS_PASSWORD:$REDIS_PASSWORD})}' /tmp/env.json)
 
-aws lambda update-function-configuration \
-  --region "$REGION" \
-  --function-name "$LAMBDA_FN" \
+aws lambda update-function-configuration \\
+  --region "$REGION" \\
+  --function-name "$LAMBDA_FN" \\
   --environment "$ENV_JSON"
-
-# (Alternativt med eksplisitt escaped JSON hvis du foretrekker hele strengen
-# inline, f.eks.: --environment '{"Variables":{"CONFIG_REFRESH":"1700000000"}}')
+```
 
 Denne varianten samsvarer med `aws lambda update-function-configuration` sine
-forventninger til JSON og unngår parse-feilen som kan oppstå med `Variables=`-
-prefikset. Hvis `REDIS_PASSWORD` ikke blir satt i `ENV_JSON`, blir
-placeholderen liggende igjen i Lambda og den gamle hardkodede verdien blir
-stående.
-```
+forventninger til JSON og unngår parse-feilen som kan oppstå med
+`Variables=`-prefikset. Hvis `REDIS_PASSWORD` ikke blir satt i `ENV_JSON`,
+blir placeholderen liggende igjen i Lambda og den gamle hardkodede verdien
+blir stående.
 
 
 Hvis du bare trenger å rulle Lambda på nytt etter en secret-endring (uten å
