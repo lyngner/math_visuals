@@ -105,9 +105,7 @@ aws lambda get-function-configuration \
   --query 'Environment.Variables' \
   --output json > /tmp/env.json
 
-# Legg til en nop-variabel for å tvinge refresh
-jq '.CONFIG_REFRESH = (now | tostring)' /tmp/env.json > /tmp/env-updated.json
-
+# Legg til en nop-variabel for å tvinge refresh og bygg JSON som CLI-en forventer
 ENV_JSON=$(jq -c '{Variables:(. + {CONFIG_REFRESH:(now|tostring)})}' /tmp/env.json)
 
 aws lambda update-function-configuration \
