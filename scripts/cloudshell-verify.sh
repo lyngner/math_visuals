@@ -367,6 +367,10 @@ tail_logs() {
 ping_redis() {
   echo "==> Kjører direkte PING mot Redis for å validere REDIS_* verdiene ..."
 
+  if [[ -n ${REDIS_PASSWORD:-} ]]; then
+    export REDISCLI_AUTH="$REDIS_PASSWORD"
+  fi
+
   local redis_client=""
   local auth_var_name=""
   if command -v redis-cli >/dev/null 2>&1; then
@@ -382,7 +386,7 @@ ping_redis() {
     return
   fi
 
-  if [[ -n "$auth_var_name" ]]; then
+  if [[ -n "$auth_var_name" && -n ${REDIS_PASSWORD:-} ]]; then
     export "$auth_var_name"="$REDIS_PASSWORD"
   fi
 
