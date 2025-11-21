@@ -186,27 +186,42 @@ else
   echo "Fant ingen aktive ruter i rutetabellen (kontroller subnett-assosiasjoner manuelt)."
 fi
 
-log_step "Redis-subnett" "Ser etter Redis-subnetter i VPC $eni_vpc"
-mapfile -t redis_subnet_ids < <(aws elasticache describe-cache-subnet-groups \
-  --region "$REGION" \
-  --output json | jq -r '.CacheSubnetGroups[]? | select(.VpcId=="'"'"${eni_vpc}'"'"') | .Subnets[].SubnetIdentifier')
+subnet_rt_output="$rt_output"
+subnet_rt_count=$(echo "$subnet_rt_output" | jq -r '.RouteTables | length')
 
-if [[ ${#redis_subnet_ids[@]} -eq 0 ]]; then
-  echo "Fant ingen ElastiCache-subnettgrupper i VPC-en. Kontroller at Redis er satt opp i $eni_vpc." >&2
-  status=1
-else
-  redis_subnet_cidrs_json=$(aws ec2 describe-subnets \
+fallback_rt_output=""
+fallback_rt_count=0
+
+if [[ "$subnet_rt_count" -eq 0 ]]; then
+  log_step "Rutetabell" "Ingen subnett-spesifikke ruter funnet; prøver VPC-ens hovedrute-tabell"
+  fallback_rt_output=$(aws ec2 describe-route-tables \
+    --filters Name=vpc-id,Values="$eni_vpc" Name=association.main,Values=true \
     --region "$REGION" \
-    --subnet-ids "${redis_subnet_ids[@]}" \
-    --query 'Subnets[].CidrBlock' \
     --output json)
+  fallback_rt_count=$(echo "$fallback_rt_output" | jq -r '.RouteTables | length')
+fi
 
-  echo "Redis-subnett (CIDR):"
-  echo "$redis_subnet_cidrs_json" | jq -r '.[] | "  - " + .'
+evaluate_reachability() {
+  local rt_json="$1"
+  local label="$2"
 
-  routes_json=$(echo "$rt_output" | jq -c '[.RouteTables[].Routes[] | select(.State=="active") | {dest: (.DestinationCidrBlock // .DestinationIpv6CidrBlock // ""), target: (.GatewayId // .NatGatewayId // .TransitGatewayId // .VpcPeeringConnectionId // .EgressOnlyInternetGatewayId // .NetworkInterfaceId // "local")} ]')
+  echo "$rt_json" | jq -r '.RouteTables[] | "- " + (.RouteTableId // "<ukjent>")'
 
-  reachability_json=$(ROUTES="$routes_json" REDIS_CIDRS="$redis_subnet_cidrs_json" python - <<'"'"'PY'"'"'
+  local reachable_routes
+  reachable_routes=$(echo "$rt_json" | jq -r '.RouteTables[].Routes[] | select(.State=="active") | [.DestinationCidrBlock, .DestinationPrefixListId] | map(select(. != null)) | .[0] as $dest | {target: (.GatewayId // .NatGatewayId // .TransitGatewayId // .VpcPeeringConnectionId // .EgressOnlyInternetGatewayId // .NetworkInterfaceId // "local"), dest: $dest} | "  " + (.dest // "<ukjent destinasjon>") + " -> " + (.target // "<ukjent mål>")' | sed '/^  null/d')
+
+  if [[ -n "$reachable_routes" ]]; then
+    echo "Aktive ruter (${label}):"
+    echo "$reachable_routes"
+  else
+    echo "Fant ingen aktive ruter i ${label} (kontroller subnett-assosiasjoner manuelt)."
+  fi
+
+  local routes_json
+  routes_json=$(echo "$rt_json" | jq -c '[.RouteTables[].Routes[] | select(.State=="active") | {dest: (.DestinationCidrBlock // .DestinationIpv6CidrBlock // ""), target: (.GatewayId // .NatGatewayId // .TransitGatewayId // .VpcPeeringConnectionId // .EgressOnlyInternetGatewayId // .NetworkInterfaceId // "local")} ]')
+
+  reachability_json=$(
+    ROUTES="$routes_json" REDIS_CIDRS="$redis_subnet_cidrs_json" python - <<'PY'
 import ipaddress
 import json
 import os
@@ -258,14 +273,43 @@ PY
 )
 
   reachability_status=$(echo "$reachability_json" | jq -r '.status')
+  reachability_label="$label"
+}
+
+log_step "Redis-subnett" "Ser etter Redis-subnetter i VPC $eni_vpc"
+mapfile -t redis_subnet_ids < <(
+  aws elasticache describe-cache-subnet-groups --region "$REGION" --output json |
+    jq -r ".CacheSubnetGroups[]? | select(.VpcId==\"${eni_vpc}\") | .Subnets[].SubnetIdentifier"
+)
+
+if [[ ${#redis_subnet_ids[@]} -eq 0 ]]; then
+  echo "Fant ingen ElastiCache-subnettgrupper i VPC-en. Kontroller at Redis er satt opp i $eni_vpc." >&2
+  status=1
+else
+  redis_subnet_cidrs_json=$(aws ec2 describe-subnets \
+    --region "$REGION" \
+    --subnet-ids "${redis_subnet_ids[@]}" \
+    --query 'Subnets[].CidrBlock' \
+    --output json)
+
+  echo "Redis-subnett (CIDR):"
+  echo "$redis_subnet_cidrs_json" | jq -r '.[] | "  - " + .'
+
+  evaluate_reachability "$subnet_rt_output" "rutetabellen for subnett $subnet_id"
+
+  if [[ "$subnet_rt_count" -eq 0 && "$fallback_rt_count" -gt 0 ]]; then
+    log_step "Rutetabell" "Kjører rekkeviddesjekk mot VPC-ens hovedrute-tabell som subnettet arver"
+    evaluate_reachability "$fallback_rt_output" "hovedrute-tabellen for VPC $eni_vpc"
+  fi
+
   if [[ "$reachability_status" == "pass" ]]; then
     redis_cidr=$(echo "$reachability_json" | jq -r '.redis_cidr')
     route_dest=$(echo "$reachability_json" | jq -r '.route_dest')
     target=$(echo "$reachability_json" | jq -r '.target')
-    echo "REACHABILITY: PASS – aktiv rute til $route_dest via $target dekker Redis-subnettet $redis_cidr."
+    echo "REACHABILITY (${reachability_label}): PASS – aktiv rute til $route_dest via $target dekker Redis-subnettet $redis_cidr."
   else
     reason=$(echo "$reachability_json" | jq -r '.reason')
-    echo "REACHABILITY: FAIL – ${reason:-ukjent årsak}." >&2
+    echo "REACHABILITY (${reachability_label}): FAIL – ${reason:-ukjent årsak}." >&2
     status=1
   fi
 fi
