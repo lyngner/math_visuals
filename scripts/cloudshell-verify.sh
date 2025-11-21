@@ -379,9 +379,11 @@ ping_redis() {
     return
   fi
 
+  export REDISCLI_AUTH="$REDIS_PASSWORD"
+
   set +e
   local ping_output
-  ping_output=$($redis_client --tls -h "$REDIS_ENDPOINT" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" PING 2>&1)
+  ping_output=$($redis_client --tls -h "$REDIS_ENDPOINT" -p "$REDIS_PORT" PING 2>&1)
   local ping_status=$?
   set -e
 
