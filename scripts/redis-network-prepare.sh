@@ -18,8 +18,9 @@ Tilgjengelige flagg:
   --data-stack=NAME     CloudFormation-stacken som eier Redis/VPC-ressursene (standard: math-visuals-data)
   --api-stack=NAME      CloudFormation-stacken som eier API/Lambda-funksjonen (standard: math-visuals-api)
   --cloudshell-cidr=CIDR
-                        CIDR-blokk som skal få tilgang fra CloudShell (hoppe over auto-
-                        oppslag). Må inkludere prefiks, f.eks. 1.2.3.4/32
+                        CIDR-blokk som skal få tilgang fra CloudShell når ingen CloudShell-
+                        ENI-er finnes. Hopper over auto-oppslag. Må inkludere prefiks,
+                        f.eks. 1.2.3.4/32
   --trace               Slå på shell tracing (set -x)
   -h, --help            Vis denne hjelpen
 
@@ -157,6 +158,28 @@ if [[ -z "$cloudshell_sgs_raw" ]]; then
 fi
 
 mapfile -t cloudshell_sgs < <(tr '\t' '\n' <<<"$cloudshell_sgs_raw" | sed '/^$/d' | sort -u)
+
+resolve_cloudshell_cidr() {
+  local cidr_source="$CLOUDSHELL_CIDR"
+
+  if [[ -n "$cidr_source" ]]; then
+    info "Bruker CloudShell-CIDR fra flagg: $cidr_source"
+    echo "$cidr_source"
+    return
+  fi
+
+  if ! curl_available; then
+    return
+  fi
+
+  local cloudshell_ip
+  cloudshell_ip=$(curl -fs --max-time 10 ifconfig.me || true)
+  if [[ -n "$cloudshell_ip" ]]; then
+    cidr_source="$cloudshell_ip/32"
+    info "Bruker CloudShell-CIDR fra ifconfig.me: $cidr_source"
+    echo "$cidr_source"
+  fi
+}
 
 info "Ser etter Lambda-funksjonen fra $API_STACK"
 api_fn_physical=$(aws cloudformation describe-stack-resource \
@@ -304,23 +327,7 @@ if [[ ${#cloudshell_sgs[@]} -gt 0 ]]; then
     ensure_ingress_rule "$cs_sg" "CloudShell"
   done
 else
-  cloudshell_cidr_source="$CLOUDSHELL_CIDR"
-
-  if [[ -z "$cloudshell_cidr_source" ]]; then
-    if curl_available; then
-      cloudshell_ip=$(curl -fs --max-time 10 ifconfig.me || true)
-      if [[ -n "$cloudshell_ip" ]]; then
-        cloudshell_cidr_source="$cloudshell_ip/32"
-        info "Bruker CloudShell-CIDR fra ifconfig.me: $cloudshell_cidr_source"
-      else
-        echo "Ingen CloudShell-SG-er ble funnet og kunne ikke hente offentlig IP fra ifconfig.me" >&2
-      fi
-    else
-      echo "Ingen CloudShell-SG-er ble funnet og curl er ikke tilgjengelig for å hente CloudShell-IP." >&2
-    fi
-  else
-    info "Bruker CloudShell-CIDR fra flagg: $cloudshell_cidr_source"
-  fi
+  cloudshell_cidr_source=$(resolve_cloudshell_cidr || true)
 
   if [[ -n "$cloudshell_cidr_source" ]]; then
     ensure_cidr_ingress "$cloudshell_cidr_source" "CloudShell CIDR"
