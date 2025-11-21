@@ -4,6 +4,7 @@ set -euo pipefail
 DEFAULT_REGION=${DEFAULT_REGION:-eu-west-1}
 DEFAULT_DATA_STACK=${DEFAULT_DATA_STACK:-math-visuals-data}
 DEFAULT_API_STACK=${DEFAULT_API_STACK:-math-visuals-api}
+CLOUDSHELL_CIDR=""
 
 usage() {
   cat <<'USAGE'
@@ -16,6 +17,9 @@ Tilgjengelige flagg:
   --region=REGION       Regionen som brukes for alle AWS-kall (standard: eu-west-1)
   --data-stack=NAME     CloudFormation-stacken som eier Redis/VPC-ressursene (standard: math-visuals-data)
   --api-stack=NAME      CloudFormation-stacken som eier API/Lambda-funksjonen (standard: math-visuals-api)
+  --cloudshell-cidr=CIDR
+                        CIDR-blokk som skal få tilgang fra CloudShell (hoppe over auto-
+                        oppslag). Må inkludere prefiks, f.eks. 1.2.3.4/32
   --trace               Slå på shell tracing (set -x)
   -h, --help            Vis denne hjelpen
 
@@ -40,6 +44,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --api-stack=*)
       API_STACK="${1#*=}"
+      ;;
+    --cloudshell-cidr=*)
+      CLOUDSHELL_CIDR="${1#*=}"
       ;;
     --trace)
       TRACE=true
@@ -75,6 +82,10 @@ require_cmd() {
 for cmd in aws jq python3; do
   require_cmd "$cmd"
 done
+
+curl_available() {
+  command -v curl >/dev/null 2>&1
+}
 
 record_status() {
   local status="$1"
@@ -142,7 +153,7 @@ cloudshell_sgs_raw=$(aws ec2 describe-network-interfaces \
   --output text 2>/dev/null || true)
 
 if [[ -z "$cloudshell_sgs_raw" ]]; then
-  echo "Fant ingen CloudShell-ENI-er i $redis_vpc; legger ikke til ekstra SG-er utover Lambda." >&2
+  echo "Fant ingen CloudShell-ENI-er i $redis_vpc." >&2
 fi
 
 mapfile -t cloudshell_sgs < <(tr '\t' '\n' <<<"$cloudshell_sgs_raw" | sed '/^$/d' | sort -u)
@@ -216,6 +227,18 @@ sg_has_ingress() {
   [[ "$perm_count" != "0" && "$perm_count" != "None" ]]
 }
 
+sg_has_cidr_ingress() {
+  local target_sg="$1"
+  local cidr="$2"
+  local perm_count
+  perm_count=$(aws ec2 describe-security-groups \
+    --region "$REGION" \
+    --group-ids "$target_sg" \
+    --query "length(SecurityGroups[0].IpPermissions[?FromPort==\`6379\` && ToPort==\`6379\` && IpProtocol=='tcp' && contains(IpRanges[].CidrIp, \`$cidr\`) == `true`])" \
+    --output text 2>/dev/null || echo "0")
+  [[ "$perm_count" != "0" && "$perm_count" != "None" ]]
+}
+
 ensure_ingress_rule() {
   local source_sg="$1"
   local label="$2"
@@ -245,6 +268,35 @@ ensure_ingress_rule() {
   fi
 }
 
+ensure_cidr_ingress() {
+  local cidr="$1"
+  local label="$2"
+
+  if [[ -z "$cidr" ]]; then
+    record_status 1 "SG-ingress ($label)" "CIDR mangler"
+    return
+  fi
+
+  if sg_has_cidr_ingress "$redis_sg" "$cidr"; then
+    record_status 0 "SG-ingress ($label)" "Regel finnes allerede"
+    return
+  fi
+
+  set +e
+  aws ec2 authorize-security-group-ingress \
+    --region "$REGION" \
+    --group-id "$redis_sg" \
+    --ip-permissions "IpProtocol=tcp,FromPort=6379,ToPort=6379,IpRanges=[{CidrIp=$cidr,Description=CloudShell}]" >/dev/null 2>&1
+  auth_status=$?
+  set -e
+
+  if [[ "$auth_status" -ne 0 ]]; then
+    record_status 1 "SG-ingress ($label)" "Kunne ikke legge til regel fra $cidr"
+  else
+    record_status 0 "SG-ingress ($label)" "La til regel fra $cidr"
+  fi
+}
+
 ensure_ingress_rule "$lambda_sg" "Lambda"
 
 if [[ ${#cloudshell_sgs[@]} -gt 0 ]]; then
@@ -252,7 +304,29 @@ if [[ ${#cloudshell_sgs[@]} -gt 0 ]]; then
     ensure_ingress_rule "$cs_sg" "CloudShell"
   done
 else
-  echo "Ingen CloudShell-SG-er ble funnet; redis-SG-en tillater kun Lambda for øyeblikket." >&2
+  cloudshell_cidr_source="$CLOUDSHELL_CIDR"
+
+  if [[ -z "$cloudshell_cidr_source" ]]; then
+    if curl_available; then
+      cloudshell_ip=$(curl -fs --max-time 10 ifconfig.me || true)
+      if [[ -n "$cloudshell_ip" ]]; then
+        cloudshell_cidr_source="$cloudshell_ip/32"
+        info "Bruker CloudShell-CIDR fra ifconfig.me: $cloudshell_cidr_source"
+      else
+        echo "Ingen CloudShell-SG-er ble funnet og kunne ikke hente offentlig IP fra ifconfig.me" >&2
+      fi
+    else
+      echo "Ingen CloudShell-SG-er ble funnet og curl er ikke tilgjengelig for å hente CloudShell-IP." >&2
+    fi
+  else
+    info "Bruker CloudShell-CIDR fra flagg: $cloudshell_cidr_source"
+  fi
+
+  if [[ -n "$cloudshell_cidr_source" ]]; then
+    ensure_cidr_ingress "$cloudshell_cidr_source" "CloudShell CIDR"
+  else
+    echo "Ingen CloudShell-SG-er ble funnet; redis-SG-en tillater kun Lambda for øyeblikket." >&2
+  fi
 fi
 
 check_routes_for_subnet() {
