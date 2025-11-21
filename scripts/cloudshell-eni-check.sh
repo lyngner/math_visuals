@@ -68,6 +68,8 @@ done
 
 status=0
 
+cloudshell_matches=""
+
 log_step() {
   local label="$1"
   local message="$2"
@@ -75,21 +77,40 @@ log_step() {
 }
 
 find_cloudshell_interface() {
+  local filters=("Name=interface-type,Values=api_gateway_cloud_shell" "Name=status,Values=available,in-use")
+  local filter_description="interface-type=api_gateway_cloud_shell og status i [available,in-use]"
+
+  if [[ -n "$REDIS_VPC" ]]; then
+    filters+=("Name=vpc-id,Values=$REDIS_VPC")
+    filter_description+=", vpc-id=$REDIS_VPC"
+  fi
+
   local eni_json
   eni_json=$(aws ec2 describe-network-interfaces \
     --region "$REGION" \
+    --filters "${filters[@]}" \
     --query "NetworkInterfaces[].{eni:NetworkInterfaceId,desc:Description,sgs:Groups[].GroupId,vpc:VpcId,subnet:SubnetId,az:AvailabilityZone,status:Status}" \
     --output json)
 
-  echo "$eni_json" | jq -r '.[] | select(.desc | tostring | test("cloudshell"; "i"))' | head -n1
+  cloudshell_matches="$eni_json"
+
+  local match_count
+  match_count=$(jq 'length' <<<"$eni_json")
+
+  if [[ "$match_count" -eq 0 ]]; then
+    echo "Fant ingen CloudShell-ENI-er med $filter_description i region $REGION." >&2
+    return 1
+  fi
+
+  jq -c --arg vpc "$REDIS_VPC" '([.[] | select(.vpc == $vpc)][0]) // .[0]' <<<"$eni_json"
 }
 
-cloudshell_entry=$(find_cloudshell_interface)
-
-if [[ -z "$cloudshell_entry" ]]; then
-  echo "Fant ingen ENI med CloudShell-beskrivelse i region $REGION. Bruk riktig profil/region eller start CloudShell på nytt." >&2
+if ! cloudshell_entry=$(find_cloudshell_interface); then
   exit 2
 fi
+
+log_step "CloudShell-kandidater" "Fant $(jq 'length' <<<"$cloudshell_matches") ENI-er med interface-type api_gateway_cloud_shell"
+echo "$cloudshell_matches" | jq -r '.[] | "- " + (.eni // "<ukjent>") + " (" + (.vpc // "<ukjent VPC>") + ", " + (.subnet // "<ukjent subnet>") + ", status=" + (.status // "<ukjent>") + ")"'
 
 eni_id=$(jq -r '.eni' <<<"$cloudshell_entry")
 description=$(jq -r '.desc' <<<"$cloudshell_entry")
