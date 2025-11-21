@@ -98,8 +98,35 @@ find_cloudshell_interface() {
   match_count=$(jq 'length' <<<"$eni_json")
 
   if [[ "$match_count" -eq 0 ]]; then
-    echo "Fant ingen CloudShell-ENI-er med $filter_description i region $REGION." >&2
-    return 1
+    echo "Fant ingen CloudShell-ENI-er med $filter_description i region $REGION. Prøver uten VPC-begrensning og med beskrivelsesmatch ..." >&2
+
+    local fallback_filters=("Name=interface-type,Values=api_gateway_cloud_shell" "Name=status,Values=available,in-use")
+    local desc_filters=("${fallback_filters[@]}" "Name=description,Values=*CloudShell*,*cloudshell*")
+
+    eni_json=$(aws ec2 describe-network-interfaces \
+      --region "$REGION" \
+      --filters "${desc_filters[@]}" \
+      --query "NetworkInterfaces[].{eni:NetworkInterfaceId,desc:Description,sgs:Groups[].GroupId,vpc:VpcId,subnet:SubnetId,az:AvailabilityZone,status:Status}" \
+      --output json)
+
+    match_count=$(jq 'length' <<<"$eni_json")
+
+    if [[ "$match_count" -eq 0 ]]; then
+      eni_json=$(aws ec2 describe-network-interfaces \
+        --region "$REGION" \
+        --filters "${fallback_filters[@]}" \
+        --query "NetworkInterfaces[].{eni:NetworkInterfaceId,desc:Description,sgs:Groups[].GroupId,vpc:VpcId,subnet:SubnetId,az:AvailabilityZone,status:Status}" \
+        --output json)
+
+      match_count=$(jq 'length' <<<"$eni_json")
+    fi
+
+    cloudshell_matches="$eni_json"
+
+    if [[ "$match_count" -eq 0 ]]; then
+      echo "Fant ingen CloudShell-ENI-er i region $REGION selv uten VPC-filter." >&2
+      return 1
+    fi
   fi
 
   jq -c --arg vpc "$REDIS_VPC" '([.[] | select(.vpc == $vpc)][0]) // .[0]' <<<"$eni_json"
@@ -110,7 +137,7 @@ if ! cloudshell_entry=$(find_cloudshell_interface); then
 fi
 
 log_step "CloudShell-kandidater" "Fant $(jq 'length' <<<"$cloudshell_matches") ENI-er med interface-type api_gateway_cloud_shell"
-echo "$cloudshell_matches" | jq -r '.[] | "- " + (.eni // "<ukjent>") + " (" + (.vpc // "<ukjent VPC>") + ", " + (.subnet // "<ukjent subnet>") + ", status=" + (.status // "<ukjent>") + ")"'
+echo "$cloudshell_matches" | jq -r '.[] | "- " + (.eni // "<ukjent>") + " (" + (.vpc // "<ukjent VPC>") + ", " + (.subnet // "<ukjent subnet>") + ", SGs=" + (((.sgs // []) | join(",") | select(length>0)) // "<ingen>") + ", status=" + (.status // "<ukjent>") + ")"'
 
 eni_id=$(jq -r '.eni' <<<"$cloudshell_entry")
 description=$(jq -r '.desc' <<<"$cloudshell_entry")
