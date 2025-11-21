@@ -19,8 +19,8 @@ Tilgjengelige flagg:
   --api-stack=NAME      CloudFormation-stacken som eier API/Lambda-funksjonen (standard: math-visuals-api)
   --cloudshell-cidr=CIDR
                         CIDR-blokk som skal få tilgang fra CloudShell når ingen CloudShell-
-                        ENI-er finnes. Hopper over auto-oppslag. Må inkludere prefiks,
-                        f.eks. 1.2.3.4/32
+                        ENI-er finnes. Hopper over auto-oppslag (curl -s ifconfig.me/32).
+                        Må inkludere prefiks, f.eks. 1.2.3.4/32
   --trace               Slå på shell tracing (set -x)
   -h, --help            Vis denne hjelpen
 
@@ -173,9 +173,9 @@ resolve_cloudshell_cidr() {
   fi
 
   local cloudshell_ip
-  cloudshell_ip=$(curl -fs --max-time 10 ifconfig.me || true)
+  cloudshell_ip=$(curl -fs --max-time 10 ifconfig.me/32 || true)
   if [[ -n "$cloudshell_ip" ]]; then
-    cidr_source="$cloudshell_ip/32"
+    cidr_source="$cloudshell_ip"
     info "Bruker CloudShell-CIDR fra ifconfig.me: $cidr_source"
     echo "$cidr_source"
   fi
