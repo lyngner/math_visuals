@@ -81,12 +81,12 @@ find_cloudshell_interface() {
     --query "NetworkInterfaces[].{eni:NetworkInterfaceId,desc:Description,sgs:Groups[].GroupId,vpc:VpcId,subnet:SubnetId,az:AvailabilityZone,status:Status}" \
     --output json)
 
-  echo "$eni_json" | jq -r '.[] | select(.desc | tostring | test("cloudshell"; "i"))' | head -n1
+  echo "$eni_json" | jq -c '[.[] | select(.desc | tostring | test("cloudshell"; "i"))] | first'
 }
 
 cloudshell_entry=$(find_cloudshell_interface)
 
-if [[ -z "$cloudshell_entry" ]]; then
+if [[ -z "$cloudshell_entry" || "$cloudshell_entry" == "null" ]]; then
   echo "Fant ingen ENI med CloudShell-beskrivelse i region $REGION. Bruk riktig profil/region eller start CloudShell på nytt." >&2
   exit 2
 fi
