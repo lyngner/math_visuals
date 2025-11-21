@@ -201,7 +201,8 @@ Etter at Redis er provisjonert bør nettverket valideres før API-et tas i bruk:
 1. Oppdater ElastiCache-replikasettets Security Group med inbound-regel på port
    6379 for både Lambda/VPC-subnett og CloudShell. Bruk
    `aws ec2 describe-network-interfaces` på Lambda- og CloudShell-interfaces for
-   å hente SG-ID-er før du legger til reglene.
+   å hente SG-ID-er før du legger til reglene. Du kan automatisere dette ved å
+   kjøre `bash scripts/redis-network-prepare.sh` (se under).
 2. Bekreft at Redis-klyngen ligger i private subnetter med riktige route
    tables/NAT. Lambda må være i samme VPC og ha egress til Redis-SG.
 3. Test fra CloudShell med Redis-passordet tilgjengelig:
@@ -214,6 +215,17 @@ Etter at Redis er provisjonert bør nettverket valideres før API-et tas i bruk:
      isolere hvor trafikken stoppes.
 4. Når `PING` svarer `PONG`, kjør `bash scripts/cloudshell-verify.sh --trace`
    for endelig grønn status.
+
+Etter at ElastiCache-replikasettet er oppe kan du kjøre følgende helper for å
+automatisere punkt 1–2 over. Skriptet bruker `describe-network-interfaces` til
+å hente CloudShell-SG-ene i Redis-VPC-en, validerer at Lambda ligger i samme
+VPC som Redis-subnettene, sjekker at begge subnettene har 0.0.0.0/0-ruter mot
+NAT/IGW og legger til Redis-ingress for både Lambda- og CloudShell-SG-ene hvis
+de mangler:
+
+```bash
+bash scripts/redis-network-prepare.sh --region eu-west-1 --data-stack math-visuals-data --api-stack math-visuals-api
+```
 
 ## 5. Lambda packaging, parameters and verification
 
