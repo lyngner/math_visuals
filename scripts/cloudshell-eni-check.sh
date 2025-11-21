@@ -167,6 +167,14 @@ rt_output=$(aws ec2 describe-route-tables \
   --region "$REGION" \
   --output json)
 
+if [[ $(echo "$rt_output" | jq -r '.RouteTables | length') -eq 0 ]]; then
+  log_step "Rutetabell" "Ingen subnett-spesifikke ruter funnet; prøver VPC-ens hovedrute-tabell"
+  rt_output=$(aws ec2 describe-route-tables \
+    --filters Name=vpc-id,Values="$eni_vpc" Name=association.main,Values=true \
+    --region "$REGION" \
+    --output json)
+fi
+
 echo "$rt_output" | jq -r '.RouteTables[] | "- " + (.RouteTableId // "<ukjent>")'
 
 reachable_routes=$(echo "$rt_output" | jq -r '.RouteTables[].Routes[] | select(.State=="active") | [.DestinationCidrBlock, .DestinationPrefixListId] | map(select(. != null)) | .[0] as $dest | {target: (.GatewayId // .NatGatewayId // .TransitGatewayId // .VpcPeeringConnectionId // .EgressOnlyInternetGatewayId // .NetworkInterfaceId // "local"), dest: $dest} | "  " + (.dest // "<ukjent destinasjon>") + " -> " + (.target // "<ukjent mål>")' | sed '/^  null/d')
