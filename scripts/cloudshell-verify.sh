@@ -66,7 +66,9 @@ OVERALL_STATUS=${overall_value}
 EOF
 }
 
-trap 'exit_code=$?; print_summary "$exit_code"; exit "$exit_code"' EXIT
+if [[ "${CLOUDSHELL_VERIFY_LIB_ONLY:-}" != "1" ]]; then
+  trap 'exit_code=$?; print_summary "$exit_code"; exit "$exit_code"' EXIT
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -239,14 +241,14 @@ discover_log_groups() {
     --log-group-name-prefix "$DEFAULT_LOG_GROUP" \
     --query 'logGroups[].logGroupName' \
     --output text 2>/dev/null); then
-    while IFS=$'\t' read -r lg; do
+    while IFS=$'\n' read -r lg; do
       if [[ -n "$lg" ]]; then
         results+=("$lg")
       fi
     done <<< "$described"
   fi
 
-  echo "${results[@]}"
+  printf '%s\n' "${results[@]}"
 }
 
 detect_tail_command() {
@@ -422,6 +424,10 @@ ping_redis() {
   # Ikke stopp skriptet dersom PING feiler; la resten av sjekkene kjøre for mer kontekst.
   return 0
 }
+
+if [[ "${CLOUDSHELL_VERIFY_LIB_ONLY:-}" == "1" && "${BASH_SOURCE[0]}" != "$0" ]]; then
+  return
+fi
 
 # 1. Hent Redis-konfig og sjekk API-et
 source "$CHECK_SCRIPT"
