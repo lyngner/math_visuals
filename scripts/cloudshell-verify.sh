@@ -368,10 +368,13 @@ ping_redis() {
   echo "==> Kjører direkte PING mot Redis for å validere REDIS_* verdiene ..."
 
   local redis_client=""
+  local auth_var_name=""
   if command -v redis-cli >/dev/null 2>&1; then
     redis_client="redis-cli"
+    auth_var_name="REDISCLI_AUTH"
   elif command -v valkey-cli >/dev/null 2>&1; then
     redis_client="valkey-cli"
+    auth_var_name="VALKEYCLI_AUTH"
   fi
 
   if [[ -z "$redis_client" ]]; then
@@ -379,9 +382,13 @@ ping_redis() {
     return
   fi
 
+  if [[ -n "$auth_var_name" ]]; then
+    export "$auth_var_name"="$REDIS_PASSWORD"
+  fi
+
   set +e
   local ping_output
-  ping_output=$($redis_client --tls -h "$REDIS_ENDPOINT" -p "$REDIS_PORT" -a "$REDIS_PASSWORD" PING 2>&1)
+  ping_output=$($redis_client --tls -h "$REDIS_ENDPOINT" -p "$REDIS_PORT" PING 2>&1)
   local ping_status=$?
   set -e
 
