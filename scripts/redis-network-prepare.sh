@@ -208,11 +208,11 @@ sg_has_ingress() {
   local target_sg="$1"
   local source_sg="$2"
   local perm_count
-  perm_count=$(aws ec2 describe-security-groups \
-    --region "$REGION" \
-    --group-ids "$target_sg" \
-    --query "length(SecurityGroups[0].IpPermissions[?FromPort==\`6379\` && ToPort==\`6379\` && IpProtocol=='tcp' && contains(UserIdGroupPairs[].GroupId, \`$source_sg\`) == `true`])" \
-    --output text 2>/dev/null || echo "0")
+    perm_count=$(aws ec2 describe-security-groups \
+      --region "$REGION" \
+      --group-ids "$target_sg" \
+      --query "length(SecurityGroups[0].IpPermissions[?FromPort==\`6379\` && ToPort==\`6379\` && IpProtocol=='tcp' && contains(UserIdGroupPairs[].GroupId, \`$source_sg\`) == \`true\`])" \
+      --output text 2>/dev/null || echo "0")
   [[ "$perm_count" != "0" && "$perm_count" != "None" ]]
 }
 
