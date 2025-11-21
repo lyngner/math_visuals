@@ -115,6 +115,39 @@ and domain so you can immediately verify the behaviour updates.
 
 2. Run the verification curls against the deployed CloudFront domain:
 
+   #### Post-deploy actions
+
+   Upload the refreshed static entry points to the site bucket using the
+   `StaticSiteBucketName` stack output so the CloudFront origin serves the
+   latest assets:
+
+   ```bash
+   STACK_NAME=${STACK_NAME:-math-visuals-static-site}
+   STATIC_SITE_BUCKET=$(aws cloudformation describe-stacks \
+     --stack-name "$STACK_NAME" \
+     --query 'Stacks[0].Outputs[?OutputKey==`StaticSiteBucketName`].OutputValue' \
+     --output text)
+
+   aws s3 cp sortering.html "s3://$STATIC_SITE_BUCKET/sortering.html"
+   aws s3 cp index.html "s3://$STATIC_SITE_BUCKET/index.html"
+   ```
+
+   If the distribution caches these objects, optionally request an invalidation
+   before re-running the curl checks:
+
+   ```bash
+   CLOUDFRONT_REGION=us-east-1
+   CLOUDFRONT_ID=$(aws cloudformation describe-stacks \
+     --stack-name "$STACK_NAME" \
+     --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' \
+     --output text)
+
+   aws cloudfront create-invalidation \
+     --region "$CLOUDFRONT_REGION" \
+     --distribution-id "$CLOUDFRONT_ID" \
+     --paths "/" "/sortering*"
+   ```
+
    ```bash
    STACK_NAME=${STACK_NAME:-math-visuals-static-site}
    CLOUDFRONT_DOMAIN=$(aws cloudformation describe-stacks \
