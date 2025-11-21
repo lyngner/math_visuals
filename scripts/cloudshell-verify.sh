@@ -159,11 +159,15 @@ record_status "$HELPER_STATUS"
 
 # 2. Bruk CloudFront-domenet til å teste sluttpunkter
 echo "==> Slår opp CloudFront-domenet (${CF_DOMAIN:-<ukjent>}) og sjekker API-responsen for mode=kv ..."
+set +e
 run_step bash -lc "curl -fsS '$API_URL' | jq '{mode, storage, persistent, updatedAt}'"
+set -e
 
 if [[ -n "$CF_DOMAIN" ]]; then
   echo "==> Bekrefter at /sortering/eksempel1 fungerer via CloudFront ..."
+  set +e
   run_step curl -I "https://${CF_DOMAIN}/sortering/eksempel1"
+  set -e
 
   # 3. Valider CloudFront-origins
   DISTRIBUTION_ID=$(aws cloudfront list-distributions \
