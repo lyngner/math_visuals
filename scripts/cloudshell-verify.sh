@@ -38,6 +38,7 @@ DATA_STACK=$DEFAULT_DATA_STACK
 STATIC_STACK=$DEFAULT_STATIC_STACK
 LOG_GROUP=$DEFAULT_LOG_GROUP
 API_URL=""
+CF_DOMAIN=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -105,7 +106,8 @@ describe_output_for_stack() {
     --output text
 }
 
-# Finn CloudFront-domenet på forhånd slik at helperen også bruker korrekt API-URL
+# Finn CloudFront-domenet på forhånd slik at helperen også bruker korrekt API-URL.
+# Hvis --api-url er oppgitt skal vi hoppe over CloudFront-stack-lookup og teste direkte mot API Gateway.
 if [[ -z "$API_URL" ]]; then
   CF_DOMAIN=$(describe_output_for_stack "$STATIC_STACK" "CloudFrontDistributionDomainName")
   if [[ -z "$CF_DOMAIN" || "$CF_DOMAIN" == "None" ]]; then
@@ -114,9 +116,6 @@ if [[ -z "$API_URL" ]]; then
     exit 1
   fi
   API_URL="https://${CF_DOMAIN}/api/examples"
-else
-  # Prøv å trekke ut domenet fra API_URL for å bruke det i CloudFront-sjekkene
-  CF_DOMAIN=$(printf '%s' "$API_URL" | sed -E 's#^[a-zA-Z]+://([^/]+)/?.*$#\1#')
 fi
 
 if [[ -z "$API_URL" ]]; then
