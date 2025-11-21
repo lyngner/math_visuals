@@ -151,6 +151,90 @@ else
   echo "Fant ingen aktive ruter i rutetabellen (kontroller subnett-assosiasjoner manuelt)."
 fi
 
+log_step "Redis-subnett" "Ser etter Redis-subnetter i VPC $eni_vpc"
+mapfile -t redis_subnet_ids < <(aws elasticache describe-cache-subnet-groups \
+  --region "$REGION" \
+  --output json | jq -r '.CacheSubnetGroups[]? | select(.VpcId=="'"'"${eni_vpc}'"'"') | .Subnets[].SubnetIdentifier')
+
+if [[ ${#redis_subnet_ids[@]} -eq 0 ]]; then
+  echo "Fant ingen ElastiCache-subnettgrupper i VPC-en. Kontroller at Redis er satt opp i $eni_vpc." >&2
+  status=1
+else
+  redis_subnet_cidrs_json=$(aws ec2 describe-subnets \
+    --region "$REGION" \
+    --subnet-ids "${redis_subnet_ids[@]}" \
+    --query 'Subnets[].CidrBlock' \
+    --output json)
+
+  echo "Redis-subnett (CIDR):"
+  echo "$redis_subnet_cidrs_json" | jq -r '.[] | "  - " + .'
+
+  routes_json=$(echo "$rt_output" | jq -c '[.RouteTables[].Routes[] | select(.State=="active") | {dest: (.DestinationCidrBlock // .DestinationIpv6CidrBlock // ""), target: (.GatewayId // .NatGatewayId // .TransitGatewayId // .VpcPeeringConnectionId // .EgressOnlyInternetGatewayId // .NetworkInterfaceId // "local")} ]')
+
+  reachability_json=$(ROUTES="$routes_json" REDIS_CIDRS="$redis_subnet_cidrs_json" python - <<'"'"'PY'"'"'
+import ipaddress
+import json
+import os
+
+routes = json.loads(os.environ.get("ROUTES", "[]"))
+redis_cidrs = json.loads(os.environ.get("REDIS_CIDRS", "[]"))
+
+result = {"status": "fail", "reason": "Ingen Redis-CIDR-er funnet"}
+
+allowed_prefixes = ("local", "nat-", "eni-", "igw-", "eigw-", "pcx-", "tgw-")
+
+if redis_cidrs:
+    for redis_cidr in redis_cidrs:
+        try:
+            redis_net = ipaddress.ip_network(redis_cidr)
+        except ValueError:
+            result = {"status": "fail", "reason": f"Ugyldig Redis-CIDR: {redis_cidr}"}
+            break
+
+        for route in routes:
+            dest = (route.get("dest") or "").strip()
+            target = (route.get("target") or "").strip()
+            if not dest:
+                continue
+
+            try:
+                dest_net = ipaddress.ip_network(dest, strict=False)
+            except ValueError:
+                continue
+
+            if redis_net.subnet_of(dest_net) and any(
+                target == prefix or target.startswith(prefix)
+                for prefix in allowed_prefixes
+            ):
+                result = {
+                    "status": "pass",
+                    "redis_cidr": redis_cidr,
+                    "route_dest": dest,
+                    "target": target or "local",
+                }
+                break
+        if result.get("status") == "pass":
+            break
+    else:
+        result = {"status": "fail", "reason": "Ingen aktive ruter dekker Redis-subnettene"}
+
+print(json.dumps(result))
+PY
+)
+
+  reachability_status=$(echo "$reachability_json" | jq -r '.status')
+  if [[ "$reachability_status" == "pass" ]]; then
+    redis_cidr=$(echo "$reachability_json" | jq -r '.redis_cidr')
+    route_dest=$(echo "$reachability_json" | jq -r '.route_dest')
+    target=$(echo "$reachability_json" | jq -r '.target')
+    echo "REACHABILITY: PASS – aktiv rute til $route_dest via $target dekker Redis-subnettet $redis_cidr."
+  else
+    reason=$(echo "$reachability_json" | jq -r '.reason')
+    echo "REACHABILITY: FAIL – ${reason:-ukjent årsak}." >&2
+    status=1
+  fi
+fi
+
 log_step "Neste steg" "Hvis rutene ikke peker mot Redis-subnettene eller en NAT/IGW som når dem, flytt CloudShell til et subnett med riktige ruter eller oppdater rutetabellen. Kjør deretter redis-cli --tls ... PING på nytt."
 
 exit "$status"
