@@ -6,6 +6,29 @@ DEFAULT_DATA_STACK=${DEFAULT_DATA_STACK:-math-visuals-data}
 DEFAULT_API_STACK=${DEFAULT_API_STACK:-math-visuals-api}
 CLOUDSHELL_CIDR=""
 
+trim_first_line() {
+  # Tar bare første linje og fjerner ledende/etterfølgende whitespace
+  printf '%s' "$1" | sed -e '1q' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+is_valid_cidr() {
+  local cidr="$1"
+  [[ -z "$cidr" ]] && return 1
+
+  python3 - "$cidr" <<'PY'
+import ipaddress
+import sys
+
+cidr_value = sys.argv[1]
+
+try:
+    ipaddress.ip_network(cidr_value, strict=False)
+except ValueError:
+    sys.exit(1)
+sys.exit(0)
+PY
+}
+
 usage() {
   cat <<'USAGE'
 Bruk: bash scripts/redis-network-prepare.sh [flagg]
@@ -160,12 +183,18 @@ fi
 mapfile -t cloudshell_sgs < <(tr '\t' '\n' <<<"$cloudshell_sgs_raw" | sed '/^$/d' | sort -u)
 
 resolve_cloudshell_cidr() {
-  local cidr_source="$CLOUDSHELL_CIDR"
+  local cidr_source
+  cidr_source=$(trim_first_line "$CLOUDSHELL_CIDR")
 
   if [[ -n "$cidr_source" ]]; then
-    info "Bruker CloudShell-CIDR fra flagg: $cidr_source"
-    echo "$cidr_source"
-    return
+    if is_valid_cidr "$cidr_source"; then
+      info "Bruker CloudShell-CIDR fra flagg: $cidr_source"
+      echo "$cidr_source"
+      return
+    else
+      echo "Ugyldig CIDR oppgitt via --cloudshell-cidr: $cidr_source" >&2
+      exit 1
+    fi
   fi
 
   if ! curl_available; then
@@ -174,8 +203,9 @@ resolve_cloudshell_cidr() {
 
   local cloudshell_ip
   cloudshell_ip=$(curl -fs --max-time 10 ifconfig.me/32 || true)
-  if [[ -n "$cloudshell_ip" ]]; then
-    cidr_source="$cloudshell_ip"
+  cidr_source=$(trim_first_line "$cloudshell_ip")
+
+  if [[ -n "$cidr_source" ]] && is_valid_cidr "$cidr_source"; then
     info "Bruker CloudShell-CIDR fra ifconfig.me: $cidr_source"
     echo "$cidr_source"
   fi
@@ -330,6 +360,7 @@ else
   cloudshell_cidr_source=$(resolve_cloudshell_cidr || true)
 
   if [[ -n "$cloudshell_cidr_source" ]]; then
+    info "CloudShell-CIDR som brukes for ingress: $cloudshell_cidr_source"
     ensure_cidr_ingress "$cloudshell_cidr_source" "CloudShell CIDR"
   else
     echo "Ingen CloudShell-SG-er ble funnet; redis-SG-en tillater kun Lambda for øyeblikket." >&2
