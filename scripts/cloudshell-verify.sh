@@ -230,19 +230,25 @@ discover_log_groups() {
       local api_fn_name
       api_fn_name="${api_fn_arn##*:function:}"
       if [[ -n "$api_fn_name" ]]; then
-        results+=("/aws/lambda/${api_fn_name}")
+        local api_log_group
+        api_log_group="/aws/lambda/${api_fn_name}"
+        if log_group_has_streams "$api_log_group"; then
+          results+=("$api_log_group")
+        fi
       fi
     fi
   fi
 
-  local described
-  if described=$(aws logs describe-log-groups \
+  local described_raw
+  if described_raw=$(aws logs describe-log-groups \
     --region "$REGION" \
     --log-group-name-prefix "$DEFAULT_LOG_GROUP" \
     --query 'logGroups[].logGroupName' \
     --output text 2>/dev/null); then
+    local described
+    described=$(printf '%s\n' "$described_raw" | tr '\t' '\n')
     while IFS=$'\n' read -r lg; do
-      if [[ -n "$lg" ]]; then
+      if [[ -n "$lg" ]] && log_group_has_streams "$lg"; then
         results+=("$lg")
       fi
     done <<< "$described"
@@ -302,13 +308,15 @@ resolve_log_group() {
 
   local api_fn_prefix
   api_fn_prefix="${DEFAULT_LOG_GROUP}-ApiFunction"
-  local described
-  if described=$(aws logs describe-log-groups \
+  local described_raw
+  if described_raw=$(aws logs describe-log-groups \
     --region "$REGION" \
     --log-group-name-prefix "$api_fn_prefix" \
     --query 'logGroups[].logGroupName' \
     --output text 2>/dev/null); then
-    while IFS=$'\t' read -r lg; do
+    local described
+    described=$(printf '%s\n' "$described_raw" | tr '\t' '\n')
+    while IFS=$'\n' read -r lg; do
       if log_group_has_streams "$lg"; then
         LOG_GROUP="$lg"
         return
