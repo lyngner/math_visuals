@@ -162,12 +162,20 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
   ```bash
   DATA_STACK="math-visuals-data" \
   API_URL="https://<ditt-domene>/api/examples" \
-  bash scripts/cloudshell-seed-examples.sh --dataset=docs/examples-seed.sample.json
+  bash scripts/cloudshell-seed-examples.sh --dataset=docs/examples-seed.json
   ```
 
-  På den måten slipper du å holde terminalen åpen etter at `source`-kommandoen er ferdig; skriptet gjør ferdig både sjekk og seeding i samme prosess.
+  Legg til `--dry-run` for å verifisere eksporten uten å skrive til Redis (samme flagg støttes av `npm run seed-examples`). På den måten slipper du å holde terminalen åpen etter at `source`-kommandoen er ferdig; skriptet gjør ferdig både sjekk og seeding i samme prosess.
 4. Injiser verdiene i Lambda (via `infra/shared-parameters.yaml`), GitHub Secrets eller lokalt shell, og redeploy API-stacken i [`infra/api/template.yaml`](../infra/api/template.yaml). For lokal utvikling holder det å legge verdiene i `.env.local` og starte `npx vercel dev` på nytt.
 5. Workflowen `.github/workflows/deploy-infra.yml` gjør de samme stegene automatisk: den leser outputsene, oppdaterer Secrets Manager/Parameter Store og kjører seeding/vedlikehold med `REDIS_*`-verdiene tilgjengelig.
+
+### Datasett per miljø
+
+* **Prod:** JSON-eksporten lagres som GitHub Environment-secret `EXAMPLES_SEED_JSON_PROD`. Workflowen skriver innholdet til `docs/examples-seed.json` (git-ignorert) før seeding og bruker `--dry-run` for å validere strukturen.
+* **Dev:** Bruk `EXAMPLES_SEED_JSON_DEV` for å gi dev sitt eget datasett. Hvis den ikke er satt, faller workflowen tilbake til `EXAMPLES_SEED_JSON`.
+* **Preview:** Sett `EXAMPLES_SEED_JSON_PREVIEW` når du vil fylle midlertidige miljøer med et enklere eller anonymisert datasett. Også her brukes `docs/examples-seed.json` som mellomlagring under kjøringen.
+
+Standardfeltet `EXAMPLES_SEED_JSON` fungerer som felles default på tvers av miljøer og kan peke til et testdatasett når miljøspesifikke secrets mangler. Uansett secret-navn materialiseres innholdet til `docs/examples-seed.json` på runneren og slettes etter jobben; ingen av datasettene sjekkes inn i repoet.
 
 ### Avvikle den gamle Vercel-instansen
 
