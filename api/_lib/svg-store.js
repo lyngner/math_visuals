@@ -1,7 +1,7 @@
 'use strict';
 
 const {
-  loadKvClient: loadRedisKvClient,
+  loadKvClient: loadBaseKvClient,
   isKvConfigured,
   getStoreMode: getRedisStoreMode,
   KvOperationError,
@@ -44,7 +44,7 @@ function applyStorageMetadata(entry, mode) {
 }
 
 async function loadKvClient() {
-  return loadRedisKvClient();
+  return loadBaseKvClient();
 }
 
 function normalizeSlug(value) {

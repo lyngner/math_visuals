@@ -1,7 +1,7 @@
 'use strict';
 
 const {
-  loadKvClient: loadRedisKvClient,
+  loadKvClient: loadBaseKvClient,
   isKvConfigured,
   getStoreMode: getRedisStoreMode,
   KvOperationError,
@@ -192,7 +192,7 @@ async function loadKvClient() {
       'Examples KV is not configured. Set REDIS_ENDPOINT (or REDIS_HOST), REDIS_PORT and REDIS_PASSWORD to enable persistent storage.'
     );
   }
-  return loadRedisKvClient();
+  return loadBaseKvClient();
 }
 
 function normalizePath(value) {

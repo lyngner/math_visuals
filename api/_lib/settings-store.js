@@ -1,7 +1,7 @@
 'use strict';
 
 const {
-  loadKvClient: loadRedisKvClient,
+  loadKvClient: loadBaseKvClient,
   isKvConfigured,
   getStoreMode: getRedisStoreMode,
   KvOperationError,
@@ -117,7 +117,7 @@ async function loadKvClient() {
       'Settings storage KV is not configured. Set REDIS_ENDPOINT (or REDIS_HOST), REDIS_PORT and REDIS_PASSWORD to enable persistent settings.'
     );
   }
-  return loadRedisKvClient({ injectionKey: INJECTED_KV_CLIENT_KEY });
+  return loadBaseKvClient({ injectionKey: INJECTED_KV_CLIENT_KEY });
 }
 
 function sanitizeColor(value) {
