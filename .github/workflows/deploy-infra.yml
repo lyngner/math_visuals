@@ -32,6 +32,7 @@ jobs:
       DATA_STACK_NAME: math-visuals-data
       DATA_ENVIRONMENT_NAME: prod
       SHARED_PARAMETERS_STACK_NAME: math-visuals-shared
+      SKIP_EXAMPLES_SEEDING: "true"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -196,6 +197,129 @@ PY
         run: |
           set -euo pipefail
           npm run check-examples-api -- --url="${API_EXAMPLES_URL}"
+
+      - name: Materialize examples dataset for seeding
+        env:
+          EXAMPLES_SEED_JSON: ${{ secrets.EXAMPLES_SEED_JSON }}
+          EXAMPLES_SEED_JSON_PROD: ${{ secrets.EXAMPLES_SEED_JSON_PROD }}
+          EXAMPLES_SEED_JSON_DEV: ${{ secrets.EXAMPLES_SEED_JSON_DEV }}
+          EXAMPLES_SEED_JSON_PREVIEW: ${{ secrets.EXAMPLES_SEED_JSON_PREVIEW }}
+        run: |
+          set -euo pipefail
+          env_name="${DATA_ENVIRONMENT_NAME:-prod}"
+
+          select_dataset() {
+            local selected="$1"
+            case "$env_name" in
+              prod) echo "${EXAMPLES_SEED_JSON_PROD:-$selected}" ;;
+              dev) echo "${EXAMPLES_SEED_JSON_DEV:-$selected}" ;;
+              preview) echo "${EXAMPLES_SEED_JSON_PREVIEW:-$selected}" ;;
+              *) echo "$selected" ;;
+            esac
+          }
+
+          dataset=$(select_dataset "${EXAMPLES_SEED_JSON:-}" )
+
+          if [ -z "$dataset" ]; then
+            echo "Ingen EXAMPLES_SEED_JSON*-secret er konfigurert for miljøet '$env_name'. Hopper over seeding." >&2
+            echo "SKIP_EXAMPLES_SEEDING=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          mkdir -p docs
+          printf '%s' "$dataset" > docs/examples-seed.json
+          echo "SKIP_EXAMPLES_SEEDING=false" >> "$GITHUB_ENV"
+
+      - name: Resolve Redis credentials from CloudFormation outputs
+        if: env.SKIP_EXAMPLES_SEEDING != 'true'
+        run: |
+          set -euo pipefail
+
+          describe_output_for_stack() {
+            local stack_name="$1"
+            local key="$2"
+            aws cloudformation describe-stacks \
+              --stack-name "$stack_name" \
+              --query "Stacks[0].Outputs[?OutputKey=='${key}'].OutputValue" \
+              --output text
+          }
+
+          describe_output() {
+            describe_output_for_stack "$DATA_STACK_NAME" "$1"
+          }
+
+          require_value() {
+            local value="$1"
+            local label="$2"
+            if [ -z "$value" ] || [ "$value" = "None" ]; then
+              echo "Fant ikke verdi for $label i stacken '$DATA_STACK_NAME'." >&2
+              exit 1
+            fi
+          }
+
+          REDIS_ENDPOINT_PARAMETER_NAME=$(describe_output "RedisEndpointParameterName")
+          REDIS_PORT_PARAMETER_NAME=$(describe_output "RedisPortParameterName")
+          REDIS_PASSWORD_SECRET_NAME=$(describe_output "RedisPasswordSecretName")
+
+          require_value "$REDIS_ENDPOINT_PARAMETER_NAME" "RedisEndpointParameterName"
+          require_value "$REDIS_PORT_PARAMETER_NAME" "RedisPortParameterName"
+          require_value "$REDIS_PASSWORD_SECRET_NAME" "RedisPasswordSecretName"
+
+          REDIS_ENDPOINT=$(aws ssm get-parameter \
+            --region "$AWS_REGION" \
+            --name "$REDIS_ENDPOINT_PARAMETER_NAME" \
+            --query 'Parameter.Value' \
+            --output text)
+
+          REDIS_PORT=$(aws ssm get-parameter \
+            --region "$AWS_REGION" \
+            --name "$REDIS_PORT_PARAMETER_NAME" \
+            --query 'Parameter.Value' \
+            --output text)
+
+          SECRET_STRING=$(aws secretsmanager get-secret-value \
+            --region "$AWS_REGION" \
+            --secret-id "$REDIS_PASSWORD_SECRET_NAME" \
+            --query 'SecretString' \
+            --output text)
+
+          if [ -z "$SECRET_STRING" ] || [ "$SECRET_STRING" = "None" ]; then
+            echo "SecretString mangler for $REDIS_PASSWORD_SECRET_NAME" >&2
+            exit 1
+          fi
+
+          export SECRET_STRING
+          REDIS_PASSWORD=$(python - <<'PY'
+import json, os, sys
+payload = os.environ.get('SECRET_STRING', '')
+try:
+    parsed = json.loads(payload)
+except Exception:
+    parsed = {}
+password = parsed.get('authToken') or ''
+if not password:
+    sys.exit('Secret mangler authToken')
+print(password)
+PY
+)
+
+          {
+            echo "REDIS_ENDPOINT=$REDIS_ENDPOINT"
+            echo "REDIS_PORT=$REDIS_PORT"
+            echo "REDIS_PASSWORD=$REDIS_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Validate examples dataset (--dry-run)
+        if: env.SKIP_EXAMPLES_SEEDING != 'true'
+        run: |
+          set -euo pipefail
+          npm run seed-examples -- --dataset=docs/examples-seed.json --dry-run
+
+      - name: Seed examples dataset
+        if: env.SKIP_EXAMPLES_SEEDING != 'true'
+        run: |
+          set -euo pipefail
+          npm run seed-examples -- --dataset=docs/examples-seed.json
 
       - name: Deploy static site stack
         run: |
