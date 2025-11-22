@@ -121,7 +121,7 @@ require_cmd() {
   fi
 }
 
-for cmd in aws jq curl npm; do
+for cmd in aws jq curl; do
   require_cmd "$cmd"
 done
 
