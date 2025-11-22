@@ -86,6 +86,7 @@ ikke aksepterer auth-tokenet som brukes av Lambda.
 
 6. **Hvis det fortsatt feiler, sjekk Lambda-loggene**
    - *Advarsel:* `describe-log-groups` og `tail` krever korrekt logggruppe; bekreft navnet fra første kommando før du tailer. Bruk tidsfilter (`--since`) for å slippe store JSON-svar.
+   - Verifikasjonsskriptet forsøker å autodetektere riktig gruppe ved å teste hver `describe-log-groups`-linje i `log_group_has_streams`; det håndterer dermed både tabulator- og linjeskilte svar når flere Lambdaer har samme prefiks.
    - Kommandoer:
      ```bash
      aws logs describe-log-groups \

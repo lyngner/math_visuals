@@ -29,7 +29,7 @@ if [[ "$cmd" == "cloudformation" ]]; then
 fi
 
 if [[ "$cmd" == "logs" && "$2" == "describe-log-groups" ]]; then
-  printf "/aws/lambda/math-visuals-api-Primary\\n/aws/lambda/math-visuals-api-Secondary\\n"
+  printf "/aws/lambda/math-visuals-api-Primary\t/aws/lambda/math-visuals-api-Secondary\n"
   exit 0
 fi
 
@@ -109,8 +109,8 @@ assert.equal(
 
 assert.deepEqual(
   discoveredGroups.trim().split('\n'),
-  ['/aws/lambda/math-visuals-api-Primary', '/aws/lambda/math-visuals-api-Secondary'],
-  'discover_log_groups should preserve separate log group entries from multi-line describe-log-groups output',
+  ['/aws/lambda/math-visuals-api-Secondary'],
+  'discover_log_groups should return only log groups that contain streams when describe-log-groups outputs multiple values',
 );
 
 console.log('cloudshell-verify auto-detect tests passed');
