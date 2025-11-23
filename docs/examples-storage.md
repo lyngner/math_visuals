@@ -187,6 +187,22 @@ Når AWS-stacken er bekreftet i drift bør Vercel-miljøet fjernes for å unngå
 4. Oppdater dokumentasjon og varsle teamet om at det ikke finnes en fungerende Vercel-forekomst lenger (det er nå AWS som er kilden).
 5. Lukk eventuelle DNS-oppføringer som fortsatt peker til Vercel (`*.vercel.app` eller `*.vercel-storage.com`) slik at trafikk ikke havner der ved en feil.
 
+#### Operativ sjekkliste (bruk som runbook)
+
+Følgende sjekkliste kan fylles ut når Vercel avvikles. Den gir en tydelig logg av hvilke verifikasjoner som er utført og hvilke URL-er som er stengt:
+
+| Steg | Bekreftet av | Dato | Notater |
+| --- | --- | --- | --- |
+| Produksjonsdomene peker til CloudFront og `curl -s https://<ditt-domene>/api/examples | jq '.mode'` returnerer `"kv"` | | | Bruk AWS-kontoen som eier distribusjonen. |
+| Resterende data eksportert fra Vercel (`examples-viewer` eller `curl "https://<vercel-url>/api/examples?path=..."`) | | | Lagré JSON-eksporter i sikker mappe. |
+| Upstash-integrasjon fjernet fra Vercel-prosjektet | | | | 
+| Vercel KV-database slettet | | | | 
+| Vercel-prosjekt slettet | | | Sjekk at `https://<vercel-url>` gir 404. |
+| DNS-poster mot `*.vercel.app` eller `*.vercel-storage.com` fjernet/oppdatert | | | Bekreft 404/NS error på gamle URL-er etter TTL. |
+| Interessenter varslet om at Vercel er dekommisjonert (Slack/e-post) | | | Lenke til melding eller ticket. |
+
+> Tips: Dokumenter `curl`-utskrifter fra `/api/examples` før og etter DNS-byttet for å vise at trafikk går via CloudFront/AWS (svarene skal inneholde `"mode": "kv"`). Når Vercel er slettet, bør alle tidligere `vercel.app`-URL-er returnere 404.
+
 Alle nye miljøer bør sette `REDIS_*`-hemmelighetene før Lambda-prosessen starter. Uten dem havner API-et i minnemodus, og data går tapt når funksjonen skalerer ned.
 
 ## Såing av standardeksempler
