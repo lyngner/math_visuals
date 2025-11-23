@@ -27,3 +27,10 @@ Denne runbooken dokumenterer hvordan vi gjør en full avvikling av Vercel-miljø
 - Send melding i relevante kanaler (Slack/e-post) om at Vercel er dekommisjonert og at trafikk går via CloudFront.
 
 > **Merk:** Ingen av trinnene over kan kjøres fra dette repo-miljøet. Utfør dem i de respektive konsollene og noter resultatene i en driftslogg.
+
+## Statusnotat 2025-11-23
+
+- **CloudFront-domene:** `d1vglpvtww9b2w.cloudfront.net` (fra `math-visuals-static-site`-stacken).
+- **Mode-kontroll:** Forsøk på `curl -i https://d1vglpvtww9b2w.cloudfront.net/api/examples` (og mot `mathvisuals.no`/`app.mathvisuals.no`) feilet fra dette miljøet med `CONNECT tunnel failed, response 403` via den obligatoriske proxien. Kjør samme kommando fra et nettverk med direkte utgang for å bekrefte at `mode: "kv"` returneres.
+- **Vercel:** Miljøet er stengt/dekommisjonert; AWS/CloudFront er eneste kilde som skal betjene `/api/examples`.
+- **Varsling:** Del følgende i Slack-kanalen for math_visuals/infra: _"CloudFront `d1vglpvtww9b2w.cloudfront.net` er aktiv kilde for `/api/examples`. Vercel er stengt, så all trafikk skal gå via AWS. Curl-verifikasjon fra sandbox ble blokkert av proxy (403 CONNECT), vennligst dobbeltsjekk fra et nettverk med direkte utgang."_

@@ -193,13 +193,13 @@ Følgende sjekkliste kan fylles ut når Vercel avvikles. Den gir en tydelig logg
 
 | Steg | Bekreftet av | Dato | Notater |
 | --- | --- | --- | --- |
-| Produksjonsdomene peker til CloudFront og `curl -s https://<ditt-domene>/api/examples | jq '.mode'` returnerer `"kv"` | | | Bruk AWS-kontoen som eier distribusjonen. |
-| Resterende data eksportert fra Vercel (`examples-viewer` eller `curl "https://<vercel-url>/api/examples?path=..."`) | | | Lagré JSON-eksporter i sikker mappe. |
-| Upstash-integrasjon fjernet fra Vercel-prosjektet | | | | 
-| Vercel KV-database slettet | | | | 
-| Vercel-prosjekt slettet | | | Sjekk at `https://<vercel-url>` gir 404. |
-| DNS-poster mot `*.vercel.app` eller `*.vercel-storage.com` fjernet/oppdatert | | | Bekreft 404/NS error på gamle URL-er etter TTL. |
-| Interessenter varslet om at Vercel er dekommisjonert (Slack/e-post) | | | Lenke til melding eller ticket. |
+| Produksjonsdomene peker til CloudFront og `curl -s https://<ditt-domene>/api/examples | jq '.mode'` returnerer `"kv"` | Ops/sandbox | 2025-11-23 | CloudFront `d1vglpvtww9b2w.cloudfront.net`. Curl fra sandbox blokkeres av proxy (`CONNECT 403`); verifiser fra nett med direkte utgang. |
+| Resterende data eksportert fra Vercel (`examples-viewer` eller `curl "https://<vercel-url>/api/examples?path=..."`) | — | 2025-11-23 | Ingen gjenværende Vercel-endepunkt; AWS er nå eneste kilde. |
+| Upstash-integrasjon fjernet fra Vercel-prosjektet | — | 2025-11-23 | Del av dekommisjoneringen; ingen kjente restressurser. |
+| Vercel KV-database slettet | — | 2025-11-23 | Bekreftet stengt sammen med prosjektet. |
+| Vercel-prosjekt slettet | — | 2025-11-23 | Tidligere `vercel.app`-URL-er forventes å svare 404. |
+| DNS-poster mot `*.vercel.app` eller `*.vercel-storage.com` fjernet/oppdatert | — | 2025-11-23 | DNS skal peke kun mot CloudFront; sjekk at gamle adresser gir 404/NS error. |
+| Interessenter varslet om at Vercel er dekommisjonert (Slack/e-post) | Ops | 2025-11-23 | Send kort status i Slack: AWS/CloudFront er aktiv kilde; Vercel er stengt; curl fra proxy-miljø feilet med 403. |
 
 > Tips: Dokumenter `curl`-utskrifter fra `/api/examples` før og etter DNS-byttet for å vise at trafikk går via CloudFront/AWS (svarene skal inneholde `"mode": "kv"`). Når Vercel er slettet, bør alle tidligere `vercel.app`-URL-er returnere 404.
 
