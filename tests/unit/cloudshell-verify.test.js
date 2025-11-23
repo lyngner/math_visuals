@@ -29,7 +29,11 @@ if [[ "$cmd" == "cloudformation" ]]; then
 fi
 
 if [[ "$cmd" == "logs" && "$2" == "describe-log-groups" ]]; then
-  printf "/aws/lambda/math-visuals-api-Primary\t/aws/lambda/math-visuals-api-Secondary\n"
+  if [[ "\${DESCRIBE_LOG_GROUPS_OUTPUT:-}" == "newline" ]]; then
+    printf "/aws/lambda/math-visuals-api-Primary\n/aws/lambda/math-visuals-api-Secondary\n"
+  else
+    printf "/aws/lambda/math-visuals-api-Primary\t/aws/lambda/math-visuals-api-Secondary\n"
+  fi
   exit 0
 fi
 
@@ -48,7 +52,9 @@ if [[ "$cmd" == "cloudwatch" && "$2" == "logs" && "$3" == "describe-log-streams"
     esac
   done
 
-  if [[ "$log_group" == "/aws/lambda/math-visuals-api-Secondary" ]]; then
+  if [[ "\${ALL_GROUPS_HAVE_STREAMS:-}" == "1" ]]; then
+    echo "1"
+  elif [[ "$log_group" == "/aws/lambda/math-visuals-api-Secondary" ]]; then
     echo "1"
   else
     echo "0"
@@ -111,6 +117,36 @@ assert.deepEqual(
   discoveredGroups.trim().split('\n'),
   ['/aws/lambda/math-visuals-api-Secondary'],
   'discover_log_groups should return only log groups that contain streams when describe-log-groups outputs multiple values',
+);
+
+const multipleDiscovered = execFileSync(
+  'bash',
+  [
+    '-lc',
+    [
+      'source scripts/cloudshell-verify.sh',
+      'mapfile -t groups < <(discover_log_groups)',
+      'printf "%s\n" "${groups[@]}"',
+    ].join(' && '),
+  ],
+  {
+    cwd: repoRoot,
+    env: {
+      ...env,
+      DESCRIBE_LOG_GROUPS_OUTPUT: 'newline',
+      ALL_GROUPS_HAVE_STREAMS: '1',
+    },
+    encoding: 'utf8',
+  },
+);
+
+assert.deepEqual(
+  multipleDiscovered.trim().split('\n'),
+  [
+    '/aws/lambda/math-visuals-api-Primary',
+    '/aws/lambda/math-visuals-api-Secondary',
+  ],
+  'discover_log_groups should handle multiple lines of describe-log-groups output and keep each candidate separate',
 );
 
 console.log('cloudshell-verify auto-detect tests passed');

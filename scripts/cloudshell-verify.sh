@@ -245,13 +245,14 @@ discover_log_groups() {
     --log-group-name-prefix "$DEFAULT_LOG_GROUP" \
     --query 'logGroups[].logGroupName' \
     --output text 2>/dev/null); then
-    local described
-    described=$(printf '%s\n' "$described_raw" | tr '\t' '\n')
-    while IFS=$'\n' read -r lg; do
+    local IFS=$'\n'
+    local described=()
+    mapfile -t described <<< "$(printf '%s\n' "$described_raw" | tr '\t' '\n')"
+    for lg in "${described[@]}"; do
       if [[ -n "$lg" ]] && log_group_has_streams "$lg"; then
         results+=("$lg")
       fi
-    done <<< "$described"
+    done
   fi
 
   printf '%s\n' "${results[@]}"
@@ -314,14 +315,15 @@ resolve_log_group() {
     --log-group-name-prefix "$api_fn_prefix" \
     --query 'logGroups[].logGroupName' \
     --output text 2>/dev/null); then
-    local described
-    described=$(printf '%s\n' "$described_raw" | tr '\t' '\n')
-    while IFS=$'\n' read -r lg; do
+    local IFS=$'\n'
+    local described=()
+    mapfile -t described <<< "$(printf '%s\n' "$described_raw" | tr '\t' '\n')"
+    for lg in "${described[@]}"; do
       if log_group_has_streams "$lg"; then
         LOG_GROUP="$lg"
         return
       fi
-    done <<< "$described"
+    done
   fi
 
   if log_group_has_streams "$LOG_GROUP"; then
