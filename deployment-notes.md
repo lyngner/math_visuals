@@ -1,0 +1,8 @@
+# Deployment attempt notes
+
+- Attempted to follow CloudShell deployment steps for static site and API distribution.
+- Installed AWS CLI locally via `pip` because the binary was missing in the environment.
+- Could not retrieve AWS account ID or proceed with stack lookups/deployment because AWS credentials are not configured in this environment (the AWS CLI reported `Unable to locate credentials`).
+- No CloudFormation deployment or CloudFront verification was executed.
+
+To continue, configure AWS credentials (e.g., via `aws configure`, environment variables, or an injected credentials profile) and rerun the commands from the instructions.
