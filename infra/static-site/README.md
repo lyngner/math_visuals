@@ -51,6 +51,19 @@ steps:
 - `CloudFrontDistributionId` – identifier of the CloudFront distribution.
 - `CloudFrontDistributionDomainName` – domain used to reach the distribution.
 
+Derive `ApiGatewayDomainName` from the API stack's `ApiEndpoint` output by
+stripping the scheme and stage path with a single backreference so CloudFront's
+origin host remains valid:
+
+```bash
+API_STACK_NAME=${API_STACK_NAME:-math-visuals-api}
+
+API_GATEWAY_DOMAIN=$(aws cloudformation describe-stacks \
+  --stack-name "$API_STACK_NAME" \
+  --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
+  --output text | sed -E 's|https://([^/]+)/.*|\1|')
+```
+
 ## Deploying the stack
 
 Use the helper script to redeploy the stack with the latest template changes and
