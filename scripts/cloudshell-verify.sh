@@ -7,6 +7,7 @@ DEFAULT_DATA_STACK=${DEFAULT_DATA_STACK:-math-visuals-data}
 DEFAULT_STATIC_STACK=${DEFAULT_STATIC_STACK:-math-visuals-static-site}
 DEFAULT_API_STACK=${DEFAULT_API_STACK:-math-visuals-api}
 DEFAULT_LOG_GROUP=${DEFAULT_LOG_GROUP:-/aws/lambda/math-visuals-api}
+DEFAULT_METRIC_NAMESPACE=${DEFAULT_METRIC_NAMESPACE:-MathVisuals/Verification}
 OVERALL_STATUS=0
 
 usage() {
@@ -46,6 +47,7 @@ OVERALL_STATUS=0
 AWS_TAIL_CMD=()
 AWS_TAIL_NAME=""
 AWS_VERSION_STRING=""
+METRIC_NAMESPACE=$DEFAULT_METRIC_NAMESPACE
 
 print_summary() {
   local exit_code="$1"
@@ -54,6 +56,7 @@ print_summary() {
   local redis_value="${REDIS_ENDPOINT:-<unset>}"
   local helper_value="${HELPER_STATUS:-not-set}"
   local overall_value="${OVERALL_STATUS:-$exit_code}"
+  local log_group_value="${LOG_GROUP:-<unset>}"
 
   cat <<EOF
 
@@ -62,6 +65,7 @@ API_URL=${api_value}
 CF_DOMAIN=${cf_value}
 REDIS_ENDPOINT=${redis_value}
 HELPER_STATUS=${helper_value}
+LOG_GROUP=${log_group_value}
 OVERALL_STATUS=${overall_value}
 EOF
 }
@@ -156,12 +160,41 @@ record_status() {
   fi
 }
 
-if [[ "$TRACE" == true ]]; then
-  set -x
-fi
+  if [[ "$TRACE" == true ]]; then
+    set -x
+  fi
 
-SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-CHECK_SCRIPT="$SCRIPT_DIR/cloudshell-check-examples.sh"
+  SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+  CHECK_SCRIPT="$SCRIPT_DIR/cloudshell-check-examples.sh"
+
+publish_ping_metric() {
+  local value="$1"
+  local reason="${2:-}"
+
+  if [[ -z "$METRIC_NAMESPACE" ]]; then
+    return
+  fi
+
+  set +e
+  aws cloudwatch put-metric-data \
+    --namespace "$METRIC_NAMESPACE" \
+    --metric-name RedisPingStatus \
+    --value "$value" \
+    --unit Count \
+    --dimensions Stack="$DATA_STACK",ApiStack="$API_STACK" \
+    --storage-resolution 60 \
+    --region "$REGION" >/dev/null 2>&1
+  local publish_status=$?
+  set -e
+
+  if [[ "$publish_status" -eq 0 ]]; then
+    if [[ -n "$reason" ]]; then
+      echo "Publiserte RedisPingStatus=$value (${reason}) til CloudWatch ($METRIC_NAMESPACE)."
+    fi
+  else
+    echo "Klarte ikke å publisere RedisPingStatus til CloudWatch; fortsetter uten alarmhistorikk." >&2
+  fi
+}
 
 if [[ ! -f "$CHECK_SCRIPT" ]]; then
   echo "Fant ikke helper-skriptet $CHECK_SCRIPT" >&2
@@ -339,6 +372,7 @@ tail_logs() {
     return
   fi
 
+  echo "Bruker logggruppe: $LOG_GROUP"
   echo "==> Tailer de siste 15 minuttene med Lambda-logger for å se etter Redis/advarsler ..."
   local TAIL_STATUS=0
   set +e
@@ -406,6 +440,7 @@ ping_redis() {
 
   if [[ "$ping_status" -eq 0 && "$ping_output" =~ PONG ]]; then
     record_status 0 "Redis PING" "$ping_output"
+    publish_ping_metric 1 "Redis PING: PONG"
   else
     local reason="ukjent feil"
     local severity="fail"
@@ -429,6 +464,7 @@ ping_redis() {
       reason+=" (API-testen passerte, så CloudShell kan mangle direkte tilgang til Redis. Behandle dette som en advarsel med mindre API-kallene feiler.)"
     fi
     record_status 1 "Redis PING" "$reason" "$severity"
+    publish_ping_metric 0 "$reason"
   fi
 
   # Ikke stopp skriptet dersom PING feiler; la resten av sjekkene kjøre for mer kontekst.
