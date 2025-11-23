@@ -13,6 +13,7 @@ Kjør `bash scripts/cloudshell-verify.sh --region eu-west-1 --api-stack math-vis
 ## Metric filters og tilhørende alarmer
 - **Redis KV mangler:** Metric filter `RedisKvMissingMetricFilter` matcher `"Redis KV is not configured"` i Lambda-loggene og oppdaterer metrikken `MathVisuals/API:RedisKvMissingCount`. Alarmen `RedisKvMissingAlarm` (SNS/PagerDuty) fyrer ved >0 treff.
 - **Redis auth-feil:** Metric filter `RedisWrongPassMetricFilter` matcher `"WRONGPASS"` og driver `MathVisuals/API:RedisWrongPassCount`. Alarmen `RedisWrongPassAlarm` fyrer ved >0 treff.
+- **Redis PING feilet:** Metric filter `RedisPingFailureMetricFilter` matcher `"Redis PING"` som ikke inneholder `"PONG"` og teller `MathVisuals/API:RedisPingFailureCount`. Alarmen `RedisPingFailureAlarm` fyrer ved første PING-feil observert i Lambda-loggene.
 - **HTTP 5xx:** Access-loggene har JSON-feltet `status`; `ApiGateway5xxMetricFilter` teller `MathVisuals/API:Api5xxCount` når status >= 500. Alarmen `ApiGateway5xxAlarm` fyrer på første 5xx.
 - **CloudShell PING:** `scripts/cloudshell-verify.sh` publiserer `MathVisuals/Verification:RedisPingStatus` (1 = PONG, 0 = feilet) når Redis-PING steget kjøres. `CloudshellRedisPingAlarm` fyrer når verdien er < 1. Manglende datapunkter behandles som «ikke brudd» slik at alarmen bare reagerer når skriptet faktisk kjøres.
 
@@ -28,5 +29,6 @@ Alle alarmene sender varsler til SNS/PagerDuty-destinasjonen som angis via param
 1. **Alarm mottatt:** Noter hvilket alarmnavn som fyrte og hvilken metrikknavn/dimensjon som er berørt.
 2. **Logganalyse:** Bruk logggruppen over som korrelasjon. For `ApiGateway5xxAlarm` hent `requestId` fra access-loggen og søk etter samme ID i Lambda-loggen for feildetaljer.
 3. **Redis-auth eller -konfig:** Hvis alarmen er `RedisKvMissingAlarm` eller `RedisWrongPassAlarm`, sjekk Secrets Manager/SSM-verdiene (`REDIS_ENDPOINT`, `REDIS_PORT`, `REDIS_PASSWORD`) mot data-stacken og kjør `bash scripts/cloudshell-verify.sh --trace` for å se `Redis PING`-resultatet og republish metrikken.
-4. **5xx-feil:** Hvis `ApiGateway5xxAlarm` fyrer uten Redis-feil, sjekk applikasjonsloggene for `statusCode: 5xx` eller stakktrace. Bekreft at CloudFront peker til riktig API-url og at Redis er tilgjengelig.
-5. **Tilbakestill alarm:** Etter utbedring, kjør `scripts/cloudshell-verify.sh` igjen for å få `RedisPingStatus=1` og bekrefte at loggene viser «kv»-modus. Lukk tilhørende hendelse i PagerDuty/SNS.
+4. **Redis PING-feil i Lambda:** Hvis `RedisPingFailureAlarm` fyrer, finn PING-logglinjen i Lambda-logggruppen for konteksten (nettverksfeil, AUTH, timeouts). Bekreft at Redis-endepunktet svarer fra Lambda VPC-en ved å kjøre `cloudshell-verify.sh` (som også sender ny `RedisPingStatus`) og kontroller at Secrets Manager-tokenet er gyldig.
+5. **5xx-feil:** Hvis `ApiGateway5xxAlarm` fyrer uten Redis-feil, sjekk applikasjonsloggene for `statusCode: 5xx` eller stakktrace. Bekreft at CloudFront peker til riktig API-url og at Redis er tilgjengelig.
+6. **Tilbakestill alarm:** Etter utbedring, kjør `scripts/cloudshell-verify.sh` igjen for å få `RedisPingStatus=1` og bekrefte at loggene viser «kv»-modus. Lukk tilhørende hendelse i PagerDuty/SNS.

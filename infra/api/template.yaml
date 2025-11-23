@@ -262,6 +262,16 @@ Resources:
           MetricNamespace: MathVisuals/API
           MetricName: RedisWrongPassCount
 
+  RedisPingFailureMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref ApiFunctionLogGroup
+      FilterPattern: '"Redis PING" -"PONG"'
+      MetricTransformations:
+        - MetricValue: 1
+          MetricNamespace: MathVisuals/API
+          MetricName: RedisPingFailureCount
+
   ApiGateway5xxMetricFilter:
     Type: AWS::Logs::MetricFilter
     Properties:
@@ -292,6 +302,21 @@ Resources:
     Properties:
       AlarmDescription: Detects Redis WRONGPASS authentication failures inside Lambda.
       MetricName: RedisWrongPassCount
+      Namespace: MathVisuals/API
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [UseProvidedAlarmTopic, [!Ref AlarmTopicArn], [!Ref ApiAlarmTopic]]
+
+  RedisPingFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Detects Lambda log entries where Redis PING does not return PONG.
+      MetricName: RedisPingFailureCount
       Namespace: MathVisuals/API
       Statistic: Sum
       Period: 300
