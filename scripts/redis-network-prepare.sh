@@ -29,6 +29,35 @@ sys.exit(0)
 PY
 }
 
+extract_cidr_value() {
+  local raw_input
+  raw_input=$(trim_first_line "$1")
+
+  python3 - "$raw_input" <<'PY'
+import ipaddress
+import re
+import sys
+
+raw = sys.argv[1].strip()
+
+if not raw:
+    sys.exit(1)
+
+match = re.search(r"\b\d{1,3}(?:\.\d{1,3}){3}/\d{1,2}\b", raw)
+if not match:
+    sys.exit(1)
+
+cidr = match.group(0)
+
+try:
+    ipaddress.ip_network(cidr, strict=False)
+except ValueError:
+    sys.exit(1)
+
+print(cidr)
+PY
+}
+
 usage() {
   cat <<'USAGE'
 Bruk: bash scripts/redis-network-prepare.sh [flagg]
@@ -184,17 +213,22 @@ mapfile -t cloudshell_sgs < <(tr '\t' '\n' <<<"$cloudshell_sgs_raw" | sed '/^$/d
 
 resolve_cloudshell_cidr() {
   local cidr_source
-  cidr_source=$(trim_first_line "$CLOUDSHELL_CIDR")
+  if [[ -n "$CLOUDSHELL_CIDR" ]]; then
+    cidr_source=$(extract_cidr_value "$CLOUDSHELL_CIDR" 2>/dev/null || true)
 
-  if [[ -n "$cidr_source" ]]; then
-    if is_valid_cidr "$cidr_source"; then
-      info "Bruker CloudShell-CIDR fra flagg: $cidr_source"
-      echo "$cidr_source"
-      return
-    else
-      echo "Ugyldig CIDR oppgitt via --cloudshell-cidr: $cidr_source" >&2
+    if [[ -z "$cidr_source" ]]; then
+      echo "Ugyldig CIDR oppgitt via --cloudshell-cidr" >&2
       exit 1
     fi
+
+    if ! is_valid_cidr "$cidr_source"; then
+      echo "Ugyldig CIDR oppgitt via --cloudshell-cidr" >&2
+      exit 1
+    fi
+
+    info "Bruker CloudShell-CIDR fra flagg: $cidr_source"
+    echo "$cidr_source"
+    return
   fi
 
   if ! curl_available; then
@@ -203,7 +237,7 @@ resolve_cloudshell_cidr() {
 
   local cloudshell_ip
   cloudshell_ip=$(curl -fs --max-time 10 ifconfig.me/32 || true)
-  cidr_source=$(trim_first_line "$cloudshell_ip")
+  cidr_source=$(extract_cidr_value "$cloudshell_ip" 2>/dev/null || true)
 
   if [[ -n "$cidr_source" ]] && is_valid_cidr "$cidr_source"; then
     info "Bruker CloudShell-CIDR fra ifconfig.me: $cidr_source"
@@ -378,7 +412,7 @@ check_routes_for_subnet() {
     --output json)
 
   local result
-  result=$(ROUTES="$routes_json" python3 - <<'PY'
+  result=$(ROUTES="$routes_json" python3 -c '
 import json
 import os
 
@@ -396,8 +430,7 @@ for rt in route_tables:
             print(f"pass:{dest}->{target}")
             raise SystemExit
 print("fail")
-PY
-  )
+')
 
   if [[ "$result" == pass:* ]]; then
     record_status 0 "Rute ($label)" "${result#pass:}"
