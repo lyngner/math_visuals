@@ -1,8 +1,8 @@
 # CloudShell verification runbook entry
 
 ## Sist oppdatert
-- **Timestamp (UTC):** 2025-02-11
-- **Status:** Ingen AWS CloudShell-tilgang i dette miljøet, men logggrupper/alarmer er dokumentert slik at oppgaven kan kjøres i produksjon.
+- **Timestamp (UTC):** 2025-11-23
+- **Status:** Verifikasjonen kunne ikke kjøres fordi `aws`-CLI ikke er installert i dette miljøet. Prøv igjen i CloudShell eller installer AWS CLI lokalt før du følger stegene under.
 
 ## Logggrupper som skal brukes
 - **API Lambda:** `/aws/lambda/math-visuals-api` (eksporteres som `ApiFunctionLogGroupName` i `infra/api/template.yaml`). `scripts/cloudshell-verify.sh` bruker dette som standard og forsøker også å slå opp funksjonsnavnet via `ApiFunctionArn` for å bekrefte riktige stream-er.
