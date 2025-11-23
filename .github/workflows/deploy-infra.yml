@@ -7,6 +7,11 @@ on:
     types:
       - closed
   workflow_dispatch:
+    inputs:
+      cloudfront_invalidation_paths:
+        description: "Space-separated list of paths to invalidate (defaults to /*)"
+        required: false
+        default: "/*"
 
 jobs:
   deploy-iac:
@@ -25,7 +30,7 @@ jobs:
       API_ARTIFACT_BUCKET: ${{ secrets.API_ARTIFACT_BUCKET }}
       API_ARTIFACT_KEY: ${{ secrets.API_ARTIFACT_KEY }}
       API_STAGE_NAME: ${{ secrets.API_STAGE_NAME }}
-      CLOUDFRONT_INVALIDATION_PATHS: ${{ secrets.CLOUDFRONT_INVALIDATION_PATHS }}
+      CLOUDFRONT_INVALIDATION_PATHS: ${{ github.event.inputs.cloudfront_invalidation_paths || secrets.CLOUDFRONT_INVALIDATION_PATHS || '/*' }}
       # Stack names and defaults
       STATIC_STACK_NAME: math-visuals-static
       API_STACK_NAME: math-visuals-api
@@ -285,6 +290,7 @@ PY
         if: ${{ env.STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID != '' }}
         run: |
           PATHS="${CLOUDFRONT_INVALIDATION_PATHS:-/*}"
+          echo "Using invalidation paths: $PATHS"
           aws cloudfront create-invalidation \
             --distribution-id "$STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID" \
             --paths $PATHS

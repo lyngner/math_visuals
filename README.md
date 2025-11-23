@@ -59,8 +59,10 @@ Produksjonsmiljøet deployes via GitHub Actions-workflowen [`deploy-infra.yml`](
 - synkroniserer `REDIS_*`-hemmelighetene inn i Secrets Manager og Systems Manager-parameterne som er definert i [`infra/shared-parameters.yaml`](infra/shared-parameters.yaml),
 - ruller ut API-stacken fra [`infra/api/template.yaml`](infra/api/template.yaml) ved å sende inn `LambdaCodeS3Bucket`, `LambdaCodeS3Key`, `DataStackName` og `SharedParametersStackName`,
 - henter API-endepunktet (`ApiEndpoint`-output) og injiserer domenet/stien i `infra/static-site/template.yaml`,
-- kjører en helse-sjekk (`npm run check-examples-api -- --url=https://<endpoint>/api/examples`) mot det nydeployede API-et, og
-- oppdaterer den statiske nettsiden gjennom CloudFormation-malen [`infra/static-site/template.yaml`](infra/static-site/template.yaml).
+- kjører en helse-sjekk (`npm run check-examples-api -- --url=https://<endpoint>/api/examples`) mot det nydeployede API-et,
+- oppdaterer den statiske nettsiden gjennom CloudFormation-malen [`infra/static-site/template.yaml`](infra/static-site/template.yaml),
+- bygger frontendene (`npm run build`) og synkroniserer `public/` til bøtta `STATIC_SITE_BUCKET_NAME`, og
+- avslutter med CloudFront-invalidering dersom distribusjons-ID er konfigurert.
 
 Når alle stacker er oppdatert kan workflowen (valgfritt) invalidere CloudFront-distribusjonen slik at nye filer serveres umiddelbart.
 
@@ -90,7 +92,7 @@ Følgende GitHub Secrets må være definert for at workflowen skal lykkes:
 | `REDIS_PASSWORD` | Passordet/autentiseringstokenet som workflowen både injiserer i datastacken (`RedisAuthToken`) og skriver til det delte Secrets Manager-navnet fra `infra/shared-parameters.yaml`. |
 | `REDIS_ENDPOINT` | Redis-endepunktet som workflowen skriver til Parameter Store før API-stacken deployes. |
 | `REDIS_PORT` | Redis-porten som workflowen skriver til Parameter Store før API-stacken deployes. |
-| `CLOUDFRONT_INVALIDATION_PATHS` | Mellomromsseparert liste over stier som skal invaliders (standard `/*`). |
+| `CLOUDFRONT_INVALIDATION_PATHS` | *(Valgfritt)* Mellomromsseparert liste over stier som skal invaliders (standard `/*`). Kan overstyres ved `workflow_dispatch` med `cloudfront_invalidation_paths`-input. |
 
 Secretsene over injiseres som miljøvariabler i de respektive deploy-stegene. Dersom `STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID` er tom hoppes invalidasjonssteget over automatisk.
 
