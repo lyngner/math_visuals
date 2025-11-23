@@ -230,96 +230,25 @@ PY
           printf '%s' "$dataset" > docs/examples-seed.json
           echo "SKIP_EXAMPLES_SEEDING=false" >> "$GITHUB_ENV"
 
-      - name: Resolve Redis credentials from CloudFormation outputs
-        if: env.SKIP_EXAMPLES_SEEDING != 'true'
-        run: |
-          set -euo pipefail
-
-          describe_output_for_stack() {
-            local stack_name="$1"
-            local key="$2"
-            aws cloudformation describe-stacks \
-              --stack-name "$stack_name" \
-              --query "Stacks[0].Outputs[?OutputKey=='${key}'].OutputValue" \
-              --output text
-          }
-
-          describe_output() {
-            describe_output_for_stack "$DATA_STACK_NAME" "$1"
-          }
-
-          require_value() {
-            local value="$1"
-            local label="$2"
-            if [ -z "$value" ] || [ "$value" = "None" ]; then
-              echo "Fant ikke verdi for $label i stacken '$DATA_STACK_NAME'." >&2
-              exit 1
-            fi
-          }
-
-          REDIS_ENDPOINT_PARAMETER_NAME=$(describe_output "RedisEndpointParameterName")
-          REDIS_PORT_PARAMETER_NAME=$(describe_output "RedisPortParameterName")
-          REDIS_PASSWORD_SECRET_NAME=$(describe_output "RedisPasswordSecretName")
-
-          require_value "$REDIS_ENDPOINT_PARAMETER_NAME" "RedisEndpointParameterName"
-          require_value "$REDIS_PORT_PARAMETER_NAME" "RedisPortParameterName"
-          require_value "$REDIS_PASSWORD_SECRET_NAME" "RedisPasswordSecretName"
-
-          REDIS_ENDPOINT=$(aws ssm get-parameter \
-            --region "$AWS_REGION" \
-            --name "$REDIS_ENDPOINT_PARAMETER_NAME" \
-            --query 'Parameter.Value' \
-            --output text)
-
-          REDIS_PORT=$(aws ssm get-parameter \
-            --region "$AWS_REGION" \
-            --name "$REDIS_PORT_PARAMETER_NAME" \
-            --query 'Parameter.Value' \
-            --output text)
-
-          SECRET_STRING=$(aws secretsmanager get-secret-value \
-            --region "$AWS_REGION" \
-            --secret-id "$REDIS_PASSWORD_SECRET_NAME" \
-            --query 'SecretString' \
-            --output text)
-
-          if [ -z "$SECRET_STRING" ] || [ "$SECRET_STRING" = "None" ]; then
-            echo "SecretString mangler for $REDIS_PASSWORD_SECRET_NAME" >&2
-            exit 1
-          fi
-
-          export SECRET_STRING
-          REDIS_PASSWORD=$(python - <<'PY'
-import json, os, sys
-payload = os.environ.get('SECRET_STRING', '')
-try:
-    parsed = json.loads(payload)
-except Exception:
-    parsed = {}
-password = parsed.get('authToken') or ''
-if not password:
-    sys.exit('Secret mangler authToken')
-print(password)
-PY
-)
-
-          {
-            echo "REDIS_ENDPOINT=$REDIS_ENDPOINT"
-            echo "REDIS_PORT=$REDIS_PORT"
-            echo "REDIS_PASSWORD=$REDIS_PASSWORD"
-          } >> "$GITHUB_ENV"
-
       - name: Validate examples dataset (--dry-run)
         if: env.SKIP_EXAMPLES_SEEDING != 'true'
+        env:
+          REGION: ${{ env.AWS_REGION }}
+          DATA_STACK: ${{ env.DATA_STACK_NAME }}
+          API_URL: ${{ env.API_EXAMPLES_URL }}
         run: |
           set -euo pipefail
-          npm run seed-examples -- --dataset=docs/examples-seed.json --dry-run
+          bash scripts/cloudshell-seed-examples.sh --dataset=docs/examples-seed.json --dry-run
 
       - name: Seed examples dataset
         if: env.SKIP_EXAMPLES_SEEDING != 'true'
+        env:
+          REGION: ${{ env.AWS_REGION }}
+          DATA_STACK: ${{ env.DATA_STACK_NAME }}
+          API_URL: ${{ env.API_EXAMPLES_URL }}
         run: |
           set -euo pipefail
-          npm run seed-examples -- --dataset=docs/examples-seed.json
+          bash scripts/cloudshell-seed-examples.sh --dataset=docs/examples-seed.json
 
       - name: Deploy static site stack
         run: |
