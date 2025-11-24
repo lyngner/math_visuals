@@ -44,21 +44,21 @@ Disse stegene finnes også automatisert i `scripts/package-api-lambda.sh`, som b
 
 ### Preflight: bekreft at artefakten er tilgjengelig i S3
 
-Last først opp `infra/api/api-lambda.zip` til ønsket S3-bucket og nøkkel, og
-valider deretter at objektet finnes. Kjør `head-object` på nøkkelen, og legg til
-`--version-id` hvis du bruker versjonering:
+1. Last opp `infra/api/api-lambda.zip` til ønsket S3-bucket og nøkkel.
+2. Kjør deretter `head-object` på nøkkelen for å bekrefte at artefakten (og
+   ev. versjonen) finnes:
 
-```bash
-aws s3api head-object \
-  --bucket <artefakt-bucket> \
-  --key <sti>/api-lambda.zip [--version-id <versjon-id>]
-```
+   ```bash
+   aws s3api head-object \
+     --bucket <artefakt-bucket> \
+     --key <sti>/api-lambda.zip [--version-id <versjon-id>]
+   ```
 
-Hvis `head-object` feiler (for eksempel på grunn av ugyldig
-bøtte-/nøkkel-/versjonskombinasjon), stopper CloudFormation-utrullingen med
-`AWS::EarlyValidation::ResourceExistenceCheck`. Sett derfor ikke
-`LambdaCodeS3ObjectVersion` i `--parameter-overrides` før `head-object`
-returnerer suksess for versjonen du planlegger å bruke.
+   Hvis `head-object` feiler på grunn av ugyldig bøtte-/nøkkel-/versjons-
+   kombinasjon, vil CloudFormation stoppe med
+   `AWS::EarlyValidation::ResourceExistenceCheck`.
+3. Ikke inkluder `LambdaCodeS3ObjectVersion` i `--parameter-overrides` før
+   `head-object` returnerer suksess for versjonen du planlegger å bruke.
 
 Når `head-object` validerer artefakten, bruk CloudFormation/SAM til å deploye:
 
@@ -72,11 +72,22 @@ aws cloudformation deploy \
       --parameter-overrides \
           LambdaCodeS3Bucket=<artefakt-bucket> \
           LambdaCodeS3Key=<sti>/api-lambda.zip \
-          # Inkluder versjonen først etter vellykket head-sjekk
-          # LambdaCodeS3ObjectVersion=<versjon-id> \
           StageName=prod \
           DataStackName=math-visuals-data \
           SharedParametersStackName=math-visuals-shared
+
+# Etter at head-sjekken er vellykket kan du legge til den versjonerte nøkkelen:
+# aws cloudformation deploy \
+#       --stack-name math-visuals-api \
+#       --template-file infra/api/template.yaml \
+#       --capabilities CAPABILITY_IAM \
+#       --parameter-overrides \
+#           LambdaCodeS3Bucket=<artefakt-bucket> \
+#           LambdaCodeS3Key=<sti>/api-lambda.zip \
+#           LambdaCodeS3ObjectVersion=<versjon-id> \
+#           StageName=prod \
+#           DataStackName=math-visuals-data \
+#           SharedParametersStackName=math-visuals-shared
 ```
 
 > **Merk:** Erstatt alle plassholdere (inkludert hakeparenteser) med faktiske verdier før du kjører kommandoene, og pass på at `LambdaCodeS3Bucket` og `LambdaCodeS3Key` peker til samme artefakt som ble lastet opp i første steg.
