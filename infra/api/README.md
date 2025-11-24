@@ -186,17 +186,18 @@ aws cloudformation describe-stacks \
 
 ## Post-deploy sjekkliste
 
-- Bekreft at CloudFormation-outputsene finnes i stacken:
+- Bekreft at CloudFormation-outputsene finnes i stacken. Forventede
+  outputs etter deploy er:
   - `ApiFunctionLogGroupName`
   - `ApiAccessLogGroupName`
 
-```bash
-aws cloudformation describe-stacks \
-  --stack-name math-visuals-api \
-  --query 'Stacks[0].Outputs'
-```
+  ```bash
+  aws cloudformation describe-stacks \
+    --stack-name math-visuals-api \
+    --query 'Stacks[0].Outputs'
+  ```
 
-Hvis en av disse outputene mangler er stacken enten ikke opprettet med
-den nåværende malen eller så feilet deployen. Kjør en ny deploy før du
-forventer at CloudWatch-loggene blir tilgjengelige i de riktige logg-
-gruppene.
+- Hvis en av disse outputene mangler er stacken enten ikke opprettet med
+  den nåværende malen, eller så feilet deployen. Kjør en ny deploy før du
+  forventer at CloudWatch-loggene blir tilgjengelige i de riktige logg-
+  gruppene.
