@@ -192,7 +192,7 @@ aws cloudformation describe-stacks \
 
 ## Post-deploy sjekkliste
 
-- Verifiser at CloudFormation-outputsene `ApiFunctionLogGroupName` og
+- Bekreft at CloudFormation-outputsene `ApiFunctionLogGroupName` og
   `ApiAccessLogGroupName` finnes i stacken:
 
 ```bash
@@ -201,6 +201,6 @@ aws cloudformation describe-stacks \
   --query 'Stacks[0].Outputs'
 ```
 
-Hvis en av outputene mangler, er ikke stacken deployet med den nåværende
-malen og må oppdateres før CloudWatch-loggene er tilgjengelige i de riktige
-logggruppene.
+Mangler en av outputene betyr det at stacken enten ikke bruker den
+nåværende malen eller at deployen feilet, og du må redeploye før
+CloudWatch-loggene er tilgjengelige i de riktige logggruppene.
