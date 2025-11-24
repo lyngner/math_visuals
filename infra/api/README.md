@@ -44,45 +44,39 @@ Disse stegene finnes også automatisert i `scripts/package-api-lambda.sh`, som b
 
 ### Preflight: bekreft at artefakten er tilgjengelig i S3
 
-Før du kjører `aws cloudformation deploy`, bekreft at zip-filen er lastet opp til
-den forventede bøtta og nøkkelen ved å kjøre `head-object`. Hvis du bruker
-versjonering kan du validere et bestemt objekt med `--version-id`:
+Last først opp `infra/api/api-lambda.zip` til ønsket S3-bucket og nøkkel, og
+valider deretter at objektet finnes. Kjør `head-object` på nøkkelen, og legg til
+`--version-id` hvis du bruker versjonering:
 
 ```bash
 aws s3api head-object \
   --bucket <artefakt-bucket> \
-  --key <sti>/api-lambda.zip
-
-# Valgfritt: sjekk en bestemt versjon dersom bøtta er versjonert
-aws s3api head-object \
-  --bucket <artefakt-bucket> \
-  --key <sti>/api-lambda.zip \
-  --version-id <versjon-id>
+  --key <sti>/api-lambda.zip [--version-id <versjon-id>]
 ```
 
-Hvis `head-object` feiler, vil CloudFormation-utrullingen stoppe med
-`AWS::EarlyValidation::ResourceExistenceCheck`. Omgå dette ved å laste opp
-artefakten til riktig S3-sti før du deployer. Ikke sett
+Hvis `head-object` feiler (for eksempel på grunn av ugyldig
+bøtte-/nøkkel-/versjonskombinasjon), stopper CloudFormation-utrullingen med
+`AWS::EarlyValidation::ResourceExistenceCheck`. Sett derfor ikke
 `LambdaCodeS3ObjectVersion` i `--parameter-overrides` før `head-object`
-returnerer suksess for den versjonen du planlegger å bruke.
+returnerer suksess for versjonen du planlegger å bruke.
 
-Last opp `infra/api/api-lambda.zip` til ønsket S3-bucket og nøkkel, og bruk deretter CloudFormation/SAM til å deploye:
+Når `head-object` validerer artefakten, bruk CloudFormation/SAM til å deploye:
 
 ```bash
 aws s3 cp infra/api/api-lambda.zip s3://<artefakt-bucket>/<sti>/api-lambda.zip
 
 aws cloudformation deploy \
-  --stack-name math-visuals-api \
-  --template-file infra/api/template.yaml \
-  --capabilities CAPABILITY_IAM \
-  --parameter-overrides \
-      LambdaCodeS3Bucket=<artefakt-bucket> \
-      LambdaCodeS3Key=<sti>/api-lambda.zip \
-      # Ta bare med versjonen hvis head-sjekken over var vellykket
-      # LambdaCodeS3ObjectVersion=<versjon-id> \
-      StageName=prod \
-      DataStackName=math-visuals-data \
-      SharedParametersStackName=math-visuals-shared
+      --stack-name math-visuals-api \
+      --template-file infra/api/template.yaml \
+      --capabilities CAPABILITY_IAM \
+      --parameter-overrides \
+          LambdaCodeS3Bucket=<artefakt-bucket> \
+          LambdaCodeS3Key=<sti>/api-lambda.zip \
+          # Inkluder versjonen først etter vellykket head-sjekk
+          # LambdaCodeS3ObjectVersion=<versjon-id> \
+          StageName=prod \
+          DataStackName=math-visuals-data \
+          SharedParametersStackName=math-visuals-shared
 ```
 
 > **Merk:** Erstatt alle plassholdere (inkludert hakeparenteser) med faktiske verdier før du kjører kommandoene, og pass på at `LambdaCodeS3Bucket` og `LambdaCodeS3Key` peker til samme artefakt som ble lastet opp i første steg.
