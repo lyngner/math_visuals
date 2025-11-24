@@ -42,6 +42,16 @@ cd -
 
 Disse stegene finnes også automatisert i `scripts/package-api-lambda.sh`, som brukes til å produsere en zip hvor `palette/`-mappen alltid er inkludert.
 
+### Preflight
+
+Før du kjører `aws cloudformation deploy`, gjør en rask S3-sjekk av artefaktet:
+
+1. Kjør `aws s3api head-object --bucket <bucket> --key <key>` etter opplasting (legg til `--version-id <versjon-id>` hvis du
+   skal deploye en spesifikk versjon) for å bekrefte at objektet eksisterer.
+2. Hvis bøtta ikke er versjonert, eller `head-object` feiler med en versjon, lar du `LambdaCodeS3ObjectVersion` stå tom.
+3. CloudFormation feiler tidlig med `AWS::EarlyValidation::ResourceExistenceCheck` hvis objektet mangler eller versjonen er
+   ugyldig.
+
 Last opp `infra/api/api-lambda.zip` til ønsket S3-bucket og nøkkel, og bruk deretter CloudFormation/SAM til å deploye:
 
 ```bash
@@ -74,7 +84,8 @@ aws cloudformation deploy \
 >
 > Husk å oppdatere `<artefakt-bucket>` med navnet på bøtta du faktisk skal bruke før kommandoen kjøres.
 
-Hvis du bruker versjonerte objekter i S3, kan du sette `LambdaCodeS3ObjectVersion=<versjon-id>` i `--parameter-overrides`.
+Hvis du bruker versjonerte objekter i S3, kan du sette `LambdaCodeS3ObjectVersion=<versjon-id>` i `--parameter-overrides`
+etter at `aws s3api head-object --version-id <versjon-id>` har bekreftet at versjonen eksisterer.
 
 `DataStackName` må peke på stacken som deployes fra `infra/data`. Denne verdien
 brukes til å importere VPC-ID, private subnett, Lambda-sikkerhetsgruppen og
