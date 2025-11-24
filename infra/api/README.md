@@ -163,3 +163,18 @@ aws cloudformation describe-stacks \
   --stack-name math-visuals-api \
   --query 'Stacks[0].Outputs'
 ```
+
+## Post-deploy sjekkliste
+
+- Verifiser at CloudFormation-outputsene `ApiFunctionLogGroupName` og
+  `ApiAccessLogGroupName` finnes i stacken:
+
+```bash
+aws cloudformation describe-stacks \
+  --stack-name math-visuals-api \
+  --query 'Stacks[0].Outputs'
+```
+
+Hvis en av outputene mangler, er ikke stacken deployet med den nåværende
+malen og må oppdateres før CloudWatch-loggene er tilgjengelige i de riktige
+logggruppene.
