@@ -1780,6 +1780,26 @@
       }
     }
   }
+  (function redirectExamplePathsToShell() {
+    if (typeof window === 'undefined') return;
+    if (window.top && window.top !== window) return;
+    const { pathname, search, hash } = window.location || {};
+    const path = typeof pathname === 'string' ? pathname : '';
+    if (!path || path === '/' || /\.html?$/i.test(path)) return;
+    if (stripTrailingExampleSegment(path) === path) return;
+    try {
+      const target = new URL(
+        '/index.html',
+        window.location && window.location.origin ? window.location.origin : undefined
+      );
+      const rawPath = `${path}${typeof search === 'string' ? search : ''}`;
+      target.searchParams.set('path', rawPath);
+      if (typeof hash === 'string' && hash) {
+        target.hash = hash;
+      }
+      window.location.replace(target.toString());
+    } catch (_) {}
+  })();
   function normalizePathname(pathname, options) {
     const preserveCase = !!(options && options.preserveCase);
     if (typeof pathname !== 'string') return '/';
