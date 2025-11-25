@@ -3295,6 +3295,22 @@
     el.classList.toggle('examples-status--warning', normalizedType === 'warning');
   }
 
+  function clearMissingBackendState(fallbackMode) {
+    if (backendUnavailableReason === 'missing') {
+      backendUnavailableReason = null;
+    }
+    if (backendMode !== 'missing') return;
+    const fallback =
+      normalizeBackendStoreMode(fallbackMode) ||
+      normalizeBackendStoreMode(baseHealthStatus.mode) ||
+      persistedBackendMode ||
+      'kv';
+    backendMode = fallback;
+    if (backendMode && backendMode !== 'offline' && backendMode !== 'disabled') {
+      persistBackendMode(backendMode);
+    }
+  }
+
   function applyBackendStatusMessage(mode) {
     const normalizedMode =
       mode === 'missing'
@@ -3468,6 +3484,7 @@
   }
 
   function updateBackendNotice() {
+    clearMissingBackendState(backendMode || baseHealthStatus.mode);
     if (!examplesApiBase) {
       hideBackendNotice();
       applyBackendStatusMessage('');
@@ -3484,7 +3501,7 @@
     }
     if (backendMode === 'memory') {
       if (backendNoticeMode !== 'memory' || !backendNoticeElement) {
-      showBackendNotice('memory');
+        showBackendNotice('memory');
       }
       applyBackendStatusMessage(backendMode || 'memory');
       return;
@@ -3509,6 +3526,7 @@
     backendAvailable = true;
     backendUnavailableReason = null;
     const resolved = normalizeBackendStoreMode(mode);
+    clearMissingBackendState(resolved || backendMode || baseHealthStatus.mode);
     if (resolved) {
       backendMode = resolved;
       persistBackendMode(resolved);
@@ -3557,8 +3575,13 @@
     const mode = resolveKnownStoreMode(resolveStoreModeFromResponse(res, payload));
     if (res && res.ok) {
       rememberBaseHealth(true, mode || baseHealthStatus.mode);
+      clearMissingBackendState(mode || baseHealthStatus.mode);
       if (mode) {
         markBackendAvailable(mode);
+      } else {
+        backendAvailable = true;
+        applyBackendStatusMessage(backendMode || '');
+        updateBackendUiState();
       }
     } else {
       rememberBaseHealth(false, mode || baseHealthStatus.mode);
