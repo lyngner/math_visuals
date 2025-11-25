@@ -960,12 +960,48 @@ function parseExampleFromSearch(search) {
   }
 }
 
+function parsePathOverride(search) {
+  if (typeof search !== 'string' || !search) return null;
+  try {
+    const params = new URLSearchParams(search);
+    const rawPath = params.get('path');
+    if (typeof rawPath !== 'string' || !rawPath.trim()) return null;
+    try {
+      const url = new URL(
+        rawPath,
+        typeof window !== 'undefined' && window.location ? window.location.origin : undefined
+      );
+      return { pathname: url.pathname || '/', search: url.search || '' };
+    } catch (_) {
+      let normalizedPath = rawPath.trim();
+      if (normalizedPath && !normalizedPath.startsWith('/')) {
+        normalizedPath = `/${normalizedPath}`;
+      }
+      return { pathname: normalizedPath || '/', search: '' };
+    }
+  } catch (_) {
+    return null;
+  }
+}
+
 function parseRouteFromLocation() {
   if (typeof window === 'undefined') return null;
-  const path = typeof window.location.pathname === 'string' ? window.location.pathname : '';
+  const override = parsePathOverride(window.location.search);
+  const path =
+    override && typeof override.pathname === 'string'
+      ? override.pathname
+      : typeof window.location.pathname === 'string'
+        ? window.location.pathname
+        : '';
+  const search =
+    override && typeof override.search === 'string'
+      ? override.search
+      : typeof window.location.search === 'string'
+        ? window.location.search
+        : '';
   const segments = path.split('/').filter(Boolean);
   if (!segments.length) {
-    const exampleFromSearch = parseExampleFromSearch(window.location.search);
+    const exampleFromSearch = parseExampleFromSearch(search);
     if (!exampleFromSearch) return null;
     return defaultEntry ? { entry: defaultEntry, exampleNumber: exampleFromSearch } : null;
   }
@@ -976,7 +1012,7 @@ function parseRouteFromLocation() {
     exampleNumber = parseExampleSegment(segments[1]);
   }
   if (exampleNumber == null) {
-    exampleNumber = parseExampleFromSearch(window.location.search);
+    exampleNumber = parseExampleFromSearch(search);
   }
   return { entry, exampleNumber };
 }
