@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<USAGE
-Usage: $0 <artifact-bucket> [artifact-key]
+Usage: $0 <artifact-bucket> [artifact-key] [artifact-version]
 
 Ensures an S3 bucket exists in eu-west-1, packages the Lambda artefact, uploads
 it, deploys CloudFormation and verifies the Lambda VPC/secret bindings.
@@ -28,6 +28,7 @@ fi
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ARTIFACT_BUCKET="$1"
 ARTIFACT_KEY="${2:-lambda/api-lambda.zip}"
+ARTIFACT_VERSION="${3:-}"
 AWS_REGION="${AWS_REGION:-eu-west-1}"
 STACK_NAME="${STACK_NAME:-math-visuals-api}"
 DATA_STACK_NAME="${DATA_STACK_NAME:-math-visuals-data}"
@@ -80,6 +81,7 @@ deploy_stack() {
     --parameter-overrides \
       LambdaCodeS3Bucket="$ARTIFACT_BUCKET" \
       LambdaCodeS3Key="$ARTIFACT_KEY" \
+      LambdaCodeS3ObjectVersion="$ARTIFACT_VERSION" \
       StageName="$STAGE_NAME" \
       DataStackName="$DATA_STACK_NAME" \
       SharedParametersStackName="$SHARED_PARAMETERS_STACK_NAME"

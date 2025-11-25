@@ -57,8 +57,11 @@ Disse stegene finnes også automatisert i `scripts/package-api-lambda.sh`, som b
    Hvis `head-object` feiler på grunn av ugyldig bøtte-/nøkkel-/versjons-
    kombinasjon, vil CloudFormation stoppe med
    `AWS::EarlyValidation::ResourceExistenceCheck`.
-3. Ikke inkluder `LambdaCodeS3ObjectVersion` i `--parameter-overrides` før
-   `head-object` returnerer suksess for versjonen du planlegger å bruke.
+3. Sett `LambdaCodeS3ObjectVersion` eksplisitt når du deployer: bruk versjonen
+   som ble validert i forrige steg, eller sett parameteren til tom streng
+   (`""`) for å tømme en gammel verdi dersom du gjenbruker samme bucket/nøkkel.
+   Uten en eksplisitt tom verdi kan CloudFormation gjenbruke en tidligere
+   versjon når du laster opp en ny zip til samme objekt.
 
 Når `head-object` validerer artefakten, bruk CloudFormation/SAM til å deploye:
 
@@ -72,6 +75,7 @@ aws cloudformation deploy \
       --parameter-overrides \
           LambdaCodeS3Bucket=<artefakt-bucket> \
           LambdaCodeS3Key=<sti>/api-lambda.zip \
+          LambdaCodeS3ObjectVersion="" \
           StageName=prod \
           DataStackName=math-visuals-data \
           SharedParametersStackName=math-visuals-shared
@@ -161,13 +165,18 @@ SHARED_PARAMETERS_STACK_NAME=math-visuals-shared \
 
 _Husk å erstatte alle plassholdere (inkludert hakeparenteser) med faktiske verdier og hopp over `cd math_visuals` dersom du allerede står i repoet._
 
-**Valgfritt:** Dersom du vil overstyre S3-nøkkelen for zip-filen, kan du sende inn et ekstra argument med ønsket sti:
+**Valgfritt:** Dersom du vil overstyre S3-nøkkelen for zip-filen, kan du sende inn et ekstra argument med ønsket sti. Du kan
+også sende et tredje argument med versjons-IDen (eller en tom streng) for å styre `LambdaCodeS3ObjectVersion` når stacken deployes:
 
 ```bash
 ./scripts/cloudshell-deploy-api.sh math-visuals-artifacts-eu-west-1 team-builds/prod/api-lambda.zip
+./scripts/cloudshell-deploy-api.sh math-visuals-artifacts-eu-west-1 team-builds/prod/api-lambda.zip 3HL4.Ax9ljQPjc9LsN0_MjCXQhn0_wKS
 ```
 
-I eksemplet over lastes zip-filen opp til `s3://math-visuals-artifacts-eu-west-1/team-builds/prod/api-lambda.zip`, men du kan erstatte stien med en hvilken som helst katalogstruktur i samme bøtte.
+I eksemplet over lastes zip-filen opp til `s3://math-visuals-artifacts-eu-west-1/team-builds/prod/api-lambda.zip`, men du kan
+erstatte stien med en hvilken som helst katalogstruktur i samme bøtte. Versjons-IDen i tredje argument kan byttes ut med
+versjonen du leste ut via `head-object`, eller du kan sende inn en tom streng for å tømme en gammel verdi i CloudFormation-
+parameteren.
 
 Skriptet gjør følgende:
 
