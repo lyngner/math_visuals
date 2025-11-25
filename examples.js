@@ -1665,6 +1665,7 @@
 
   function resolveExamplesApiBase() {
     if (typeof window === 'undefined') return null;
+    const defaultBase = '/api/examples';
     if (window.MATH_VISUALS_EXAMPLES_API_URL) {
       const value = String(window.MATH_VISUALS_EXAMPLES_API_URL).trim();
       if (value) return value;
@@ -1673,14 +1674,14 @@
     if (!location || typeof location !== 'object') return null;
     const origin = typeof location.origin === 'string' && location.origin ? location.origin : null;
     if (origin && /^https?:/i.test(origin)) {
-      return '/api/examples';
+      return defaultBase;
     }
     const protocol = typeof location.protocol === 'string' ? location.protocol : '';
     const host = typeof location.host === 'string' ? location.host : '';
     if (protocol && /^https?:$/i.test(protocol) && host) {
-      return '/api/examples';
+      return defaultBase;
     }
-    return null;
+    return defaultBase;
   }
   function buildExamplesApiUrl(base, path) {
     if (!base) return null;
@@ -3290,7 +3291,16 @@
   }
 
   function applyBackendStatusMessage(mode) {
-    const normalizedMode = mode === 'missing' ? 'missing' : mode === 'memory' ? 'memory' : mode === 'offline' ? 'offline' : '';
+    const normalizedMode =
+      mode === 'missing'
+        ? 'missing'
+        : mode === 'memory'
+        ? 'memory'
+        : mode === 'kv'
+        ? 'kv'
+        : mode === 'offline'
+        ? 'offline'
+        : '';
     if (!normalizedMode) {
       setBackendStatusMessage('', '');
       return;
@@ -3306,6 +3316,13 @@
       setBackendStatusMessage(
         'Eksempeltjenesten kjører i minnemodus. Eksempler tilbakestilles ved omstart.',
         'warning'
+      );
+      return;
+    }
+    if (normalizedMode === 'kv') {
+      setBackendStatusMessage(
+        'Eksempeltjenesten er tilkoblet og lagrer endringer permanent.',
+        ''
       );
       return;
     }
@@ -3432,13 +3449,13 @@
     }
     if (backendMode === 'memory') {
       if (backendNoticeMode !== 'memory' || !backendNoticeElement) {
-        showBackendNotice('memory');
+      showBackendNotice('memory');
       }
-      applyBackendStatusMessage('memory');
+      applyBackendStatusMessage(backendMode || 'memory');
       return;
     }
     hideBackendNotice();
-    applyBackendStatusMessage('');
+    applyBackendStatusMessage(backendMode || '');
   }
 
   function updateBackendUiState() {
@@ -3468,7 +3485,7 @@
       backendMode = 'kv';
       persistBackendMode(backendMode);
     }
-    applyBackendStatusMessage(backendMode === 'memory' ? 'memory' : '');
+    applyBackendStatusMessage(backendMode || '');
     updateBackendUiState();
   }
   function markBackendUnavailable(reason) {
@@ -4116,6 +4133,19 @@
         };
       }
       if (!responseLooksLikeJson(res)) {
+        if (res && res.ok) {
+          const mode = resolveStoreModeFromResponse(res);
+          markBackendAvailable(mode);
+          backendWasEmpty = true;
+          try {
+            updateActionButtonState(0);
+          } catch (_) {}
+          return {
+            path: storagePath,
+            examples: [],
+            deletedProvided: []
+          };
+        }
         markBackendUnavailable('missing');
         return null;
       }
