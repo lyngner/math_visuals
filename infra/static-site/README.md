@@ -101,6 +101,23 @@ managed "CachingDisabled" policy.
 After the deployment finishes the script prints the CloudFront distribution ID
 and domain so you can immediately verify the behaviour updates.
 
+### Allowing API write methods via CloudShell
+
+If `/api/*` calls fail with `403 Forbidden` or `405 Method Not Allowed`, CloudFront
+is likely blocking non-GET verbs. Run the CloudShell helper to expand the allowed
+methods on every API-backed behaviour (including `/api/*`, `/bildearkiv/*`,
+`/svg/*` and `/figure-library/*`):
+
+```bash
+scripts/cloudshell-enable-api-methods.sh
+```
+
+The script reads the CloudFront distribution ID from the
+`math-visuals-static-site` stack, updates the `AllowedMethods` list to include
+`GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE` for the API origin, and applies
+the change with `aws cloudfront update-distribution`. Propagation can take a few
+minutes before PUT/DELETE calls succeed globally.
+
 ### Verification
 
 1. Confirm that the `/api/*` behaviour still targets the API Gateway origin.
