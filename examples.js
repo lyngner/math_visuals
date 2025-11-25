@@ -3487,6 +3487,9 @@
 
   function updateBackendNotice() {
     clearMissingBackendState(backendMode || baseHealthStatus.mode);
+    if (backendAvailable && backendUnavailableReason && baseHealthStatus.ok) {
+      backendUnavailableReason = null;
+    }
     if (!examplesApiBase) {
       hideBackendNotice();
       applyBackendStatusMessage('');
@@ -3527,7 +3530,8 @@
   function markBackendAvailable(mode) {
     backendAvailable = true;
     backendUnavailableReason = null;
-    const resolved = normalizeBackendStoreMode(mode);
+    const resolved =
+      normalizeBackendStoreMode(mode) || normalizeBackendStoreMode(baseHealthStatus.mode);
     clearMissingBackendState(resolved || backendMode || baseHealthStatus.mode);
     if (resolved) {
       backendMode = resolved;
