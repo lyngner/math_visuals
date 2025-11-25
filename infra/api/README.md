@@ -212,3 +212,28 @@ aws cloudformation describe-stacks \
   den nåværende malen, eller så feilet deployen. Kjør en ny deploy før du
   forventer at CloudWatch-loggene blir tilgjengelige i de riktige logg-
   gruppene.
+
+### Oppdatere allowed-origins-parametere
+
+For å sette `math-visuals/prod/config/examples-allowed-origins` eller `math-visuals/prod/config/svg-allowed-origins` til en ordrett verdi (f.eks. en kommaseparert liste) kan du skrive verdien til en tempfil og referere til den som `file://` i `aws ssm put-parameter`:
+
+```bash
+cat > /tmp/allowed-origins.txt <<'EOF'
+https://foo.example
+https://bar.example
+EOF
+
+aws ssm put-parameter \
+  --name /math-visuals/prod/config/examples-allowed-origins \
+  --value file:///tmp/allowed-origins.txt \
+  --type String \
+  --overwrite
+
+aws ssm put-parameter \
+  --name /math-visuals/prod/config/svg-allowed-origins \
+  --value file:///tmp/allowed-origins.txt \
+  --type String \
+  --overwrite
+```
+
+> Merk: AWS CLI tolker uinnpakkede `https://`-verdier som filbaner (parameter store støtter `file://`-referanser) og svarer med `Unable to retrieve …` hvis URL-en ikke er tilgjengelig. Bruk derfor `file://` med en tempfil for ordrette URL-verdier.
