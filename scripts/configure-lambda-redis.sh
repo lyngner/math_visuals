@@ -184,13 +184,29 @@ if ! REDIS_PASSWORD=$(printf '%s' "$SECRET_STRING" | jq -er 'try (.authToken // 
   REDIS_PASSWORD=$SECRET_STRING
 fi
 
-ENVIRONMENT_JSON=$(jq -n \
+EXISTING_ENVIRONMENT=$(aws lambda get-function-configuration \
+  --region "$REGION" \
+  --function-name "$FUNCTION_NAME" \
+  --query 'Environment.Variables' \
+  --output json)
+
+if [[ -z "$EXISTING_ENVIRONMENT" || "$EXISTING_ENVIRONMENT" == "null" ]]; then
+  EXISTING_ENVIRONMENT='{}'
+fi
+
+MERGED_VARIABLES=$(jq -n \
+  --argjson existing "$EXISTING_ENVIRONMENT" \
   --arg endpoint "$REDIS_ENDPOINT" \
   --arg port "$REDIS_PORT" \
   --arg password "$REDIS_PASSWORD" \
-  '{Variables: {REDIS_ENDPOINT: $endpoint, REDIS_PORT: $port, REDIS_PASSWORD: $password}}')
+  '$existing + {REDIS_ENDPOINT: $endpoint, REDIS_PORT: $port, REDIS_PASSWORD: $password}')
+
+FINAL_VARIABLE_COUNT=$(printf '%s' "$MERGED_VARIABLES" | jq 'keys | length')
+
+ENVIRONMENT_JSON=$(jq -n --argjson variables "$MERGED_VARIABLES" '{Variables: $variables}')
 
 echo "Oppdaterer Lambda-funksjon: $FUNCTION_NAME" >&2
+echo "Miljøvariabler som sendes til funksjonen: $FINAL_VARIABLE_COUNT" >&2
 
 aws lambda update-function-configuration \
   --region "$REGION" \
