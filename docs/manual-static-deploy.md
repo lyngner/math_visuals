@@ -32,6 +32,18 @@ BUCKET_NAME=<ditt-bucket-navn>
 
 `CLOUDFRONT_REGION` er alltid `us-east-1`, mens `AWS_REGION` samsvarer med regionen der S3-bøtta skal ligge. `BUCKET_NAME` bør være globalt unikt.
 
+### Hente hemmeligheter til `.env`
+
+Når du trenger lokale miljøvariabler til bygging eller validering kan du hente dem fra AWS Secrets Manager og Parameter Store med skriptet `scripts/export-secrets.sh`. Det støtter både rene strengverdier og JSON-objekter (som splittes til `KEY=VALUE` per felt).
+
+```bash
+./scripts/export-secrets.sh \
+  --secret math-visuals/prod/oauth \
+  --ssm /math-visuals/prod/feature-flags > .env
+```
+
+Feil på enkeltnøkler logges til stderr (nyttig ved manglende tilgang), men henting fortsetter for de øvrige nøklene.
+
 ## 3. Opprett bøtta, aktiver versjonering og synkroniser filer
 
 ```bash
