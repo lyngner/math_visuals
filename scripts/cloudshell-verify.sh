@@ -48,6 +48,7 @@ AWS_TAIL_CMD=()
 AWS_TAIL_NAME=""
 AWS_VERSION_STRING=""
 METRIC_NAMESPACE=$DEFAULT_METRIC_NAMESPACE
+LOG_GROUP_WARNINGS=()
 
 print_summary() {
   local exit_code="$1"
@@ -240,12 +241,22 @@ log_group_has_streams() {
   fi
 
   local stream_count
+  local describe_status=0
   stream_count=$(aws cloudwatch logs describe-log-streams \
     --region "$REGION" \
     --log-group-name "$log_group_name" \
     --limit 1 \
     --query 'length(logStreams)' \
-    --output text 2>/dev/null || echo "0")
+    --output text 2>/dev/null) || describe_status=$?
+
+  if [[ "$describe_status" -ne 0 ]]; then
+    return 1
+  fi
+
+  if [[ "$stream_count" == "0" ]]; then
+    LOG_GROUP_WARNINGS+=("Logggruppen $log_group_name finnes, men har ingen loggstrømmer ennå.")
+    return 2
+  fi
 
   if [[ "$stream_count" != "0" && "$stream_count" != "None" ]]; then
     return 0
@@ -265,8 +276,14 @@ discover_log_groups() {
       if [[ -n "$api_fn_name" ]]; then
         local api_log_group
         api_log_group="/aws/lambda/${api_fn_name}"
+        local api_log_status=0
         if log_group_has_streams "$api_log_group"; then
           results+=("$api_log_group")
+        else
+          api_log_status=$?
+          if [[ "$api_log_status" -eq 2 ]]; then
+            LOG_GROUP_WARNINGS+=("Fant $api_log_group via ApiFunctionArn, men det er ingen loggstrømmer ennå.")
+          fi
         fi
       fi
     fi
@@ -282,8 +299,16 @@ discover_log_groups() {
     local described=()
     mapfile -t described <<< "$(printf '%s\n' "$described_raw" | tr '\t' '\n')"
     for lg in "${described[@]}"; do
-      if [[ -n "$lg" ]] && log_group_has_streams "$lg"; then
-        results+=("$lg")
+      if [[ -n "$lg" ]]; then
+        local describe_status=0
+        if log_group_has_streams "$lg"; then
+          results+=("$lg")
+        else
+          describe_status=$?
+          if [[ "$describe_status" -eq 2 ]]; then
+            LOG_GROUP_WARNINGS+=("$lg ble funnet, men mangler loggstrømmer så langt.")
+          fi
+        fi
       fi
     done
   fi
@@ -361,6 +386,10 @@ resolve_log_group() {
 
   if log_group_has_streams "$LOG_GROUP"; then
     return
+  fi
+
+  if [[ "$?" -eq 2 ]]; then
+    LOG_GROUP_WARNINGS+=("$LOG_GROUP finnes, men har ingen loggstrømmer ennå.")
   fi
 
   LOG_GROUP=""
@@ -561,7 +590,13 @@ aws cloudfront get-distribution-config \
 # 4. Tail CloudWatch-loggene
 resolve_log_group
 if [[ -z "$LOG_GROUP" ]]; then
-  echo "Fant ingen logggruppe med loggstrømmer. Sett --log-group til den faktiske Lambda-gruppen (f.eks. /aws/lambda/math-visuals-api-ApiFunction-...) og kjør skriptet på nytt." >&2
+  if [[ "${#LOG_GROUP_WARNINGS[@]}" -gt 0 ]]; then
+    printf '%s\n' "${LOG_GROUP_WARNINGS[@]}" >&2
+  else
+    echo "Fant ingen logggruppe med loggstrømmer." >&2
+  fi
+  echo "Hopper over loggtrinnet inntil Lambdaen har generert de første loggstrømmene." >&2
+  echo "Tips: bruk --log-group for å overstyre automatisk oppdagelse eller trigge et Lambda-kall for å opprette initiale loggstrømmer." >&2
 else
   tail_logs
 fi
