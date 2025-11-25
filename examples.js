@@ -3239,6 +3239,11 @@
   let backendUnavailableReason = null;
   let backendStatusLastMessage = '';
   let backendStatusLastType = '';
+  const baseHealthStatus = {
+    checked: false,
+    ok: false,
+    mode: null
+  };
 
   function ensureExamplesStatusElement() {
     if (typeof document === 'undefined') return null;
@@ -3330,6 +3335,36 @@
       'Kunne ikke koble til eksempeltjenesten. Endringer lagres midlertidig.',
       'warning'
     );
+  }
+
+  function rememberBaseHealth(ok, mode) {
+    baseHealthStatus.checked = true;
+    baseHealthStatus.ok = ok === true;
+    if (mode) {
+      const normalized = normalizeBackendStoreMode(mode) || mode;
+      baseHealthStatus.mode = normalized;
+    }
+  }
+
+  function resolveKnownStoreMode(candidate) {
+    const normalized = normalizeBackendStoreMode(candidate);
+    if (normalized) {
+      rememberBaseHealth(true, normalized);
+      return normalized;
+    }
+    if (baseHealthStatus.ok && baseHealthStatus.mode) {
+      return baseHealthStatus.mode;
+    }
+    return null;
+  }
+
+  function handleMissingBackendResponse(res, payload) {
+    const mode = resolveKnownStoreMode(resolveStoreModeFromResponse(res, payload));
+    if (mode) {
+      markBackendAvailable(mode);
+      return;
+    }
+    markBackendUnavailable('missing');
   }
 
   function resolveBackendNoticeHost() {
@@ -3485,6 +3520,7 @@
       backendMode = 'kv';
       persistBackendMode(backendMode);
     }
+    rememberBaseHealth(true, backendMode || resolved || null);
     applyBackendStatusMessage(backendMode || '');
     updateBackendUiState();
   }
@@ -3494,6 +3530,40 @@
     backendMode = reason === 'missing' ? 'missing' : 'offline';
     applyBackendStatusMessage(backendMode);
     updateBackendUiState();
+  }
+
+  async function checkExamplesBaseHealth() {
+    if (!examplesApiBase) return null;
+    const fetchOptions = {
+      headers: {
+        Accept: 'application/json'
+      }
+    };
+    let res;
+    try {
+      res = await fetchWithTimeout(examplesApiBase, fetchOptions, BACKEND_FETCH_TIMEOUT_MS);
+    } catch (error) {
+      rememberBaseHealth(false, baseHealthStatus.mode);
+      return null;
+    }
+    let payload = null;
+    if (responseLooksLikeJson(res)) {
+      try {
+        payload = await res.json();
+      } catch (_) {
+        payload = null;
+      }
+    }
+    const mode = resolveKnownStoreMode(resolveStoreModeFromResponse(res, payload));
+    if (res && res.ok) {
+      rememberBaseHealth(true, mode || baseHealthStatus.mode);
+      if (mode) {
+        markBackendAvailable(mode);
+      }
+    } else {
+      rememberBaseHealth(false, mode || baseHealthStatus.mode);
+    }
+    return { ok: baseHealthStatus.ok, mode: baseHealthStatus.mode };
   }
   function schedulePostSyncReload() {
     if (!examplesApiBase) return;
@@ -3531,7 +3601,7 @@
           method: 'DELETE'
         });
         if (!responseLooksLikeJson(res)) {
-          markBackendUnavailable('missing');
+          handleMissingBackendResponse(res);
           const missingError = new Error('Examples backend mangler');
           missingError.backendReason = 'missing';
           throw missingError;
@@ -3586,7 +3656,7 @@
         body: JSON.stringify(payload)
       });
       if (!responseLooksLikeJson(res)) {
-        markBackendUnavailable('missing');
+        handleMissingBackendResponse(res);
         const missingError = new Error('Examples backend mangler');
         missingError.backendReason = 'missing';
         throw missingError;
@@ -4076,7 +4146,7 @@
         return null;
       }
       if (!responseLooksLikeJson(res)) {
-        markBackendUnavailable('missing');
+        handleMissingBackendResponse(res);
         return null;
       }
       let legacyPathUsed = null;
@@ -4092,7 +4162,7 @@
             return null;
           }
           if (!responseLooksLikeJson(legacyRes)) {
-            markBackendUnavailable('missing');
+            handleMissingBackendResponse(legacyRes);
             return null;
           }
           if (legacyRes.status === 404) {
@@ -4146,7 +4216,7 @@
             deletedProvided: []
           };
         }
-        markBackendUnavailable('missing');
+        handleMissingBackendResponse(res);
         return null;
       }
       if (!res || !res.ok) {
@@ -7940,14 +8010,19 @@
       loadExample(targetIndex);
     });
   }
+  const baseHealthCheckPromise = examplesApiBase ? checkExamplesBaseHealth() : null;
+  const whenBaseHealthReady = () =>
+    baseHealthCheckPromise && typeof baseHealthCheckPromise.then === 'function'
+      ? baseHealthCheckPromise.catch(() => {})
+      : Promise.resolve();
   if (examplesApiBase) {
     const migrationPromise = migrateLegacyExamples();
     if (migrationPromise && typeof migrationPromise.then === 'function') {
       migrationPromise.catch(() => {}).then(() => {
-        loadExamplesFromBackend();
+        whenBaseHealthReady().then(() => loadExamplesFromBackend());
       });
     } else {
-      loadExamplesFromBackend();
+      whenBaseHealthReady().then(() => loadExamplesFromBackend());
     }
   }
   function parseInitialExampleIndex() {
