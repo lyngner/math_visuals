@@ -3471,13 +3471,15 @@
       backendNoticeMode = normalizedMode;
     };
     if (document.readyState === 'loading') {
-      if (!backendNoticeDomReadyHandler) {
-        backendNoticeDomReadyHandler = () => {
-          backendNoticeDomReadyHandler = null;
-          render();
-        };
-        document.addEventListener('DOMContentLoaded', backendNoticeDomReadyHandler, { once: true });
+      if (backendNoticeDomReadyHandler) {
+        document.removeEventListener('DOMContentLoaded', backendNoticeDomReadyHandler);
+        backendNoticeDomReadyHandler = null;
       }
+      backendNoticeDomReadyHandler = () => {
+        backendNoticeDomReadyHandler = null;
+        render();
+      };
+      document.addEventListener('DOMContentLoaded', backendNoticeDomReadyHandler, { once: true });
       return;
     }
     render();
@@ -3574,15 +3576,10 @@
     }
     const mode = resolveKnownStoreMode(resolveStoreModeFromResponse(res, payload));
     if (res && res.ok) {
-      rememberBaseHealth(true, mode || baseHealthStatus.mode);
-      clearMissingBackendState(mode || baseHealthStatus.mode);
-      if (mode) {
-        markBackendAvailable(mode);
-      } else {
-        backendAvailable = true;
-        applyBackendStatusMessage(backendMode || '');
-        updateBackendUiState();
-      }
+      const resolvedMode = mode || baseHealthStatus.mode || persistedBackendMode || backendMode || null;
+      rememberBaseHealth(true, resolvedMode || baseHealthStatus.mode);
+      clearMissingBackendState(resolvedMode || baseHealthStatus.mode);
+      markBackendAvailable(resolvedMode);
     } else {
       rememberBaseHealth(false, mode || baseHealthStatus.mode);
     }
