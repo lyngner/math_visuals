@@ -51,6 +51,7 @@
   };
   let trashViewer = null;
   let trashViewerInitialized = false;
+  const svgApiBase = resolveSvgApiBase();
   const examplesApiBase = TrashArchiveViewerClass
     ? TrashArchiveViewerClass.resolveExamplesApiBase()
     : null;
@@ -83,6 +84,30 @@
       return queue;
     }
     return null;
+  }
+
+  function resolveSvgApiBase() {
+    if (typeof window === 'undefined') return null;
+    if (window.MATH_VISUALS_SVG_API_URL) {
+      const value = String(window.MATH_VISUALS_SVG_API_URL).trim();
+      if (value) return value;
+    }
+    const origin = window.location && window.location.origin;
+    if (typeof origin === 'string' && /^https?:/i.test(origin)) {
+      return '/api/svg';
+    }
+    return null;
+  }
+
+  function buildSvgApiUrl(path = '') {
+    if (!svgApiBase) return null;
+    const base = svgApiBase.replace(/\/+$/, '');
+    if (!path) return base;
+    if (path.startsWith('?')) {
+      return `${base}${path}`;
+    }
+    const normalized = path.replace(/^\/+/, '');
+    return `${base}/${normalized}`;
   }
 
   function getTrashQueueStorage() {
@@ -2085,7 +2110,7 @@
       return trimmed;
     }
 
-    if (trimmed.startsWith('/api/svg/raw')) {
+    if (trimmed.startsWith('/api/svg/raw') || (svgApiBase && trimmed.startsWith(svgApiBase))) {
       return trimmed;
     }
 
@@ -2098,7 +2123,8 @@
       if (format) {
         searchParams.set('format', format);
       }
-      return `/api/svg/raw?${searchParams.toString()}`;
+      const apiUrl = buildSvgApiUrl(`raw?${searchParams.toString()}`);
+      return apiUrl || `/api/svg/raw?${searchParams.toString()}`;
     }
 
     const normalized = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
@@ -2109,7 +2135,8 @@
       if (formatHint) {
         searchParams.set('format', formatHint);
       }
-      return `/api/svg/raw?${searchParams.toString()}`;
+      const apiUrl = buildSvgApiUrl(`raw?${searchParams.toString()}`);
+      return apiUrl || `/api/svg/raw?${searchParams.toString()}`;
     }
 
     return normalized;
@@ -2363,9 +2390,14 @@
       };
       const token = ++altTextSaveToken;
 
+      const apiUrl = buildSvgApiUrl();
+      if (!apiUrl) {
+        throw new Error('Fant ikke adressen til arkivtjenesten.');
+      }
+
       let response;
       try {
-        response = await fetch('/api/svg', {
+        response = await fetch(apiUrl, {
           method: 'PATCH',
           headers: {
             'content-type': 'application/json',
@@ -3202,6 +3234,13 @@
       setBusy(true);
       showMessage(`Lagrer ${renameRequests.length} ${renameRequests.length === 1 ? 'figur' : 'figurer'} …`, 'pending');
 
+      const apiUrl = buildSvgApiUrl();
+      if (!apiUrl) {
+        showMessage('Fant ikke adressen til arkivtjenesten.', 'error');
+        setBusy(false);
+        return;
+      }
+
       try {
         for (const request of renameRequests) {
           const payload = {
@@ -3212,7 +3251,7 @@
           };
           let response;
           try {
-            response = await fetch('/api/svg', {
+            response = await fetch(apiUrl, {
               method: 'PATCH',
               headers: {
                 'content-type': 'application/json',
@@ -3903,7 +3942,11 @@
 
     const pending = (async () => {
       try {
-        const response = await fetch(`/api/svg?slug=${encodeURIComponent(normalizedSlug)}`, {
+        const apiUrl = buildSvgApiUrl(`?slug=${encodeURIComponent(normalizedSlug)}`);
+        if (!apiUrl) {
+          throw new Error('Fant ikke adressen til arkivtjenesten.');
+        }
+        const response = await fetch(apiUrl, {
           headers: { Accept: 'application/json' }
         });
         if (!response.ok) {
@@ -4255,7 +4298,11 @@
     setStatus(hasCachedEntries ? 'Oppdaterer arkivet …' : 'Laster arkivet …');
 
     try {
-      const response = await fetch('/api/svg', { headers: { Accept: 'application/json' } });
+      const apiUrl = buildSvgApiUrl();
+      if (!apiUrl) {
+        throw new Error('Fant ikke adressen til arkivtjenesten.');
+      }
+      const response = await fetch(apiUrl, { headers: { Accept: 'application/json' } });
       if (!response.ok) {
         throw new Error(`Uventet svar: ${response.status}`);
       }
@@ -4598,7 +4645,12 @@
             trashRecord = null;
           }
 
-          const response = await fetch(`/api/svg?slug=${encodeURIComponent(entry.slug)}`, { method: 'DELETE' });
+          const apiUrl = buildSvgApiUrl(`?slug=${encodeURIComponent(entry.slug)}`);
+          if (!apiUrl) {
+            setStatus('Fant ikke adressen til arkivtjenesten.', 'error');
+            return;
+          }
+          const response = await fetch(apiUrl, { method: 'DELETE' });
           if (!response.ok) {
             throw new Error(`Uventet svar: ${response.status}`);
           }
