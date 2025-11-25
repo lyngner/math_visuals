@@ -171,7 +171,15 @@ miljøvariabler.
 
 ```bash
 DATA_STACK=math-visuals-data \
-  ./scripts/configure-lambda-redis.sh math-visuals-api
+  ./scripts/configure-lambda-redis.sh
+```
+
+Regresjonstest: skriptet skal default bruke `ApiFunctionArn` fra API-stacken. En
+uoverstret kjøring med et feil navn skal feile tydelig:
+
+```bash
+./scripts/configure-lambda-redis.sh wrong-name
+# Feiler med hint om ApiFunctionArn; bruk --force-function-name for bevisste overstyringer.
 ```
 
 Skriptet forventer at du er logget inn med AWS CLI og at `jq` er tilgjengelig.

@@ -5,20 +5,27 @@ DEFAULT_REGION="${DEFAULT_REGION:-eu-west-1}"
 
 usage() {
   cat <<'USAGE'
-Usage: configure-lambda-redis.sh [-a <api-stack>] [<lambda-function-name>]
+Usage: configure-lambda-redis.sh [-a <api-stack>] [--force-function-name] [<lambda-function-name>]
 
 Henter VPC- og Redis-verdier fra CloudFormation/SSM/Secrets Manager og oppdaterer
 Lambda-funksjonen slik at den kjører inne i VPC-en og bruker Secrets-baserte
-Redis-miljøvariabler. Hvis funksjonsnavnet ikke oppgis, slåes det automatisk opp
-fra ApiFunctionArn-outputen i API-stacken.
+Redis-miljøvariabler. Kjør skriptet uten argumenter for å bruke API-stackens
+ApiFunctionArn som sannhetskilde. Unngå å sende inn stack-navn som
+funksjonsnavn: det kan konfigurerer feil Lambda.
 
 Argumenter:
   <lambda-function-name>  (valgfritt) Navnet/ARN-en til Lambda-funksjonen som skal
-                          oppdateres. Hopper over auto-oppslag hvis satt.
+                          oppdateres. Må matche ApiFunctionArn-outputen med
+                          mindre du eksplisitt overstyrer med
+                          --force-function-name.
 
 Flagg:
   -a, --api-stack NAME    Navn på API-stack for automatisk oppslag av
                           ApiFunctionArn (default: math-visuals-api)
+      --force-function-name
+                          Tillat å bruke et annet funksjonsnavn enn det som
+                          samsvarer med ApiFunctionArn. Bruk kun ved bevisste
+                          overstyringer.
 
 Miljøvariabler:
   DATA_STACK        Navn på data-stack (default: math-visuals-data)
@@ -30,7 +37,7 @@ Miljøvariabler:
 
 Eksempler:
   DATA_STACK=math-visuals-data \
-    ./scripts/configure-lambda-redis.sh math-visuals-api
+    ./scripts/configure-lambda-redis.sh
 
   DATA_STACK=math-visuals-data \
     ./scripts/configure-lambda-redis.sh --api-stack math-visuals-api
@@ -55,6 +62,7 @@ fi
 
 DATA_STACK=${DATA_STACK:-math-visuals-data}
 REGION=${AWS_REGION:-${AWS_DEFAULT_REGION:-$DEFAULT_REGION}}
+FORCE_FUNCTION_NAME=false
 
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
@@ -67,6 +75,10 @@ while [[ $# -gt 0 ]]; do
       fi
       API_STACK=$2
       shift 2
+      ;;
+    --force-function-name)
+      FORCE_FUNCTION_NAME=true
+      shift
       ;;
     --)
       shift
@@ -131,10 +143,18 @@ require_value "$REDIS_PORT_PARAMETER" "RedisPortParameterName"
 REDIS_PASSWORD_SECRET=$(fetch_output "$DATA_STACK" RedisPasswordSecretName)
 require_value "$REDIS_PASSWORD_SECRET" "RedisPasswordSecretName"
 
-if [[ -z ${FUNCTION_NAME:-} ]]; then
-  API_FUNCTION_ARN=$(fetch_output "$API_STACK" ApiFunctionArn)
-  require_value "$API_FUNCTION_ARN" "ApiFunctionArn i stacken $API_STACK"
-  FUNCTION_NAME=${API_FUNCTION_ARN##*:}
+API_FUNCTION_ARN=$(fetch_output "$API_STACK" ApiFunctionArn)
+require_value "$API_FUNCTION_ARN" "ApiFunctionArn i stacken $API_STACK"
+API_FUNCTION_NAME=${API_FUNCTION_ARN##*:}
+
+if [[ -n ${FUNCTION_NAME:-} ]]; then
+  if [[ "$FUNCTION_NAME" != "$API_FUNCTION_NAME" && "$FUNCTION_NAME" != "$API_FUNCTION_ARN" && "$FORCE_FUNCTION_NAME" != true ]]; then
+    echo "Feil: Oppgitt funksjonsnavn ($FUNCTION_NAME) samsvarer ikke med ApiFunctionArn ($API_FUNCTION_NAME) fra stacken $API_STACK." >&2
+    echo "Bruk --force-function-name hvis du bevisst vil overstyre dette." >&2
+    exit 1
+  fi
+else
+  FUNCTION_NAME=$API_FUNCTION_NAME
 fi
 require_value "$FUNCTION_NAME" "Lambda-funksjonsnavnet"
 
