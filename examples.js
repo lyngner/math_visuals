@@ -3375,7 +3375,15 @@
   }
 
   function handleMissingBackendResponse(res, payload) {
-    const mode = resolveKnownStoreMode(resolveStoreModeFromResponse(res, payload));
+    const responseMode = resolveStoreModeFromResponse(res, payload);
+    const normalizedMode = normalizeBackendStoreMode(responseMode);
+    if (res && res.ok && normalizedMode === 'memory') {
+      rememberBaseHealth(true, normalizedMode);
+      clearMissingBackendState(normalizedMode);
+      markBackendAvailable(normalizedMode);
+      return;
+    }
+    const mode = resolveKnownStoreMode(responseMode);
     if (mode) {
       markBackendAvailable(mode);
       return;
@@ -3598,14 +3606,17 @@
         payload = null;
       }
     }
-    const mode = resolveKnownStoreMode(resolveStoreModeFromResponse(res, payload));
+    const responseMode = resolveStoreModeFromResponse(res, payload);
+    const normalizedMode = normalizeBackendStoreMode(responseMode);
+    const mode = normalizedMode || resolveKnownStoreMode(responseMode);
     if (res && res.ok) {
-      const resolvedMode = mode || baseHealthStatus.mode || persistedBackendMode || backendMode || null;
-      rememberBaseHealth(true, resolvedMode || baseHealthStatus.mode);
-      clearMissingBackendState(resolvedMode || baseHealthStatus.mode);
-      markBackendAvailable(resolvedMode);
+      const resolvedMode =
+        normalizedMode || mode || baseHealthStatus.mode || persistedBackendMode || backendMode || null;
+      rememberBaseHealth(true, resolvedMode || baseHealthStatus.mode || normalizedMode);
+      clearMissingBackendState(resolvedMode || baseHealthStatus.mode || normalizedMode);
+      markBackendAvailable(resolvedMode || normalizedMode);
     } else {
-      rememberBaseHealth(false, mode || baseHealthStatus.mode);
+      rememberBaseHealth(false, mode || baseHealthStatus.mode || normalizedMode);
     }
     return { ok: baseHealthStatus.ok, mode: baseHealthStatus.mode };
   }
