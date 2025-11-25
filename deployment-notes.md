@@ -6,3 +6,6 @@
 - No CloudFormation deployment or CloudFront verification was executed.
 
 To continue, configure AWS credentials (e.g., via `aws configure`, environment variables, or an injected credentials profile) and rerun the commands from the instructions.
+
+Redis/Lambda note:
+- `scripts/configure-lambda-redis.sh` merges the current Lambda environment from `get-function-configuration` with Redis variables instead of overwriting it, so reruns should not drop unrelated configuration.
