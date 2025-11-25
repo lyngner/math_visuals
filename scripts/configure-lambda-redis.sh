@@ -205,14 +205,37 @@ MERGED_VARIABLES=$(jq -n \
 FINAL_VARIABLE_COUNT=$(printf '%s' "$MERGED_VARIABLES" | jq 'keys | length')
 
 ENVIRONMENT_JSON=$(jq -n --argjson variables "$MERGED_VARIABLES" '{Variables: $variables}')
+COMPACT_ENVIRONMENT=$(printf '%s' "$MERGED_VARIABLES" | jq -c '.')
 
 echo "Oppdaterer Lambda-funksjon: $FUNCTION_NAME" >&2
 echo "Miljøvariabler som sendes til funksjonen: $FINAL_VARIABLE_COUNT" >&2
 
+set +e
 aws lambda update-function-configuration \
   --region "$REGION" \
   --function-name "$FUNCTION_NAME" \
   --vpc-config "SubnetIds=$PRIVATE_SUBNET1,$PRIVATE_SUBNET2,SecurityGroupIds=$LAMBDA_SECURITY_GROUP" \
-  --environment "$ENVIRONMENT_JSON"
+  --environment "Variables=$COMPACT_ENVIRONMENT"
+update_status=$?
+
+if [[ $update_status -ne 0 ]]; then
+  echo "Direkte oppdatering feilet, prøver med midlertidig miljøfil..." >&2
+  env_file=$(mktemp)
+  printf '%s' "$ENVIRONMENT_JSON" >"$env_file"
+
+  aws lambda update-function-configuration \
+    --region "$REGION" \
+    --function-name "$FUNCTION_NAME" \
+    --vpc-config "SubnetIds=$PRIVATE_SUBNET1,$PRIVATE_SUBNET2,SecurityGroupIds=$LAMBDA_SECURITY_GROUP" \
+    --environment "file://$env_file"
+  update_status=$?
+  rm -f "$env_file"
+fi
+set -e
+
+if [[ $update_status -ne 0 ]]; then
+  echo "Oppdateringen av $FUNCTION_NAME feilet." >&2
+  exit $update_status
+fi
 
 echo "Oppdatert $FUNCTION_NAME med VPC-konfigurasjon og Redis-hemmeligheter fra $DATA_STACK i $REGION." >&2
