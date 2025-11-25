@@ -4200,10 +4200,6 @@
         markBackendUnavailable();
         return null;
       }
-      if (!responseLooksLikeJson(res)) {
-        handleMissingBackendResponse(res);
-        return null;
-      }
       let legacyPathUsed = null;
       if (res && res.status === 404 && legacyPaths.length > 0) {
         for (const legacyPath of legacyPaths) {
@@ -4216,14 +4212,10 @@
             markBackendUnavailable();
             return null;
           }
-          if (!responseLooksLikeJson(legacyRes)) {
-            handleMissingBackendResponse(legacyRes);
-            return null;
-          }
-          if (legacyRes.status === 404) {
+          if (legacyRes && legacyRes.status === 404) {
             continue;
           }
-          if (!legacyRes.ok) {
+          if (legacyRes && !legacyRes.ok && legacyRes.status !== 404) {
             markBackendUnavailable();
             return null;
           }
@@ -4257,42 +4249,44 @@
           deletedProvided: []
         };
       }
-      if (!responseLooksLikeJson(res)) {
-        if (res && res.ok) {
-          const mode = resolveStoreModeFromResponse(res);
-          markBackendAvailable(mode);
-          backendWasEmpty = true;
-          try {
-            updateActionButtonState(0);
-          } catch (_) {}
-          return {
-            path: storagePath,
-            examples: [],
-            deletedProvided: []
-          };
-        }
-        handleMissingBackendResponse(res);
-        return null;
-      }
-      if (!res || !res.ok) {
-        markBackendUnavailable();
-        return null;
-      }
       let backendData = null;
-      try {
-        backendData = await res.json();
-      } catch (error) {
-        markBackendUnavailable();
-        return null;
+      const looksLikeJson = responseLooksLikeJson(res);
+      if (looksLikeJson || (res && res.ok)) {
+        try {
+          backendData = await res.json();
+        } catch (_) {
+          backendData = null;
+        }
       }
       const responseMode = resolveStoreModeFromResponse(res, backendData);
-      markBackendAvailable(responseMode);
+      const normalizedMode = normalizeBackendStoreMode(responseMode);
+      if (res && res.ok) {
+        markBackendAvailable(normalizedMode || responseMode);
+      } else if (res && !res.ok && res.status !== 404) {
+        handleMissingBackendResponse(res, backendData);
+        return null;
+      } else if (!res) {
+        markBackendUnavailable();
+        return null;
+      }
+      if (res && res.status === 404) {
+        markBackendAvailable(normalizedMode || responseMode);
+        backendWasEmpty = true;
+        try {
+          updateActionButtonState(0);
+        } catch (_) {}
+        return {
+          path: storagePath,
+          examples: [],
+          deletedProvided: []
+        };
+      }
       const normalized = backendData && typeof backendData === 'object' ? { ...backendData } : {};
-      const normalizedMode =
-        normalizeBackendStoreMode(responseMode) ||
+      const resolvedMode =
+        normalizedMode ||
         normalizeBackendStoreMode(normalized.storage || normalized.mode || normalized.storageMode || normalized.storeMode);
-      if (normalizedMode) {
-        normalized.storage = normalizedMode;
+      if (resolvedMode) {
+        normalized.storage = resolvedMode;
       } else if (Object.prototype.hasOwnProperty.call(normalized, 'storage')) {
         delete normalized.storage;
       }
