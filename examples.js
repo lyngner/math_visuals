@@ -3487,7 +3487,7 @@
 
   function updateBackendNotice() {
     clearMissingBackendState(backendMode || baseHealthStatus.mode);
-    if (backendAvailable && backendUnavailableReason && baseHealthStatus.ok) {
+    if (backendAvailable && backendUnavailableReason) {
       backendUnavailableReason = null;
     }
     if (!examplesApiBase) {
@@ -3495,24 +3495,29 @@
       applyBackendStatusMessage('');
       return;
     }
-    if (!backendAvailable || backendMode === 'offline' || backendMode === 'missing') {
+    const normalizedMode = normalizeBackendStoreMode(backendMode) || backendMode || '';
+    if (backendAvailable && normalizedMode && normalizedMode !== 'offline' && normalizedMode !== 'missing') {
+      if (normalizedMode === 'memory') {
+        if (backendNoticeMode !== 'memory' || !backendNoticeElement) {
+          showBackendNotice('memory');
+        }
+      } else {
+        hideBackendNotice();
+      }
+      applyBackendStatusMessage(normalizedMode);
+      return;
+    }
+    if (!backendAvailable || normalizedMode === 'offline' || normalizedMode === 'missing') {
       const desiredMode =
-        backendMode === 'missing' || backendUnavailableReason === 'missing' ? 'missing' : 'offline';
+        normalizedMode === 'missing' || backendUnavailableReason === 'missing' ? 'missing' : 'offline';
       if (backendNoticeMode !== desiredMode || !backendNoticeElement) {
         showBackendNotice(desiredMode);
       }
       applyBackendStatusMessage(desiredMode);
       return;
     }
-    if (backendMode === 'memory') {
-      if (backendNoticeMode !== 'memory' || !backendNoticeElement) {
-        showBackendNotice('memory');
-      }
-      applyBackendStatusMessage(backendMode || 'memory');
-      return;
-    }
     hideBackendNotice();
-    applyBackendStatusMessage(backendMode || '');
+    applyBackendStatusMessage(normalizedMode || '');
   }
 
   function updateBackendUiState() {
