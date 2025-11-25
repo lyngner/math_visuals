@@ -32,3 +32,31 @@ Alle alarmene sender varsler til SNS/PagerDuty-destinasjonen som angis via param
 4. **Redis PING-feil i Lambda:** Hvis `RedisPingFailureAlarm` fyrer, finn PING-logglinjen i Lambda-logggruppen for konteksten (nettverksfeil, AUTH, timeouts). Bekreft at Redis-endepunktet svarer fra Lambda VPC-en ved å kjøre `cloudshell-verify.sh` (som også sender ny `RedisPingStatus`) og kontroller at Secrets Manager-tokenet er gyldig.
 5. **5xx-feil:** Hvis `ApiGateway5xxAlarm` fyrer uten Redis-feil, sjekk applikasjonsloggene for `statusCode: 5xx` eller stakktrace. Bekreft at CloudFront peker til riktig API-url og at Redis er tilgjengelig.
 6. **Tilbakestill alarm:** Etter utbedring, kjør `scripts/cloudshell-verify.sh` igjen for å få `RedisPingStatus=1` og bekrefte at loggene viser «kv»-modus. Lukk tilhørende hendelse i PagerDuty/SNS.
+
+## CloudShell-oppdatering av Lambda-miljø via filreferanse
+Bruk denne oppskriften når `NEW_ENV` allerede inneholder hele miljøblokken (inkludert CORS-variablene) og du må oppdatere Lambdaen uten å lime inn JSON manuelt:
+
+1. Materialiser miljøblokken til en midlertidig fil i CloudShell:
+
+   ```bash
+   TMP_ENV=$(mktemp)
+   echo "$NEW_ENV" > "$TMP_ENV"
+   ```
+
+2. Oppdater API-funksjonen med filreferansen slik at Lambdaen får `mode="kv"` og beholder CORS-variablene du la inn i `NEW_ENV`:
+
+   ```bash
+   aws lambda update-function-configuration \
+     --region eu-west-1 \
+     --function-name "$API_FN" \
+     --environment "Variables=file://$TMP_ENV"
+   ```
+
+3. Rydd opp og verifiser at miljøet ble brukt:
+
+   ```bash
+   rm -f "$TMP_ENV"
+   bash ./cloudshell-verify.sh --trace
+   ```
+
+   Bekreft i utskriften at `/api/examples` returnerer `mode="kv"` og at CORS-variablene (for eksempel `EXAMPLES_ALLOWED_ORIGINS`, `SVG_ALLOWED_ORIGINS` eller `FIGURE_LIBRARY_ALLOWED_ORIGINS`) fortsatt er til stede.
