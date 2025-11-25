@@ -3655,19 +3655,26 @@
         const res = await fetch(url, {
           method: 'DELETE'
         });
-        if (!responseLooksLikeJson(res)) {
+
+        // NY FEILHÅNDTERING (DELETE)
+        let payload = null;
+        const looksLikeJson = responseLooksLikeJson(res);
+        if (looksLikeJson || (res && res.ok)) {
+          try {
+            payload = await res.json();
+          } catch (_) {}
+        }
+
+        if (!looksLikeJson && (!res || !res.ok)) {
           handleMissingBackendResponse(res);
           const missingError = new Error('Examples backend mangler');
           missingError.backendReason = 'missing';
           throw missingError;
         }
-        let payload = null;
-        try {
-          payload = await res.json();
-        } catch (_) {}
+
         if (res.ok || res.status === 404) {
           const mode = resolveStoreModeFromResponse(res, payload);
-          markBackendAvailable(mode);
+          markBackendAvailable(mode); // Oppdater status!
           clearLegacyExamplesStorageArtifacts();
           const merged = mergeBackendSyncPayload(payload);
           try {
@@ -3684,6 +3691,7 @@
         const error = new Error(`Backend sync failed (${res.status})`);
         throw error;
       }
+
       let payloadExamples = backendExamples;
       try {
         const serializedExamples = serializeExamplesForStorage(backendExamples);
@@ -3710,24 +3718,31 @@
         },
         body: JSON.stringify(payload)
       });
-      if (!responseLooksLikeJson(res)) {
+
+      // NY FEILHÅNDTERING (PUT)
+      let responsePayload = null;
+      const looksLikeJson = responseLooksLikeJson(res);
+      if (looksLikeJson || (res && res.ok)) {
+        try {
+          responsePayload = await res.json();
+        } catch (_) {}
+      }
+
+      if (!looksLikeJson && (!res || !res.ok)) {
         handleMissingBackendResponse(res);
         const missingError = new Error('Examples backend mangler');
         missingError.backendReason = 'missing';
         throw missingError;
       }
-      let responsePayload = null;
-      try {
-        responsePayload = await res.json();
-      } catch (_) {
-        responsePayload = null;
-      }
+
       if (!res.ok) {
         const error = new Error(`Backend sync failed (${res.status})`);
         throw error;
       }
+
       const mode = resolveStoreModeFromResponse(res, responsePayload);
-      markBackendAvailable(mode);
+      markBackendAvailable(mode); // Sørg for at memory-mode blir registrert her også!
+
       clearLegacyExamplesStorageArtifacts();
       const merged = mergeBackendSyncPayload(responsePayload || payload);
       try {
