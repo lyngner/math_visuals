@@ -164,8 +164,18 @@ mark_failure() {
 }
 
 add_ingress_summary() {
-  local entry="$1"
-  INGRESS_SUMMARY+=("$entry")
+  local status="$1"
+  local label="$2"
+  local message="$3"
+  local prefix
+
+  case "$status" in
+    success) prefix="✅" ;;
+    warning) prefix="⚠️" ;;
+    failure|*) prefix="❌" ;;
+  esac
+
+  INGRESS_SUMMARY+=("$prefix $label: $message")
 }
 
 describe_output_for_stack() {
@@ -343,13 +353,13 @@ ensure_ingress_rule() {
 
   if [[ -z "$source_sg" ]]; then
     record_status 1 "SG-ingress ($label)" "Kilde-SG mangler"
-    add_ingress_summary "Feil ($label): Kilde-SG mangler."
+    add_ingress_summary failure "$label" "Kilde-SG mangler."
     return
   fi
 
   if sg_has_ingress "$redis_sg" "$source_sg"; then
     record_status 0 "SG-ingress ($label)" "Regel finnes allerede"
-    add_ingress_summary "OK ($label): Regel finnes allerede."
+    add_ingress_summary success "$label" "Regel finnes allerede."
     return
   fi
 
@@ -364,16 +374,18 @@ ensure_ingress_rule() {
   if [[ "$auth_status" -ne 0 ]]; then
     if grep -q "InvalidPermission.Duplicate" <<<"$auth_output"; then
       record_status 0 "SG-ingress ($label)" "Regel rapportert som duplikat (fantes allerede)"
-      add_ingress_summary "Advarsel ($label): Duplikatregel rapportert, ingress finnes allerede."
+      add_ingress_summary warning "$label" "Duplikatregel rapportert; ingress finnes allerede."
     else
-      echo "AWS authorize-security-group-ingress feilet for $source_sg: $auth_output" >&2
+      echo "AWS authorize-security-group-ingress feilet for $source_sg. Utdata:" >&2
+      printf '%s\n' "$auth_output" >&2
       record_status 1 "SG-ingress ($label)" "Kunne ikke legge til regel fra $source_sg"
-      add_ingress_summary "Feil ($label): Ingress ble ikke lagt til (se logg for detaljer)."
+      add_ingress_summary failure "$label" "Ingress ble ikke lagt til (se logg for detaljer)."
       mark_failure
+      return 1
     fi
   else
     record_status 0 "SG-ingress ($label)" "La til regel fra $source_sg"
-    add_ingress_summary "OK ($label): Regel lagt til."
+    add_ingress_summary success "$label" "Regel lagt til."
   fi
 }
 
@@ -383,13 +395,13 @@ ensure_cidr_ingress() {
 
   if [[ -z "$cidr" ]]; then
     record_status 1 "SG-ingress ($label)" "CIDR mangler"
-    add_ingress_summary "Feil ($label): CIDR mangler."
+    add_ingress_summary failure "$label" "CIDR mangler."
     return
   fi
 
   if sg_has_cidr_ingress "$redis_sg" "$cidr"; then
     record_status 0 "SG-ingress ($label)" "Regel finnes allerede"
-    add_ingress_summary "OK ($label): Regel finnes allerede."
+    add_ingress_summary success "$label" "Regel finnes allerede."
     return
   fi
 
@@ -404,16 +416,16 @@ ensure_cidr_ingress() {
   if [[ "$auth_status" -ne 0 ]]; then
     if grep -q "InvalidPermission.Duplicate" <<<"$auth_output"; then
       record_status 0 "SG-ingress ($label)" "Regel rapportert som duplikat (fantes allerede)"
-      add_ingress_summary "Advarsel ($label): Duplikatregel rapportert, ingress finnes allerede."
+      add_ingress_summary warning "$label" "Duplikatregel rapportert; ingress finnes allerede."
     else
       echo "AWS authorize-security-group-ingress feilet for $cidr: $auth_output" >&2
       record_status 1 "SG-ingress ($label)" "Kunne ikke legge til regel fra $cidr"
-      add_ingress_summary "Feil ($label): Ingress ble ikke lagt til (se logg for detaljer)."
+      add_ingress_summary failure "$label" "Ingress ble ikke lagt til (se logg for detaljer)."
       mark_failure
     fi
   else
     record_status 0 "SG-ingress ($label)" "La til regel fra $cidr"
-    add_ingress_summary "OK ($label): Regel lagt til."
+    add_ingress_summary success "$label" "Regel lagt til."
   fi
 }
 
@@ -485,6 +497,10 @@ else
   echo -e "\nIngress-status: Ingen registrerte ingress-resultater."
 fi
 
-echo "\nOppdatering fullført. Kjør redis-cli/valkey-cli med TLS mot ${redis_host_hint}:${redis_port_hint} og deretter bash scripts/cloudshell-verify.sh --trace for endelig verifisering."
+if [[ "$overall_exit" -ne 0 ]]; then
+  echo "\nOppdatering fullført med feil i ingress-oppdateringen. Kontroller loggen over og rett eventuelle problemer før du antar at tilgangen er på plass." >&2
+else
+  echo "\nOppdatering fullført. Kjør redis-cli/valkey-cli med TLS mot ${redis_host_hint}:${redis_port_hint} og deretter bash scripts/cloudshell-verify.sh --trace for endelig verifisering."
+fi
 
 exit "$overall_exit"
