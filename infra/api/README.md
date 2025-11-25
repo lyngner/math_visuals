@@ -58,9 +58,12 @@ Disse stegene finnes også automatisert i `scripts/package-api-lambda.sh`, som b
    kombinasjon, vil CloudFormation stoppe med
    `AWS::EarlyValidation::ResourceExistenceCheck`.
 3. Ikke inkluder `LambdaCodeS3ObjectVersion` i `--parameter-overrides` før
-   `head-object` returnerer suksess for versjonen du planlegger å bruke.
+   `head-object` returnerer suksess for versjonen du planlegger å bruke. En
+   utdatert `LambdaCodeS3ObjectVersion` kan hindre opprettelse av
+   endringssett.
 
-Når `head-object` validerer artefakten, bruk CloudFormation/SAM til å deploye:
+Når `head-object` validerer artefakten, bruk CloudFormation/SAM til å deploye.
+SAM-transformasjonen krever `CAPABILITY_AUTO_EXPAND` når stacken oppdateres:
 
 ```bash
 aws s3 cp infra/api/api-lambda.zip s3://<artefakt-bucket>/<sti>/api-lambda.zip
@@ -68,23 +71,27 @@ aws s3 cp infra/api/api-lambda.zip s3://<artefakt-bucket>/<sti>/api-lambda.zip
 aws cloudformation deploy \
       --stack-name math-visuals-api \
       --template-file infra/api/template.yaml \
-      --capabilities CAPABILITY_IAM \
+      --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
       --parameter-overrides \
           LambdaCodeS3Bucket=<artefakt-bucket> \
           LambdaCodeS3Key=<sti>/api-lambda.zip \
           StageName=prod \
           DataStackName=math-visuals-data \
-          SharedParametersStackName=math-visuals-shared
+          SharedParametersStackName=math-visuals-shared \
+          LambdaCodeS3ObjectVersion=""
 
-# Etter at head-sjekken er vellykket kan du legge til den versjonerte nøkkelen:
+# Hvis du bruker versjonerte objekter i S3 kan du sette `LambdaCodeS3ObjectVersion`
+# etter at `head-object` har bekreftet nøkkelen. La parameteren være en tom streng
+# dersom du vil deploye uten versjonering for å unngå at en gammel verdi blokkerer
+# endringssettet:
 # aws cloudformation deploy \
 #       --stack-name math-visuals-api \
 #       --template-file infra/api/template.yaml \
-#       --capabilities CAPABILITY_IAM \
+#       --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
 #       --parameter-overrides \
 #           LambdaCodeS3Bucket=<artefakt-bucket> \
 #           LambdaCodeS3Key=<sti>/api-lambda.zip \
-#           LambdaCodeS3ObjectVersion=<versjon-id> \
+#           LambdaCodeS3ObjectVersion=<versjon-id eller \"\"> \
 #           StageName=prod \
 #           DataStackName=math-visuals-data \
 #           SharedParametersStackName=math-visuals-shared
