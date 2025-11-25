@@ -155,11 +155,30 @@ cloudshell_check_examples() {
     --query 'SecretString' \
     --output text)
 
-  export REDIS_PASSWORD=$(jq -r '.authToken // empty' <<<"$secret_payload")
-  if [[ -z "$REDIS_PASSWORD" ]]; then
-    echo "Secret $REDIS_PASSWORD_SECRET inneholder ikke feltet authToken." >&2
+  if key_value=$(jq -er '
+    if type == "object" then
+      if .authToken? then ["authToken", .authToken]
+      elif .password? then ["password", .password]
+      elif .secret? then ["secret", .secret]
+      elif .value? then ["value", .value]
+      elif .token? then ["token", .token]
+      else empty end
+    else empty end | @tsv' <<<"$secret_payload" 2>/dev/null); then
+    REDIS_PASSWORD_SOURCE=${key_value%%$'\t'*}
+    REDIS_PASSWORD=${key_value#*$'\t'}
+  else
+    REDIS_PASSWORD_SOURCE="raw secret string"
+    REDIS_PASSWORD="$secret_payload"
+  fi
+
+  if [[ -n "$REDIS_PASSWORD" ]]; then
+    echo "Fant Redis-passord under nøkkelen: $REDIS_PASSWORD_SOURCE"
+  else
+    echo "Secret $REDIS_PASSWORD_SECRET inneholder ikke authToken, password, secret, value eller token og ingen rå tekst kunne brukes." >&2
     return 1
   fi
+
+  export REDIS_PASSWORD
 
   echo "REDIS_* er eksportert i dette shell-et. Kjører npm run check-examples-api ..."
   npm run check-examples-api -- --url="$API_URL"
