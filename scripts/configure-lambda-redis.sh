@@ -194,6 +194,7 @@ if [[ -z "$EXISTING_ENVIRONMENT" || "$EXISTING_ENVIRONMENT" == "null" ]]; then
   EXISTING_ENVIRONMENT='{}'
 fi
 
+# Bevar alle eksisterende miljøvariabler og overstyr kun Redis-relaterte nøkler.
 MERGED_VARIABLES=$(jq -n \
   --argjson existing "$EXISTING_ENVIRONMENT" \
   --arg endpoint "$REDIS_ENDPOINT" \
