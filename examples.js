@@ -3341,10 +3341,7 @@
       return;
     }
     if (normalizedMode === 'kv') {
-      setBackendStatusMessage(
-        'Eksempeltjenesten er tilkoblet og lagrer endringer permanent.',
-        ''
-      );
+      setBackendStatusMessage('', '');
       return;
     }
     setBackendStatusMessage(
