@@ -5,6 +5,8 @@ DEFAULT_REGION=${DEFAULT_REGION:-eu-west-1}
 DEFAULT_DATA_STACK=${DEFAULT_DATA_STACK:-math-visuals-data}
 DEFAULT_API_STACK=${DEFAULT_API_STACK:-math-visuals-api}
 CLOUDSHELL_CIDR=""
+overall_exit=0
+INGRESS_SUMMARY=()
 
 trim_first_line() {
   # Tar bare første linje og fjerner ledende/etterfølgende whitespace
@@ -155,6 +157,15 @@ record_status() {
   else
     echo "$label: OK"
   fi
+}
+
+mark_failure() {
+  overall_exit=1
+}
+
+add_ingress_summary() {
+  local entry="$1"
+  INGRESS_SUMMARY+=("$entry")
 }
 
 describe_output_for_stack() {
@@ -332,26 +343,37 @@ ensure_ingress_rule() {
 
   if [[ -z "$source_sg" ]]; then
     record_status 1 "SG-ingress ($label)" "Kilde-SG mangler"
+    add_ingress_summary "Feil ($label): Kilde-SG mangler."
     return
   fi
 
   if sg_has_ingress "$redis_sg" "$source_sg"; then
     record_status 0 "SG-ingress ($label)" "Regel finnes allerede"
+    add_ingress_summary "OK ($label): Regel finnes allerede."
     return
   fi
 
   set +e
-  aws ec2 authorize-security-group-ingress \
+  auth_output=$(aws ec2 authorize-security-group-ingress \
     --region "$REGION" \
     --group-id "$redis_sg" \
-    --ip-permissions "IpProtocol=tcp,FromPort=6379,ToPort=6379,UserIdGroupPairs=[{GroupId=$source_sg}]" >/dev/null 2>&1
+    --ip-permissions "IpProtocol=tcp,FromPort=6379,ToPort=6379,UserIdGroupPairs=[{GroupId=$source_sg}]" 2>&1)
   auth_status=$?
   set -e
 
   if [[ "$auth_status" -ne 0 ]]; then
-    record_status 1 "SG-ingress ($label)" "Kunne ikke legge til regel fra $source_sg"
+    if grep -q "InvalidPermission.Duplicate" <<<"$auth_output"; then
+      record_status 0 "SG-ingress ($label)" "Regel rapportert som duplikat (fantes allerede)"
+      add_ingress_summary "Advarsel ($label): Duplikatregel rapportert, ingress finnes allerede."
+    else
+      echo "AWS authorize-security-group-ingress feilet for $source_sg: $auth_output" >&2
+      record_status 1 "SG-ingress ($label)" "Kunne ikke legge til regel fra $source_sg"
+      add_ingress_summary "Feil ($label): Ingress ble ikke lagt til (se logg for detaljer)."
+      mark_failure
+    fi
   else
     record_status 0 "SG-ingress ($label)" "La til regel fra $source_sg"
+    add_ingress_summary "OK ($label): Regel lagt til."
   fi
 }
 
@@ -361,26 +383,37 @@ ensure_cidr_ingress() {
 
   if [[ -z "$cidr" ]]; then
     record_status 1 "SG-ingress ($label)" "CIDR mangler"
+    add_ingress_summary "Feil ($label): CIDR mangler."
     return
   fi
 
   if sg_has_cidr_ingress "$redis_sg" "$cidr"; then
     record_status 0 "SG-ingress ($label)" "Regel finnes allerede"
+    add_ingress_summary "OK ($label): Regel finnes allerede."
     return
   fi
 
   set +e
-  aws ec2 authorize-security-group-ingress \
+  auth_output=$(aws ec2 authorize-security-group-ingress \
     --region "$REGION" \
     --group-id "$redis_sg" \
-    --ip-permissions "IpProtocol=tcp,FromPort=6379,ToPort=6379,IpRanges=[{CidrIp=$cidr,Description=CloudShell}]" >/dev/null 2>&1
+    --ip-permissions "IpProtocol=tcp,FromPort=6379,ToPort=6379,IpRanges=[{CidrIp=$cidr,Description=CloudShell}]" 2>&1)
   auth_status=$?
   set -e
 
   if [[ "$auth_status" -ne 0 ]]; then
-    record_status 1 "SG-ingress ($label)" "Kunne ikke legge til regel fra $cidr"
+    if grep -q "InvalidPermission.Duplicate" <<<"$auth_output"; then
+      record_status 0 "SG-ingress ($label)" "Regel rapportert som duplikat (fantes allerede)"
+      add_ingress_summary "Advarsel ($label): Duplikatregel rapportert, ingress finnes allerede."
+    else
+      echo "AWS authorize-security-group-ingress feilet for $cidr: $auth_output" >&2
+      record_status 1 "SG-ingress ($label)" "Kunne ikke legge til regel fra $cidr"
+      add_ingress_summary "Feil ($label): Ingress ble ikke lagt til (se logg for detaljer)."
+      mark_failure
+    fi
   else
     record_status 0 "SG-ingress ($label)" "La til regel fra $cidr"
+    add_ingress_summary "OK ($label): Regel lagt til."
   fi
 }
 
@@ -445,4 +478,13 @@ check_routes_for_subnet "$private_subnet2" "${private_subnet2}"
 redis_host_hint=${redis_endpoint:-REDIS_ENDPOINT}
 redis_port_hint=${redis_port:-6379}
 
+if [[ ${#INGRESS_SUMMARY[@]} -gt 0 ]]; then
+  echo -e "\nIngress-status:"
+  printf ' - %s\n' "${INGRESS_SUMMARY[@]}"
+else
+  echo -e "\nIngress-status: Ingen registrerte ingress-resultater."
+fi
+
 echo "\nOppdatering fullført. Kjør redis-cli/valkey-cli med TLS mot ${redis_host_hint}:${redis_port_hint} og deretter bash scripts/cloudshell-verify.sh --trace for endelig verifisering."
+
+exit "$overall_exit"
