@@ -51,7 +51,7 @@ Math Visuals videreutvikles i tett dialog med lærere, elever og spesialpedagoge
 
 ## Drift og distribusjon
 
-Produksjonsmiljøet deployes via GitHub Actions-workflowen [`deploy-infra.yml`](.github/workflows/deploy-infra.yml). Den trigges enten manuelt (`workflow_dispatch`) eller automatisk når en pull request mot `main` merges. Workflowen kjører et enkelt `deploy-iac`-jobbløp som
+Produksjonsmiljøet deployes via GitHub Actions-workflowen [`deploy-infra.yml`](.github/workflows/deploy-infra.yml). Den trigges enten manuelt (`workflow_dispatch`) eller automatisk av `push` til `main`, slik at GitHub Secrets er tilgjengelige. Workflowen kjører et enkelt `deploy-iac`-jobbløp som
 
 - konfigurerer AWS-legitimasjon ved hjelp av OIDC-rollens ARN,
 - pakker Lambda-koden (`scripts/package-api-lambda.sh`) og laster artefaktet opp i `API_ARTIFACT_BUCKET` med commit-hash i nøkkelen,
