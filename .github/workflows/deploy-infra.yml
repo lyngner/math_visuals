@@ -184,20 +184,20 @@ jobs:
           endpoint="${endpoint%%/}"
           echo "API_ENDPOINT_URL=$endpoint" >> "$GITHUB_ENV"
           python - <<'PY' >> "$GITHUB_ENV"
-import os
-from urllib.parse import urlparse
+          import os
+          from urllib.parse import urlparse
 
-endpoint = os.environ["API_ENDPOINT_URL"].rstrip("/")
-parsed = urlparse(endpoint)
-domain = parsed.netloc
-path = parsed.path or "/"
-if not path.startswith('/'):
-    path = '/' + path
-examples = endpoint.rstrip('/') + '/api/examples'
-print(f"API_GATEWAY_DOMAIN_NAME={domain}")
-print(f"API_GATEWAY_ORIGIN_PATH={path}")
-print(f"API_EXAMPLES_URL={examples}")
-PY
+          endpoint = os.environ["API_ENDPOINT_URL"].rstrip("/")
+          parsed = urlparse(endpoint)
+          domain = parsed.netloc
+          path = parsed.path or "/"
+          if not path.startswith('/'):
+              path = '/' + path
+          examples = endpoint.rstrip('/') + '/api/examples'
+          print(f"API_GATEWAY_DOMAIN_NAME={domain}")
+          print(f"API_GATEWAY_ORIGIN_PATH={path}")
+          print(f"API_EXAMPLES_URL={examples}")
+          PY
 
       - name: Run examples API health check
         run: |
