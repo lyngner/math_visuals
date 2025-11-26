@@ -6,7 +6,7 @@ usage() {
   cat <<'USAGE'
 Bruk: scripts/cloudshell-export-actions-secrets.sh [--region REGION] [--shared-stack NAVN] [--static-stack NAVN]
        [--api-artifact-bucket NAVN] [--api-artifact-key STI] [--api-stage-name NAVN]
-       [--aws-iac-role-arn ARN] [--price-class PRICE_CLASS]
+       [--aws-iac-role-arn ARN] [--price-class PRICE_CLASS] [--auto-detect|--no-auto-detect]
 
 Henter secrets/parameterverdier fra CloudFormation-stacker og skriver KEY=VALUE-linjer til stdout
 for bruk som GitHub Actions-secrets.
@@ -31,6 +31,8 @@ Flagg:
   --api-stage-name         API-steg/alias (standard: $API_STAGE_NAME)
   --aws-iac-role-arn       ARN for GitHub OIDC-rollen (kreves, ingen standard utover placeholder)
   --price-class            CloudFront price class (standard: $STATIC_SITE_CLOUDFRONT_PRICE_CLASS)
+  --auto-detect            Oppdag S3-bøtte og OIDC-rolle automatisk (standard)
+  --no-auto-detect         Skru av automatisk oppdagelse og bruk verdier som er oppgitt
   -h, --help               Vis denne hjelpeteksten
 
 Eksempel:
@@ -99,6 +101,39 @@ fetch_static_values() {
   STATIC_SITE_API_DOMAIN=$(get_output "$stack" CloudFrontDistributionDomainName || true)
 }
 
+normalize_bucket_region() {
+  local region="$1"
+  case "$region" in
+    ""|"None"|"null") echo "us-east-1" ;;
+    "EU") echo "eu-west-1" ;;
+    *) echo "$region" ;;
+  esac
+}
+
+detect_artifact_bucket() {
+  local region="$1" bucket location
+  while read -r bucket; do
+    [[ -z "$bucket" ]] && continue
+    [[ "$bucket" =~ ^math-visuals.*artifacts ]] || continue
+    location=$(aws s3api get-bucket-location --bucket "$bucket" --query LocationConstraint --output text)
+    location=$(normalize_bucket_region "$location")
+    if [[ "$location" == "$region" ]]; then
+      echo "$bucket"
+      return 0
+    fi
+  done < <(aws s3api list-buckets --query 'Buckets[].Name' --output text | tr '\t' '\n')
+
+  return 1
+}
+
+detect_oidc_role() {
+  aws iam list-roles --output json | jq -r '
+    .Roles[]
+    | select(.AssumeRolePolicyDocument | tostring | (contains("token.actions.githubusercontent.com") and contains("math_visuals")))
+    | .Arn
+  ' | head -n1
+}
+
 main() {
   REGION=${REGION:-eu-west-1}
   SHARED_STACK=${SHARED_STACK:-math-visuals-shared}
@@ -108,6 +143,7 @@ main() {
   API_STAGE_NAME=${API_STAGE_NAME:-prod}
   AWS_IAC_ROLE_ARN=${AWS_IAC_ROLE_ARN:-<fyll-inn-rolle-arn>}
   STATIC_SITE_CLOUDFRONT_PRICE_CLASS=${STATIC_SITE_CLOUDFRONT_PRICE_CLASS:-PriceClass_All}
+  AUTO_DETECT=true
   local show_help=false
 
   while [[ $# -gt 0 ]]; do
@@ -120,6 +156,8 @@ main() {
       --api-stage-name) API_STAGE_NAME="$2"; shift 2;;
       --aws-iac-role-arn) AWS_IAC_ROLE_ARN="$2"; shift 2;;
       --price-class) STATIC_SITE_CLOUDFRONT_PRICE_CLASS="$2"; shift 2;;
+      --auto-detect) AUTO_DETECT=true; shift;;
+      --no-auto-detect) AUTO_DETECT=false; shift;;
       -h|--help) show_help=true; shift;;
       *) echo "Ukjent flagg: $1" >&2; usage; exit 1;;
     esac
@@ -142,6 +180,39 @@ main() {
 
   fetch_shared_values "$SHARED_STACK"
   fetch_static_values "$STATIC_STACK"
+
+  if [[ "$AUTO_DETECT" == true ]]; then
+    if [[ -z "$API_ARTIFACT_BUCKET" || "$API_ARTIFACT_BUCKET" == "<bucket-med-lambda-artefakter>" ]]; then
+      if detected_bucket=$(detect_artifact_bucket "$REGION"); then
+        API_ARTIFACT_BUCKET="$detected_bucket"
+      else
+        echo "Kunne ikke finne artefaktbøtte som matcher '^math-visuals.*artifacts' i region '$REGION'." >&2
+        echo "Angi --api-artifact-bucket eller bruk --no-auto-detect for å hoppe over oppdagelse." >&2
+        exit 1
+      fi
+    fi
+
+    if [[ -z "$AWS_IAC_ROLE_ARN" || "$AWS_IAC_ROLE_ARN" == "<fyll-inn-rolle-arn>" ]]; then
+      detected_role=$(detect_oidc_role || true)
+      if [[ -n "$detected_role" ]]; then
+        AWS_IAC_ROLE_ARN="$detected_role"
+      else
+        echo "Kunne ikke finne en OIDC-rolle med token.actions.githubusercontent.com og math_visuals i subject." >&2
+        echo "Angi --aws-iac-role-arn eksplisitt eller bruk --no-auto-detect for å hoppe over oppdagelse." >&2
+        exit 1
+      fi
+    fi
+  fi
+
+  if [[ -z "$API_ARTIFACT_BUCKET" || "$API_ARTIFACT_BUCKET" == "<bucket-med-lambda-artefakter>" ]]; then
+    echo "API-artifact-bøtte er ikke satt. Bruk --api-artifact-bucket eller --auto-detect." >&2
+    exit 1
+  fi
+
+  if [[ -z "$AWS_IAC_ROLE_ARN" || "$AWS_IAC_ROLE_ARN" == "<fyll-inn-rolle-arn>" ]]; then
+    echo "AWS OIDC-rolle er ikke satt. Bruk --aws-iac-role-arn eller --auto-detect." >&2
+    exit 1
+  fi
 
   cat <<EOF
 AWS_REGION=$AWS_REGION
