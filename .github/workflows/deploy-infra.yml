@@ -161,6 +161,17 @@ jobs:
       - name: Deploy API stack
         run: |
           set -euo pipefail
+
+          log_stack_events() {
+            echo "Capturing recent events for $API_STACK_NAME after failure..." >&2
+            aws cloudformation describe-stack-events \
+              --stack-name "$API_STACK_NAME" \
+              --max-items 20 \
+              --query 'StackEvents[?ResourceStatus!="DELETE_COMPLETE"][].{Time:Timestamp,LogicalId:LogicalResourceId,Status:ResourceStatus,Reason:ResourceStatusReason}' \
+              --output table || true
+          }
+
+          trap log_stack_events ERR
           PARAM_OVERRIDES="LambdaCodeS3Bucket=$API_ARTIFACT_BUCKET LambdaCodeS3Key=$LAMBDA_CODE_KEY StageName=$API_STAGE_NAME"
           if [ -n "${LAMBDA_CODE_VERSION:-}" ]; then
             PARAM_OVERRIDES="$PARAM_OVERRIDES LambdaCodeS3ObjectVersion=$LAMBDA_CODE_VERSION"
