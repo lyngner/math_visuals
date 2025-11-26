@@ -100,6 +100,11 @@ Rollen må kunne opprette og oppdatere alle ressursene som beskrives i CloudForm
 * `ssm:PutParameter`, `ssm:GetParameter` på Parameter Store-verdiene for Redis og CORS.
 * `cloudfront:CreateInvalidation` på distribusjonen du ønsker å rydde i.
 * `iam:*` på ressursene som deklareres i malene (Lambda-rollen i `infra/api/template.yaml` og eventuelle CloudFront-oppsett).
+* `elasticache:CreateReplicationGroup`, `elasticache:ModifyReplicationGroup`, `elasticache:DescribeReplicationGroups`,
+  `elasticache:DescribeCacheClusters`, `elasticache:CreateCacheSubnetGroup`, `elasticache:ModifyCacheSubnetGroup`,
+  `elasticache:DescribeCacheSubnetGroups`, `elasticache:DeleteCacheSubnetGroup`, `elasticache:AddTagsToResource`,
+  `elasticache:RemoveTagsFromResource` og `elasticache:ListTagsForResource` for å opprette og oppdatere Redis-ressursene i
+  `infra/data/template.yaml`.
 * `memorydb:*`, `ec2:*`, `elasticloadbalancing:*`, `logs:*` osv. ettersom datastacken oppretter VPC, subnett, sikkerhetsgrupper og en administrert Redis-klynge.
 
 Når rollen er på plass legger du ARN-en inn i repo-secretet `AWS_IAC_ROLE_ARN`. Husk også å sette `AWS_REGION` til regionen stackene lever i.
