@@ -119,3 +119,8 @@ Løsning:
    `aws iam create-service-linked-role --aws-service-name apprunner.amazonaws.com`
    én gang i kontoen. Når rollen `AWSServiceRoleForAppRunner` finnes fra før
    slipper senere deployer å forsøke å opprette den.
+
+Workflowen kjører nå `scripts/ensure-apprunner-slr.sh` tidlig i pipeline for å
+opprette rollen automatisk dersom den mangler. Når IAM-rollen som brukes av
+GitHub Actions har `iam:CreateServiceLinkedRole`, vil deployen dermed selv-hele
+uten manuell CloudShell-innblanding.
