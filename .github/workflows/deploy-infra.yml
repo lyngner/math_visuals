@@ -59,6 +59,11 @@ jobs:
           role-to-assume: ${{ env.AWS_IAC_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Ensure App Runner service-linked role exists
+        run: |
+          # App Runner stacks require the AWSServiceRoleForAppRunner role. See infra/README.md for IAM guidance.
+          bash scripts/ensure-apprunner-slr.sh
+
       - name: Compute Lambda artefact key
         run: |
           set -euo pipefail
