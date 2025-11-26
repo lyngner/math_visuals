@@ -40,6 +40,10 @@ Detaljer om hvordan hemmelighetene hentes, injiseres og verifiseres finner du i 
 
 Flere funksjoner (for eksempel `api/diagram-alt-text.js` og `api/figurtall-alt-text.js`) bygger videre på de lagrede dataene for å gjøre materialet tilgjengelig i universelle utformingskontekster.
 
+### Figurbiblioteket
+
+`/api/figure-library` er kilden til figurbiblioteket som brukes i flere apper. For å fylle opp startdataene lokalt kan du kjøre `node scripts/seed-figure-library.mjs --dry-run` for å inspisere payloaden, deretter `node scripts/seed-figure-library.mjs` for å fylle minnelageret eller `REDIS_ENDPOINT=… REDIS_PORT=6379 REDIS_PASSWORD=… node scripts/seed-figure-library.mjs` for å skrive direkte til Redis. Se [`docs/figure-library-storage.md`](docs/figure-library-storage.md) for full oversikt over miljøvariabler, lagringsmoduser og tips til videre integrasjon.
+
 ## Teknologivalg
 
 * **Frontend:** Vanilla HTML, CSS og JavaScript supplert med JSXGraph, MathLive og skreddersydde UI-komponenter.
