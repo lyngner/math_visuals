@@ -124,3 +124,11 @@ Workflowen kjører nå `scripts/ensure-apprunner-slr.sh` tidlig i pipeline for �
 opprette rollen automatisk dersom den mangler. Når IAM-rollen som brukes av
 GitHub Actions har `iam:CreateServiceLinkedRole`, vil deployen dermed selv-hele
 uten manuell CloudShell-innblanding.
+
+Hvis deployen feiler med `AccessDeniedException` på
+`cognito-idp:DescribeUserPoolDomain` (typisk når API-stacken slår opp Cognito-
+domeneinformasjon), mangler GitHub Actions-rollen tilsvarende tillatelse. Gi
+rollen tilgang til `cognito-idp:DescribeUserPoolDomain` (eventuelt begrenset til
+det spesifikke brukerpoolet/domenet). Du kan bekrefte tilgangen fra AWS
+CloudShell ved å kjøre
+`scripts/cloudshell-check-cognito-domain.sh --domain=<cognito-domain>`.
