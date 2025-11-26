@@ -19,18 +19,27 @@ Denne veiledningen beskriver hvordan du setter opp GitHub Actions for Math Visua
 
 ### Hent secrets fra AWS i CloudShell
 
-Kjør skriptet `scripts/cloudshell-export-actions-secrets.sh` i AWS CloudShell for å hente verdiene workflowen trenger. Standard stack-navn matcher dagens miljø (`math-visuals-shared` og `math-visuals-static-site`), og skriptet gir en tydelig advarsel hvis CloudFront-/S3-stacken mangler slik at du kan fylle inn `STATIC_SITE_*` manuelt.
+Kjør skriptet `scripts/cloudshell-export-actions-secrets.sh` i AWS CloudShell for å hente verdiene workflowen trenger. Skriptet oppdager nå automatisk både GitHub OIDC-rollen (søker etter en rolle som har `token.actions.githubusercontent.com` som federated principal) og standardbøtta for Lambda-artefaktet fra CloudFormation-outputs, slik at du ofte kan kjøre det uten noen flagg. Det bruker fortsatt `math-visuals-shared` og `math-visuals-static-site` som standard stack-navn, og gir en tydelig advarsel hvis CloudFront-/S3-stacken mangler slik at du kan fylle inn `STATIC_SITE_*` manuelt.
 
 ```bash
-# Sett minst disse to flaggene for å få riktige verdier
-scripts/cloudshell-export-actions-secrets.sh \
-  --api-artifact-bucket <bucket-med-lambda-artefakter> \
-  --aws-iac-role-arn <arn-til-github-oidc-roll>
+# Full autodeteksjon når du står i riktig AWS-konto/region
+scripts/cloudshell-export-actions-secrets.sh
 
 # Tilpass hvis du bruker andre stack-navn eller region
 REGION=eu-west-1 SHARED_STACK=annet-navn STATIC_STACK=annet-navn \
-  scripts/cloudshell-export-actions-secrets.sh --api-artifact-bucket ... --aws-iac-role-arn ...
+  scripts/cloudshell-export-actions-secrets.sh
 ```
+
+#### Feilsøking
+
+* Static stack-navnet kan være `math-visuals-static-site` (CloudFront + S3) eller `math-visuals-static` (tidligere oppsett). Hvis autodeteksjon ikke finner verdier, sett `STATIC_STACK` eksplisitt til riktig navn.
+* Hvis skriptet ikke klarer å autodetektere OIDC-rollen, inspiser rollene i kontoen for å finne ARN-en som peker på GitHub OIDC-provider:
+
+  ```bash
+  aws iam list-roles | jq '.Roles[] | select(.AssumeRolePolicyDocument.Statement[].Principal.Federated // "" | contains("token.actions.githubusercontent.com")) | .Arn'
+  ```
+
+  Bruk ARN-en fra utskriften som `AWS_IAC_ROLE_ARN` når du kjører skriptet.
 
 Skriptet skriver `KEY=VALUE`-linjer du kan lime direkte inn som repo-secrets i GitHub.
 
