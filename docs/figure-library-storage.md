@@ -123,6 +123,29 @@ Playwright-testene `tests/figure-library-api.spec.js` og `tests/figure-library-u
 
 Skriptet `scripts/seed-figure-library.mjs` leser manifestene fra `figure-library/all.js` og pakkene i `packages/figures` og oppretter kategorier og figurer i lagringen.
 
+### Hurtigoppsett
+
+1. **(Valgfritt) Pek mot Redis før seeding.** Eksporter hemmelighetene i samme shell hvis du vil lagre data permanent i stedet for i minnet:
+   ```sh
+   export REDIS_ENDPOINT=…
+   export REDIS_PORT=6379
+   export REDIS_PASSWORD=…
+   ```
+2. **Tørrkjøring for inspeksjon:**
+   ```sh
+   node scripts/seed-figure-library.mjs --dry-run
+   ```
+   Dette viser payloaden uten å skrive til lagringen.
+3. **Fyll delt minnelager (lokalt standardvalg):**
+   ```sh
+   node scripts/seed-figure-library.mjs
+   ```
+4. **Skriv direkte til Redis:**
+   ```sh
+   REDIS_ENDPOINT=… REDIS_PORT=6379 REDIS_PASSWORD=… node scripts/seed-figure-library.mjs
+   ```
+5. **Last biblioteket på nytt.** Etter seeding, oppdater UI-et eller kall `loadFigureLibrary()` i klienten for å hente dataene fra API-et.
+
 * For å se hva som ville blitt skrevet uten å gjøre endringer: `node scripts/seed-figure-library.mjs --dry-run`.
 * For å fylle den delte minnelagringen lokalt holder det å kjøre `node scripts/seed-figure-library.mjs` (uten Redis-variabler).
 * For å skrive direkte til Redis setter du `REDIS_ENDPOINT`, `REDIS_PORT` og `REDIS_PASSWORD` i samme shell før skriptet kjøres, f.eks. `REDIS_ENDPOINT=… REDIS_PORT=6379 REDIS_PASSWORD=… node scripts/seed-figure-library.mjs`.
