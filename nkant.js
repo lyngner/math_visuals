@@ -997,7 +997,8 @@ function resolveSettingsPalette(count) {
   if (paletteApi) {
     let palette = null;
     try {
-      palette = paletteApi.getGroupPalette("nkant", { count: groupTarget, project });
+      const resolved = paletteApi.getGroupPalette("nkant", { count: groupTarget, project });
+      palette = resolved && Array.isArray(resolved.colors) ? resolved.colors : resolved;
     } catch (_) {
       palette = null;
     }
@@ -1010,7 +1011,8 @@ function resolveSettingsPalette(count) {
   if (theme && typeof theme.getGroupPalette === "function") {
     let palette = null;
     try {
-      palette = theme.getGroupPalette("nkant", { project, count: groupTarget });
+      const resolved = theme.getGroupPalette("nkant", { project, count: groupTarget });
+      palette = resolved && Array.isArray(resolved.colors) ? resolved.colors : resolved;
     } catch (_) {
       palette = null;
     }
@@ -1019,7 +1021,8 @@ function resolveSettingsPalette(count) {
       theme.getGroupPalette.length >= 3
     ) {
       try {
-        palette = theme.getGroupPalette("nkant", groupTarget, project ? { project } : undefined);
+        const resolved = theme.getGroupPalette("nkant", groupTarget, project ? { project } : undefined);
+        palette = resolved && Array.isArray(resolved.colors) ? resolved.colors : resolved;
       } catch (_) {
         palette = null;
       }
@@ -1031,13 +1034,15 @@ function resolveSettingsPalette(count) {
   }
   const projectFallbackPalette = resolveProjectFallbackPalette(project);
   const fallbackCount = target || (projectFallbackPalette.length || groupTarget);
-  const servicePalette = paletteService.resolveGroupPalette({
+  const serviceResolved = paletteService.resolveGroupPalette({
     groupId: "nkant",
     project: project || undefined,
     count: fallbackCount,
     fallback: projectFallbackPalette,
     settings: settingsApi || undefined
   });
+  const servicePalette =
+    serviceResolved && Array.isArray(serviceResolved.colors) ? serviceResolved.colors : serviceResolved;
   const resolvedServicePalette = cycleSettingsPalette(servicePalette, fallbackCount);
   if (resolvedServicePalette.length) {
     return {
