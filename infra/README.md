@@ -99,3 +99,27 @@ under **Settings → Secrets and variables → Actions**:
 Disse hemmelighetene må være tilstede i CI-miljøet. Workflowen validerer at alle
 tre er satt og avbryter før API-deployen dersom én mangler, slik at man slipper
 å pushe en stack uten konsistente Redis-verdier.
+
+### IAM-tilgang for GitHub Actions-rollen
+
+`deploy-infra.yml` antar at IAM-rollen som actions-jobben overtar kan opprette
+eventuelle tjenestekoblede roller som mangler. Hvis rollen ikke har
+`iam:CreateServiceLinkedRole`, vil CloudFormation feile med meldingen
+
+```
+AccessDenied: policy in AWS Identity and Access Management does not allow
+CreateServiceLinkedRole on arn:aws:iam::aws:policy/aws-service-role/ApprunnerServicePolicyForECRAccess
+```
+
+Løsning:
+
+1. Gi GitHub Actions-rollen tillatelsen `iam:CreateServiceLinkedRole`
+   (eventuelt begrenset til tjenesten `apprunner.amazonaws.com`).
+2. Alternativt kan en administrator kjøre
+   `aws iam create-service-linked-role --aws-service-name apprunner.amazonaws.com`
+   én gang i kontoen. Når rollen `AWSServiceRoleForAppRunner` finnes fra før
+   slipper senere deployer å forsøke å opprette den.
+
+Rollen må også kunne oppdatere Lambda-koden i API-stacken. Mangler den
+`lambda:UpdateFunctionCode` får du en `AccessDeniedException` når
+CloudFormation forsøker å publisere ny versjon av `ApiFunction`.

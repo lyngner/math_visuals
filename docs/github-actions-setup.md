@@ -99,6 +99,9 @@ Rollen må kunne opprette og oppdatere alle ressursene som beskrives i CloudForm
 * `secretsmanager:PutSecretValue`, `secretsmanager:GetSecretValue` på hemmeligheten som deles mellom stackene.
 * `ssm:PutParameter`, `ssm:GetParameter` på Parameter Store-verdiene for Redis og CORS.
 * `cloudfront:CreateInvalidation` på distribusjonen du ønsker å rydde i.
+* `lambda:CreateFunction`, `lambda:UpdateFunctionCode`, `lambda:UpdateFunctionConfiguration`, `lambda:DeleteFunction`,
+  `lambda:AddPermission` og `lambda:RemovePermission` slik at CloudFormation kan publisere ny kode til
+  `ApiFunction`-Lambdaen.
 * `iam:*` på ressursene som deklareres i malene (Lambda-rollen i `infra/api/template.yaml` og eventuelle CloudFront-oppsett).
 * `elasticache:CreateReplicationGroup`, `elasticache:ModifyReplicationGroup`, `elasticache:DescribeReplicationGroups`,
   `elasticache:DescribeCacheClusters`, `elasticache:CreateCacheSubnetGroup`, `elasticache:ModifyCacheSubnetGroup`,
