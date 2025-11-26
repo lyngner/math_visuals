@@ -6,8 +6,7 @@ permissions:
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
     inputs:
       cloudfront_invalidation_paths:
@@ -19,7 +18,7 @@ jobs:
   deploy-iac:
     name: Deploy CloudFormation stacks
     runs-on: ubuntu-latest
-    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.merged }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.merged }}
     env:
       # Required GitHub secrets for AWS access and stack configuration
       AWS_REGION: ${{ secrets.AWS_REGION }}
