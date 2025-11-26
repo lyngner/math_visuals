@@ -10,7 +10,7 @@ Bruk: bash scripts/cloudshell-verify-oidc-role.sh
 
 Forventede miljøvariabler (må settes før kjøring):
   export AWS_IAC_ROLE_ARN="arn:aws:iam::<ACCOUNT_ID>:role/MathVisualsGithubDeploy"
-  export GH_ORG="ndla"
+  export GH_ORG="kikora"
   export GH_REPO="math_visuals"
   # valgfritt: export GH_BRANCH_PATTERN="refs/heads/main" (standard er main)
 

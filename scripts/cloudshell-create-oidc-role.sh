@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROLE_NAME="MathVisualsGithubDeploy"
 DEFAULT_BRANCH_PATTERN="refs/heads/main"
-DEFAULT_REPO_NAME="ndla/math_visuals"
+DEFAULT_REPO_NAME="kikora/math_visuals"
 
 if ! command -v aws >/dev/null 2>&1; then
   echo "AWS CLI må være installert i CloudShell." >&2
