@@ -83,7 +83,7 @@ Legg til flere referanser (for eksempel `ref:refs/heads/*` eller `pull_request`)
 
 ### Ferdig CloudShell-skript
 
-Kjør `scripts/cloudshell-create-oidc-role.sh` direkte i CloudShell for å opprette/oppdatere rollen, knytte den nødvendige inline-policyen og skrive ut ARN-en du skal lime inn som `AWS_IAC_ROLE_ARN` i GitHub-secrets. Skriptet henter kontonummer automatisk med `aws sts get-caller-identity`, finner repo-navnet fra `git remote` (fallbakken er `math-visuals/math_visuals`), bruker rol lenavnet `MathVisualsGithubDeploy` og tillater alle grener (`ref:refs/heads/*`).
+Kjør `scripts/cloudshell-create-oidc-role.sh` direkte i CloudShell for å opprette/oppdatere rollen, knytte den nødvendige inline-policyen og skrive ut ARN-en du skal lime inn som `AWS_IAC_ROLE_ARN` i GitHub-secrets. Skriptet henter kontonummer automatisk med `aws sts get-caller-identity`, finner repo-navnet fra `git remote` (fallbakken er `ndla/math_visuals`), bruker rollenavnet `MathVisualsGithubDeploy` og bruker `ref:refs/heads/main` som standard for trust policy-suben.
 
 ```bash
 cd math_visuals

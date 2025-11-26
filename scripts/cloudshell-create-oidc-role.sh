@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROLE_NAME="MathVisualsGithubDeploy"
-DEFAULT_BRANCH_PATTERN="refs/heads/*"
-DEFAULT_REPO_NAME="math-visuals/math_visuals"
+DEFAULT_BRANCH_PATTERN="refs/heads/main"
+DEFAULT_REPO_NAME="ndla/math_visuals"
 
 if ! command -v aws >/dev/null 2>&1; then
   echo "AWS CLI må være installert i CloudShell." >&2
