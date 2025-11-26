@@ -81,6 +81,15 @@ JSON
 
 Legg til flere referanser (for eksempel `ref:refs/heads/*` eller `pull_request`) dersom du ønsker at andre grener skal kunne kjøre deploy-workflowen.
 
+### Ferdig CloudShell-skript
+
+Kjør `scripts/cloudshell-create-oidc-role.sh` direkte i CloudShell for å opprette/oppdatere rollen, knytte den nødvendige inline-policyen og skrive ut ARN-en du skal lime inn som `AWS_IAC_ROLE_ARN` i GitHub-secrets. Skriptet henter kontonummer automatisk med `aws sts get-caller-identity`, finner repo-navnet fra `git remote` (fallbakken er `math-visuals/math_visuals`), bruker rol lenavnet `MathVisualsGithubDeploy` og tillater alle grener (`ref:refs/heads/*`).
+
+```bash
+cd math_visuals
+./scripts/cloudshell-create-oidc-role.sh
+```
+
 ### Tildele nødvendige policyer
 
 Rollen må kunne opprette og oppdatere alle ressursene som beskrives i CloudFormation-maler under `infra/`. Det enkleste er å knytte en administrativ policy under oppsettet, men du kan låse den til det som faktisk trengs:
