@@ -83,7 +83,7 @@ Legg til flere referanser (for eksempel `ref:refs/heads/*` eller `pull_request`)
 
 ### Ferdig CloudShell-skript
 
-Kjør `scripts/cloudshell-create-oidc-role.sh` direkte i CloudShell for å opprette/oppdatere rollen, knytte den nødvendige inline-policyen og skrive ut ARN-en du skal lime inn som `AWS_IAC_ROLE_ARN` i GitHub-secrets. Skriptet henter kontonummer automatisk med `aws sts get-caller-identity`, finner repo-navnet fra `git remote` (fallbakken er `math-visuals/math_visuals`), bruker rol lenavnet `MathVisualsGithubDeploy` og tillater alle grener (`ref:refs/heads/*`).
+Kjør `scripts/cloudshell-create-oidc-role.sh` direkte i CloudShell for å opprette/oppdatere rollen, knytte den nødvendige inline-policyen og skrive ut ARN-en du skal lime inn som `AWS_IAC_ROLE_ARN` i GitHub-secrets. Skriptet henter kontonummer automatisk med `aws sts get-caller-identity`, finner repo-navnet fra `git remote` (hvis det ikke finner origin må du sette `REPO_NAME=<org>/<repo>` selv), bruker rollenavnet `MathVisualsGithubDeploy` og tillater som standard bare deploy fra `main` (`ref:refs/heads/main`). Dersom GitHub Actions logger `Not authorized to perform sts:AssumeRoleWithWebIdentity`, er det vanligvis fordi `sub` i trust policyen ikke matcher faktisk repo/branch; kjør skriptet på nytt med riktig `REPO_NAME`/`BRANCH_PATTERN` og oppdater GitHub-secreten `AWS_IAC_ROLE_ARN` om ARN-en endres.
 
 ```bash
 cd math_visuals

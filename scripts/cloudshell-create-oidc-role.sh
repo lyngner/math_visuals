@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROLE_NAME="MathVisualsGithubDeploy"
-DEFAULT_BRANCH_PATTERN="refs/heads/*"
-DEFAULT_REPO_NAME="math-visuals/math_visuals"
+# Standardiser på hovedløpet for deploy: master-bruk er "main" i dette repoet
+DEFAULT_BRANCH_PATTERN="refs/heads/main"
 
 if ! command -v aws >/dev/null 2>&1; then
   echo "AWS CLI må være installert i CloudShell." >&2
@@ -23,8 +23,10 @@ fi
 if [[ -z "${REPO_NAME:-}" ]]; then
   if [[ "$REMOTE_URL" =~ github.com[:/]+([^/]+)/([^/.]+)(\.git)?$ ]]; then
     REPO_NAME="${BASH_REMATCH[1]}/${BASH_REMATCH[2]}"
+    echo "Fant repo fra git remote: $REPO_NAME"
   else
-    REPO_NAME="$DEFAULT_REPO_NAME"
+    echo "Fant ikke REPO_NAME automatisk. Sett REPO_NAME=\"<org>/<repo>\" og kjør skriptet på nytt." >&2
+    exit 1
   fi
 fi
 
