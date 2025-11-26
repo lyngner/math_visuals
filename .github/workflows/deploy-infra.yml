@@ -30,7 +30,9 @@ jobs:
       STATIC_SITE_CLOUDFRONT_PRICE_CLASS: ${{ secrets.STATIC_SITE_CLOUDFRONT_PRICE_CLASS }}
       API_ARTIFACT_BUCKET: ${{ secrets.API_ARTIFACT_BUCKET }}
       API_ARTIFACT_KEY: ${{ secrets.API_ARTIFACT_KEY }}
-      API_STAGE_NAME: ${{ secrets.API_STAGE_NAME }}
+      # Default to the template's prod stage when the secret is missing so the
+      # deploy step doesn't fail with an empty StageName parameter.
+      API_STAGE_NAME: ${{ secrets.API_STAGE_NAME || 'prod' }}
       CLOUDFRONT_INVALIDATION_PATHS: ${{ github.event.inputs.cloudfront_invalidation_paths || secrets.CLOUDFRONT_INVALIDATION_PATHS || '/*' }}
       # Stack names and defaults
       STATIC_STACK_NAME: math-visuals-static
