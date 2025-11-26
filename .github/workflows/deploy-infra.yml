@@ -135,9 +135,9 @@ jobs:
           fi
           
           SECRET_STRING=$(python - <<'PY'
-            import json, os
-            print(json.dumps({"authToken": os.environ["REDIS_PASSWORD"]}))
-          PY
+import json, os
+print(json.dumps({"authToken": os.environ["REDIS_PASSWORD"]}))
+PY
           )
           
           aws secretsmanager put-secret-value \
