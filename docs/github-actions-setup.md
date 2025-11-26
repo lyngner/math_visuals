@@ -17,6 +17,23 @@ Denne veiledningen beskriver hvordan du setter opp GitHub Actions for Math Visua
 2. Under **Workflow permissions** velger du *Read and write permissions* og krysser av for *Allow GitHub Actions to create and approve pull requests*. Dette er nødvendig når workflowen skal oppdatere cachefiler eller skrive logs tilbake til PR-er.
 3. Legg til secrets og eventuelle repository-variabler under **Settings → Secrets and variables → Actions**. Tabellen i [README](../README.md#påkrevde-secrets) oppsummerer alle nøklene som må være på plass for `deploy-infra.yml`. Sett også `API_ARTIFACT_VERSION` dersom du ønsker å låse deployet til et spesifikt objektversjon i S3.
 
+### Hent secrets fra AWS i CloudShell
+
+Kjør skriptet `scripts/cloudshell-export-actions-secrets.sh` i AWS CloudShell for å hente verdiene workflowen trenger. Standard stack-navn matcher dagens miljø (`math-visuals-shared` og `math-visuals-static-site`), og skriptet gir en tydelig advarsel hvis CloudFront-/S3-stacken mangler slik at du kan fylle inn `STATIC_SITE_*` manuelt.
+
+```bash
+# Sett minst disse to flaggene for å få riktige verdier
+scripts/cloudshell-export-actions-secrets.sh \
+  --api-artifact-bucket <bucket-med-lambda-artefakter> \
+  --aws-iac-role-arn <arn-til-github-oidc-roll>
+
+# Tilpass hvis du bruker andre stack-navn eller region
+REGION=eu-west-1 SHARED_STACK=annet-navn STATIC_STACK=annet-navn \
+  scripts/cloudshell-export-actions-secrets.sh --api-artifact-bucket ... --aws-iac-role-arn ...
+```
+
+Skriptet skriver `KEY=VALUE`-linjer du kan lime direkte inn som repo-secrets i GitHub.
+
 ## 3. Opprett IAM-rolle for OIDC
 
 Workflowen `deploy-infra.yml` bruker GitHub OIDC for å anta en IAM-rolle i AWS. Du kan opprette rollen med AWS CLI (erstatt variablene med egne verdier):
