@@ -44,6 +44,7 @@ API_GATEWAY_DOMAIN=${API_GATEWAY_DOMAIN:-}
 API_GATEWAY_ORIGIN_PATH=${API_GATEWAY_ORIGIN_PATH:-}
 CLOUDFRONT_PRICE_CLASS=${CLOUDFRONT_PRICE_CLASS:-}
 CACHE_POLICY_ID=${CACHE_POLICY_ID:-}
+SKIP_CLOUDFRONT_INVALIDATION=${SKIP_CLOUDFRONT_INVALIDATION:-}
 
 if [[ -z "$SITE_BUCKET_NAME" ]]; then
   SITE_BUCKET_NAME=$(read_parameter "SiteBucketName")
@@ -92,6 +93,15 @@ aws cloudformation deploy \
 
 CLOUDFRONT_DOMAIN=$(read_output "CloudFrontDistributionDomainName")
 CLOUDFRONT_ID=$(read_output "CloudFrontDistributionId")
+
+if [[ -z "$SKIP_CLOUDFRONT_INVALIDATION" ]]; then
+  CLOUDFRONT_REGION=us-east-1
+  echo "Creating CloudFront invalidation for API behaviours to clear stale SPA fallbacks..."
+  aws cloudfront create-invalidation \
+    --region "$CLOUDFRONT_REGION" \
+    --distribution-id "$CLOUDFRONT_ID" \
+    --paths "/api/*" "/bildearkiv/*" "/svg/*" "/figure-library/*"
+fi
 
 cat <<INFO
 

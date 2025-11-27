@@ -17,14 +17,23 @@ The [`template.yaml`](./template.yaml) file configures the following resources:
 
 | Path pattern            | Origin             | Query string forwarding |
 | ----------------------- | ------------------ | ----------------------- |
-| Default (`*`)           | S3 static assets   | No                      |
 | `/api/*`                | API Gateway origin | Yes                     |
-| `/sortering/eksempel*`  | S3 static assets   | Yes                     |
-| `/sortering*`           | S3 static assets   | Yes                     |
 | `/bildearkiv/*`         | API Gateway origin | Yes                     |
 | `/svg/*`                | API Gateway origin | Yes                     |
-| `/figure-library/*.js`  | S3 static assets   | No                      |
 | `/figure-library/*`     | API Gateway origin | Yes                     |
+| `/figure-library/*.js`  | S3 static assets   | No                      |
+| `/sortering/eksempel*`  | S3 static assets   | Yes                     |
+| `/sortering*`           | S3 static assets   | Yes                     |
+| Default (`*`)           | S3 static assets   | No                      |
+
+The template declares the API-backed behaviours first so CloudFront assigns them
+the highest precedence. If the console ever shows the default `*` behaviour
+listed above `/api/*`, redeploy the stack (or manually move `/api/*` to the top)
+so API requests do not fall through to the S3 origin. When API calls hit the S3
+origin they receive the SPA fallback `index.html` (because custom error
+responses rewrite 404s to the entry point), which causes JSON fetches to return
+HTML. After fixing the behaviour order, invalidate `/api/*` (and other
+API-backed prefixes) so CloudFront evicts any cached SPA fallbacks.
 
 Viewer request rewrites are handled by an attached CloudFront Function that
 normalises "friendly" app routes (for example `/tenkeblokker/eksempel1`) to
@@ -88,9 +97,14 @@ The script reads the current parameter values for `SiteBucketName`,
 [`aws cloudformation deploy`](https://docs.aws.amazon.com/cli/latest/reference/cloudformation/deploy/index.html)
 against [`template.yaml`](./template.yaml). Passing `--force-upload` ensures
 CloudFront receives the latest behaviours even when the parameter values do not
-change. Override any of the values—along with `STACK_NAME`,
-`SHARED_STACK_NAME`, or `TEMPLATE_FILE`—by exporting the matching environment
-variables before running the script.
+change. After deployment the script creates an invalidation for the API-backed
+path prefixes (`/api/*`, `/bildearkiv/*`, `/svg/*` and `/figure-library/*`) so
+any cached SPA fallbacks are evicted when the behaviour order changes. Override
+any of the values—along with `STACK_NAME`, `SHARED_STACK_NAME`, or
+`TEMPLATE_FILE`—by exporting the matching environment variables before running
+the script. Set `SKIP_CLOUDFRONT_INVALIDATION=1` to skip the automatic
+invalidation if you need to conserve invalidation quotas and can tolerate cache
+expiration instead.
 
 To override the cache policy used for API behaviours, export
 `CACHE_POLICY_ID=<policy-id>` before running `scripts/deploy-static-site.sh`.
