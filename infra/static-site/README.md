@@ -31,6 +31,11 @@ the highest precedence. If the console ever shows the default `*` behaviour
 listed above `/api/*`, redeploy the stack (or manually move `/api/*` to the top)
 so API requests do not fall through to the S3 origin.
 
+All API-backed behaviours use the managed **CachingDisabled** policy (overridable
+via the `CachePolicyId` parameter) and allow the verbs `GET, HEAD, OPTIONS, PUT,
+POST, PATCH, DELETE` so API Gateway can return dynamic JSON responses without
+being cached at the edge.
+
 Viewer request rewrites are handled by an attached CloudFront Function that
 normalises "friendly" app routes (for example `/tenkeblokker/eksempel1`) to
 their underlying HTML assets before the request reaches S3. This keeps deep
@@ -78,6 +83,7 @@ the parameter values that were already provisioned in AWS:
 Prerequisites:
 
 - AWS CLI v2 installed and available on your PATH
+- `jq` installed (the deploy script uses it to inspect and reorder behaviours)
 - A configured profile or environment credentials that can read the existing
   stack parameters and deploy CloudFormation resources
 - A default region set (for example by exporting `AWS_DEFAULT_REGION=eu-west-1`)
@@ -105,7 +111,12 @@ stack is first created) so existing deployments continue to inherit AWS's
 managed "CachingDisabled" policy.
 
 After the deployment finishes the script prints the CloudFront distribution ID
-and domain so you can immediately verify the behaviour updates.
+and domain so you can immediately verify the behaviour updates. It also
+confirms `/api/*` appears first in the behaviours list (reordering the
+distribution if the console moved it) and validates the configured cache policy.
+Unless `SKIP_INVALIDATION=1` is set it then invalidates `/api/*` and the SPA
+fallback `/*`, logging the distribution ID and invalidated paths for
+traceability.
 
 ### Allowing API write methods via CloudShell
 
@@ -186,8 +197,9 @@ routed back to the API origin.
    aws s3 cp index.html "s3://$STATIC_SITE_BUCKET/index.html"
    ```
 
-   If the distribution caches these objects, optionally request an invalidation
-   before re-running the curl checks:
+   The deploy script already issues an invalidation for `/api/*` and `/*` after
+   reordering behaviours. If you skipped it, run the invalidation before
+   re-running the curl checks:
 
    ```bash
    CLOUDFRONT_REGION=us-east-1
@@ -199,7 +211,7 @@ routed back to the API origin.
    aws cloudfront create-invalidation \
      --region "$CLOUDFRONT_REGION" \
      --distribution-id "$CLOUDFRONT_ID" \
-     --paths "/" "/sortering*"
+     --paths "/api/*" "/*"
    ```
 
    ```bash
@@ -209,13 +221,14 @@ routed back to the API origin.
      --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionDomainName`].OutputValue' \
      --output text)
 
-   curl "https://$CLOUDFRONT_DOMAIN/api/examples" | jq '.mode'
+   curl -i "https://$CLOUDFRONT_DOMAIN/api/examples"
    curl -I "https://$CLOUDFRONT_DOMAIN/sortering/eksempel1"
    ```
 
-   The `/api/examples` call should return the API response (JSON containing
-   `mode`), and the `/sortering/eksempel1` request should return a `200 OK` from
-   the S3 origin.
+   The `/api/examples` call should return a `200` with
+   `content-type: application/json` and a JSON payload such as
+   `[{"id":"perlesnor","slug":"perlesnor","name":"Perlesnor"}, ...]`. The
+   `/sortering/eksempel1` request should return a `200 OK` from the S3 origin.
 
 The outputs `ExamplesAllowedOriginsParameterName` and
 `SvgAllowedOriginsParameterName` mirror the shared stack so that deployment
