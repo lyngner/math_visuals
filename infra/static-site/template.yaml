@@ -308,6 +308,10 @@ Resources:
               - GET
               - HEAD
               - OPTIONS
+              - PUT
+              - POST
+              - PATCH
+              - DELETE
             CachedMethods:
               - GET
               - HEAD
@@ -321,6 +325,10 @@ Resources:
               - GET
               - HEAD
               - OPTIONS
+              - PUT
+              - POST
+              - PATCH
+              - DELETE
             CachedMethods:
               - GET
               - HEAD
@@ -334,6 +342,10 @@ Resources:
               - GET
               - HEAD
               - OPTIONS
+              - PUT
+              - POST
+              - PATCH
+              - DELETE
             CachedMethods:
               - GET
               - HEAD
@@ -362,6 +374,10 @@ Resources:
               - GET
               - HEAD
               - OPTIONS
+              - PUT
+              - POST
+              - PATCH
+              - DELETE
             CachedMethods:
               - GET
               - HEAD

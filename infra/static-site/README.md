@@ -18,6 +18,7 @@ The [`template.yaml`](./template.yaml) file configures the following resources:
 | Path pattern            | Origin             | Query string forwarding |
 | ----------------------- | ------------------ | ----------------------- |
 | Default (`*`)           | S3 static assets   | No                      |
+| `/api/*`                | API Gateway origin | Yes                     |
 | `/sortering/eksempel*`  | S3 static assets   | Yes                     |
 | `/sortering*`           | S3 static assets   | Yes                     |
 | `/bildearkiv/*`         | API Gateway origin | Yes                     |
@@ -117,6 +118,24 @@ The script reads the CloudFront distribution ID from the
 `GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE` for the API origin, and applies
 the change with `aws cloudfront update-distribution`. Propagation can take a few
 minutes before PUT/DELETE calls succeed globally.
+
+### Troubleshooting missing `/api/*` routing
+
+If `/api/examples` calls return a response from Amazon S3 (for example the
+`Server: AmazonS3` header) instead of the Lambda/API Gateway origin, verify the
+CloudFront behaviours in the AWS console:
+
+1. Open CloudFront, select the distribution and switch to the **Behaviors** tab.
+2. Confirm `/api/*` exists and its origin is set to the API Gateway domain—not
+   the static S3 bucket.
+3. Check the behaviour precedence: `/api/*` must appear above the default (`*`)
+   rule so the API requests are evaluated before the static-site fallback.
+4. Ensure the cache policy is **CachingDisabled** and allowed methods include
+   `GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE`.
+
+If any of these checks fail, update the behaviour in the console or redeploy the
+stack with `scripts/deploy-static-site.sh --force-upload` so `/api/*` traffic is
+routed back to the API origin.
 
 ### Verification
 
