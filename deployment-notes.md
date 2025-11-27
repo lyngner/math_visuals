@@ -9,3 +9,10 @@ To continue, configure AWS credentials (e.g., via `aws configure`, environment v
 
 Redis/Lambda note:
 - `scripts/configure-lambda-redis.sh` merges the current Lambda environment from `get-function-configuration` with Redis variables instead of overwriting it, so reruns should not drop unrelated configuration.
+
+CloudShell one-liner for GitHub Actions deploy-rollen:
+- Fra CloudShell kan rollen opprettes/oppdateres med én kommando (bruker standard repo/branch autodeteksjon):
+
+```
+cd math_visuals && ./scripts/cloudshell-create-oidc-role.sh
+```
