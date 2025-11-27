@@ -542,6 +542,8 @@ const TASK_STORAGE_PREFIX = 'examples_';
 let taskButtons = [];
 let taskLoadPromise = null;
 let backendEntriesPromise = null;
+let examplesBackendAvailable = examplesApiBase ? null : false;
+let examplesBackendCheckPromise = null;
 
 function readLocalExamples(normalizedPath) {
   if (typeof normalizedPath !== 'string' || !normalizedPath) return [];
@@ -556,12 +558,51 @@ function readLocalExamples(normalizedPath) {
   }
 }
 
+async function ensureExamplesBackendAvailable() {
+  if (!examplesApiBase) return false;
+  if (examplesBackendAvailable === true) return true;
+  if (examplesBackendAvailable === false) return false;
+  if (examplesBackendCheckPromise) return examplesBackendCheckPromise;
+
+  const url = buildExamplesApiUrl(examplesApiBase);
+  if (!url) {
+    examplesBackendAvailable = false;
+    return false;
+  }
+
+  examplesBackendCheckPromise = (async () => {
+    try {
+      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (res && res.ok) {
+        examplesBackendAvailable = true;
+        return true;
+      }
+      console.warn(
+        '[MathVisuals] Finner ikke backend for eksempler. Hopper over API-kall til',
+        url,
+        res ? `(status: ${res.status})` : ''
+      );
+    } catch (error) {
+      console.warn('[MathVisuals] Klarte ikke å kontakte eksempel-backend', error);
+    } finally {
+      examplesBackendCheckPromise = null;
+    }
+    examplesBackendAvailable = false;
+    return false;
+  })();
+
+  return examplesBackendCheckPromise;
+}
+
 async function fetchBackendEntriesList() {
   if (!examplesApiBase) return null;
+  if (examplesBackendAvailable === false) return null;
   if (backendEntriesPromise) return backendEntriesPromise;
   const url = buildExamplesApiUrl(examplesApiBase);
   if (!url) return null;
   backendEntriesPromise = (async () => {
+    const backendOk = await ensureExamplesBackendAvailable();
+    if (!backendOk) return null;
     try {
       const res = await fetch(url, { headers: { Accept: 'application/json' } });
       if (!res.ok) return null;
