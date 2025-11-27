@@ -195,6 +195,34 @@ async function loadKvClient() {
   return loadRedisKvClient();
 }
 
+function stripTrailingExampleSegment(path) {
+  if (typeof path !== 'string') return path;
+  const examplePattern = /^eksempel[-_]?\d+$/i;
+  let working = path;
+  while (true) {
+    if (!working || working === '/') {
+      return working || '/';
+    }
+    let trimmed = working;
+    while (trimmed.length > 1 && trimmed.endsWith('/')) {
+      trimmed = trimmed.slice(0, -1);
+    }
+    if (!trimmed || trimmed === '/') {
+      return trimmed || '/';
+    }
+    const lastSlash = trimmed.lastIndexOf('/');
+    const segment = trimmed.slice(lastSlash + 1);
+    if (!examplePattern.test(segment)) {
+      return trimmed;
+    }
+    if (lastSlash <= 0) {
+      working = '/';
+    } else {
+      working = trimmed.slice(0, lastSlash);
+    }
+  }
+}
+
 function normalizePath(value) {
   if (typeof value !== 'string') return null;
   let path = value.trim();
@@ -207,6 +235,7 @@ function normalizePath(value) {
     path = path.replace(/\.html?$/i, '');
     if (!path) path = '/';
   }
+  path = stripTrailingExampleSegment(path);
   if (path.length > 1 && path.endsWith('/')) {
     path = path.slice(0, -1);
   }
