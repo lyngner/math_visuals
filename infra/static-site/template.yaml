@@ -271,7 +271,9 @@ Resources:
             Cookies:
               Forward: none
         # Place API-backed behaviors first so they receive higher precedence than
-        # the static-site fallbacks in the CloudFront console.
+        # the static-site fallbacks in the CloudFront console. The deploy script
+        # validates this ordering after every deployment and will reapply it if a
+        # later console change moves /api/* below the default rule.
         CacheBehaviors:
           - PathPattern: '/api/*'
             TargetOriginId: ApiGatewayOrigin

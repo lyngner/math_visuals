@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if ! command -v jq >/dev/null 2>&1; then
+  echo "This script requires jq to parse CloudFront distribution configs." >&2
+  exit 1
+fi
+
 STACK_NAME=${STACK_NAME:-math-visuals-static-site}
 SHARED_STACK_NAME=${SHARED_STACK_NAME:-math-visuals-shared}
 TEMPLATE_FILE=${TEMPLATE_FILE:-infra/static-site/template.yaml}
@@ -44,6 +49,8 @@ API_GATEWAY_DOMAIN=${API_GATEWAY_DOMAIN:-}
 API_GATEWAY_ORIGIN_PATH=${API_GATEWAY_ORIGIN_PATH:-}
 CLOUDFRONT_PRICE_CLASS=${CLOUDFRONT_PRICE_CLASS:-}
 CACHE_POLICY_ID=${CACHE_POLICY_ID:-}
+CLOUDFRONT_REGION=${CLOUDFRONT_REGION:-us-east-1}
+SKIP_INVALIDATION=${SKIP_INVALIDATION:-}
 
 if [[ -z "$SITE_BUCKET_NAME" ]]; then
   SITE_BUCKET_NAME=$(read_parameter "SiteBucketName")
@@ -93,6 +100,71 @@ aws cloudformation deploy \
 CLOUDFRONT_DOMAIN=$(read_output "CloudFrontDistributionDomainName")
 CLOUDFRONT_ID=$(read_output "CloudFrontDistributionId")
 
+function ensure_api_behavior_first() {
+  local distribution_config_json etag api_index
+  distribution_config_json=$(aws cloudfront get-distribution-config \
+    --region "$CLOUDFRONT_REGION" \
+    --id "$CLOUDFRONT_ID")
+
+  etag=$(jq -r '.ETag' <<<"$distribution_config_json")
+  api_index=$(jq -r '
+    (.DistributionConfig.CacheBehaviors.Items // [])
+    | map(.PathPattern)
+    | index("/api/*")
+  ' <<<"$distribution_config_json")
+
+  if [[ "$api_index" == "null" ]]; then
+    echo "The CloudFront distribution is missing the /api/* behaviour."
+    echo "Redeploy the stack or inspect the distribution manually."
+    exit 1
+  fi
+
+  if [[ "$api_index" -gt 0 ]]; then
+    echo "Reordering cache behaviours so /api/* has highest precedence..."
+    local reordered_config
+    reordered_config=$(jq '
+      .DistributionConfig.CacheBehaviors.Items |= (
+        (map(select(.PathPattern == "/api/*")) +
+         map(select(.PathPattern != "/api/*"))))
+      | .DistributionConfig.CacheBehaviors.Quantity =
+          (.DistributionConfig.CacheBehaviors.Items | length)
+    ' <<<"$distribution_config_json")
+
+    aws cloudfront update-distribution \
+      --region "$CLOUDFRONT_REGION" \
+      --id "$CLOUDFRONT_ID" \
+      --if-match "$etag" \
+      --distribution-config "$reordered_config" >/dev/null
+
+    echo "Cache behaviours updated. Waiting for propagation may take a few minutes."
+  else
+    echo "/api/* behaviour already has highest precedence."
+  fi
+
+  local cache_policy
+  cache_policy=$(jq -r '
+    .DistributionConfig.CacheBehaviors.Items
+      | map(select(.PathPattern == "/api/*"))
+      | .[0].CachePolicyId
+  ' <<<"$(aws cloudfront get-distribution-config --region "$CLOUDFRONT_REGION" --id "$CLOUDFRONT_ID")")
+
+  if [[ "$cache_policy" != "$CACHE_POLICY_ID" ]]; then
+    echo "Warning: /api/* cache policy ($cache_policy) differs from expected $CACHE_POLICY_ID." >&2
+  fi
+}
+
+ensure_api_behavior_first
+
+if [[ -z "$SKIP_INVALIDATION" ]]; then
+  echo "Creating CloudFront invalidation on distribution $CLOUDFRONT_ID for paths: /api/* and /*"
+  aws cloudfront create-invalidation \
+    --region "$CLOUDFRONT_REGION" \
+    --distribution-id "$CLOUDFRONT_ID" \
+    --paths "/api/*" "/*" >/dev/null
+else
+  echo "Skipping CloudFront invalidation because SKIP_INVALIDATION is set."
+fi
+
 cat <<INFO
 
 Deployment complete.
@@ -100,7 +172,7 @@ CloudFront distribution domain: $CLOUDFRONT_DOMAIN
 CloudFront distribution id: $CLOUDFRONT_ID
 
 Next steps:
-  1. Confirm the /api/* behaviour still targets ApiGatewayOrigin
-     (see infra/static-site/README.md for the aws cloudfront command).
-  2. Run the verification curls documented in infra/static-site/README.md.
+  1. Behaviour ordering validated (see above for any automatic reordering).
+  2. An invalidation was requested for /api/* and /* unless SKIP_INVALIDATION=1.
+  3. Run the verification curls documented in infra/static-site/README.md.
 INFO
