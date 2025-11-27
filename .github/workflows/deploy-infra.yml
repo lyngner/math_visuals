@@ -202,7 +202,7 @@ jobs:
           endpoint="${endpoint%%/}"
           export API_ENDPOINT_URL="$endpoint"
           echo "API_ENDPOINT_URL=$endpoint" >> "$GITHUB_ENV"
-          python - <<'PY' >> "$GITHUB_ENV"
+          API_ENDPOINT_URL="$endpoint" python - <<'PY' >> "$GITHUB_ENV"
           import os
           from urllib.parse import urlparse
 
