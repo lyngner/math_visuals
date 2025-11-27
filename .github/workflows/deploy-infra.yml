@@ -200,6 +200,7 @@ jobs:
             exit 1
           fi
           endpoint="${endpoint%%/}"
+          export API_ENDPOINT_URL="$endpoint"
           echo "API_ENDPOINT_URL=$endpoint" >> "$GITHUB_ENV"
           python - <<'PY' >> "$GITHUB_ENV"
           import os
