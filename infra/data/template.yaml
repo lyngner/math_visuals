@@ -111,10 +111,6 @@ Resources:
       GroupDescription: Restricts Redis access to the Lambda security group.
       VpcId: !Ref Vpc
       SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 6379
-          ToPort: 6379
-          SourceSecurityGroupId: !Ref LambdaSecurityGroup
         - !If
           - AllowCloudShellIngress
           - IpProtocol: tcp
@@ -128,6 +124,15 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub 'math-visuals-${EnvironmentName}-redis-sg'
+
+  RedisIngressFromLambda:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref RedisSecurityGroup
+      IpProtocol: tcp
+      FromPort: 6379
+      ToPort: 6379
+      SourceSecurityGroupId: !Ref LambdaSecurityGroup
 
   RedisSubnetGroup:
     Type: AWS::ElastiCache::SubnetGroup
