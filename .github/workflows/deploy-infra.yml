@@ -278,6 +278,18 @@ jobs:
       - name: Deploy static site stack
         run: |
           set -euo pipefail
+
+          log_stack_events() {
+            echo "Capturing recent events for $STATIC_STACK_NAME after failure..." >&2
+            aws cloudformation describe-stack-events \
+              --stack-name "$STATIC_STACK_NAME" \
+              --max-items 20 \
+              --query 'StackEvents[?ResourceStatus!="DELETE_COMPLETE"][].{Time:Timestamp,LogicalId:LogicalResourceId,Status:ResourceStatus,Reason:ResourceStatusReason}' \
+              --output table || true
+          }
+
+          trap log_stack_events ERR
+
           api_domain="${STATIC_SITE_API_DOMAIN:-$API_GATEWAY_DOMAIN_NAME}"
           api_origin_path="${STATIC_SITE_API_ORIGIN_PATH:-$API_GATEWAY_ORIGIN_PATH}"
           if [ -z "$api_domain" ]; then
