@@ -17,14 +17,19 @@ The [`template.yaml`](./template.yaml) file configures the following resources:
 
 | Path pattern            | Origin             | Query string forwarding |
 | ----------------------- | ------------------ | ----------------------- |
-| Default (`*`)           | S3 static assets   | No                      |
 | `/api/*`                | API Gateway origin | Yes                     |
-| `/sortering/eksempel*`  | S3 static assets   | Yes                     |
-| `/sortering*`           | S3 static assets   | Yes                     |
 | `/bildearkiv/*`         | API Gateway origin | Yes                     |
 | `/svg/*`                | API Gateway origin | Yes                     |
-| `/figure-library/*.js`  | S3 static assets   | No                      |
 | `/figure-library/*`     | API Gateway origin | Yes                     |
+| `/figure-library/*.js`  | S3 static assets   | No                      |
+| `/sortering/eksempel*`  | S3 static assets   | Yes                     |
+| `/sortering*`           | S3 static assets   | Yes                     |
+| Default (`*`)           | S3 static assets   | No                      |
+
+The template declares the API-backed behaviours first so CloudFront assigns them
+the highest precedence. If the console ever shows the default `*` behaviour
+listed above `/api/*`, redeploy the stack (or manually move `/api/*` to the top)
+so API requests do not fall through to the S3 origin.
 
 Viewer request rewrites are handled by an attached CloudFront Function that
 normalises "friendly" app routes (for example `/tenkeblokker/eksempel1`) to
