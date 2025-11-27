@@ -275,6 +275,11 @@ jobs:
           set -euo pipefail
           bash scripts/cloudshell-seed-examples.sh --dataset=docs/examples-seed.json
 
+      - name: Recover static site stack from rollback failures
+        run: |
+          set -euo pipefail
+          bash scripts/helpers/recover-stack-from-rollback.sh "$STATIC_STACK_NAME"
+
       - name: Deploy static site stack
         run: |
           set -euo pipefail
