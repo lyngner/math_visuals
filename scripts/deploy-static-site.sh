@@ -57,6 +57,12 @@ if [[ -z "$API_GATEWAY_ORIGIN_PATH" ]]; then
   API_GATEWAY_ORIGIN_PATH=$(read_parameter "ApiGatewayOriginPath")
 fi
 
+# CloudFront requires origin paths to start with a leading '/'. Normalize
+# existing stack values so redeployments using older parameters succeed.
+if [[ -n "$API_GATEWAY_ORIGIN_PATH" && "${API_GATEWAY_ORIGIN_PATH:0:1}" != "/" ]]; then
+  API_GATEWAY_ORIGIN_PATH="/$API_GATEWAY_ORIGIN_PATH"
+fi
+
 if [[ -z "$CLOUDFRONT_PRICE_CLASS" ]]; then
   CLOUDFRONT_PRICE_CLASS=$(read_parameter "CloudFrontPriceClass")
 fi
