@@ -230,13 +230,13 @@ function parseSecretString(secretString) {
     const keys = ['authToken', 'password', 'secret', 'value', 'token'];
     for (const key of keys) {
       if (parsed[key]) {
-        return String(parsed[key]);
+        return String(parsed[key]).trim();
       }
     }
   } catch (_) {
-    return secretString;
+    return String(secretString).trim();
   }
-  return secretString;
+  return String(secretString).trim();
 }
 
 async function fetchSecretValue(identifier) {
