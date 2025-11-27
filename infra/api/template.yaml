@@ -181,6 +181,13 @@ Resources:
       RouteKey: ANY /api/figure-library/raw
       Target: !Sub integrations/${LambdaIntegration}
 
+  ApiRouteSettingsRoot:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: ANY /api/settings
+      Target: !Sub integrations/${LambdaIntegration}
+
   ApiRouteSvgProxy:
     Type: AWS::ApiGatewayV2::Route
     Properties:
