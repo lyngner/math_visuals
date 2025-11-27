@@ -98,7 +98,7 @@ Rollen må kunne opprette og oppdatere alle ressursene som beskrives i CloudForm
 * `s3:PutObject`, `s3:GetObject`, `s3:ListBucket` på bøtta som lagrer Lambda-artefakter og den statiske siden.
 * `secretsmanager:PutSecretValue`, `secretsmanager:GetSecretValue` på hemmeligheten som deles mellom stackene.
 * `ssm:PutParameter`, `ssm:GetParameter` på Parameter Store-verdiene for Redis og CORS.
-* `cloudfront:CreateInvalidation` på distribusjonen du ønsker å rydde i.
+* CloudFront-tilganger for både opprinnelseskontroller og den eldre origin access identity-ressursen: `cloudfront:CreateCloudFrontOriginAccessIdentity`, `cloudfront:DeleteCloudFrontOriginAccessIdentity`, `cloudfront:GetCloudFrontOriginAccessIdentity`, `cloudfront:GetCloudFrontOriginAccessIdentityConfig`, `cloudfront:ListCloudFrontOriginAccessIdentities`, `cloudfront:UpdateCloudFrontOriginAccessIdentity`, `cloudfront:CreateOriginAccessControl`, `cloudfront:DeleteOriginAccessControl`, `cloudfront:GetOriginAccessControl`, `cloudfront:GetOriginAccessControlConfig`, `cloudfront:ListOriginAccessControls`, `cloudfront:UpdateOriginAccessControl`, `cloudfront:GetDistribution`, `cloudfront:GetDistributionConfig`, `cloudfront:CreateDistribution`, `cloudfront:UpdateDistribution`, `cloudfront:ListDistributions`, `cloudfront:TagResource` og `cloudfront:CreateInvalidation`.
 * `iam:*` på ressursene som deklareres i malene (Lambda-rollen i `infra/api/template.yaml` og eventuelle CloudFront-oppsett).
 * `elasticache:CreateReplicationGroup`, `elasticache:ModifyReplicationGroup`, `elasticache:DescribeReplicationGroups`,
   `elasticache:DescribeCacheClusters`, `elasticache:CreateCacheSubnetGroup`, `elasticache:ModifyCacheSubnetGroup`,
