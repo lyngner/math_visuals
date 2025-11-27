@@ -35,7 +35,7 @@ jobs:
       API_STAGE_NAME: ${{ secrets.API_STAGE_NAME || 'prod' }}
       CLOUDFRONT_INVALIDATION_PATHS: ${{ github.event.inputs.cloudfront_invalidation_paths || secrets.CLOUDFRONT_INVALIDATION_PATHS || '/*' }}
       # Stack names and defaults
-      STATIC_STACK_NAME: math-visuals-static
+      STATIC_STACK_NAME: math-visuals-static-site
       API_STACK_NAME: math-visuals-api
       DATA_STACK_NAME: math-visuals-data
       DATA_ENVIRONMENT_NAME: prod
