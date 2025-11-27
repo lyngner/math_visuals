@@ -14,7 +14,7 @@ Parameters:
       a1b2c3d4.execute-api.us-east-1.amazonaws.com).
   ApiGatewayOriginPath:
     Type: String
-    Default: /prod
+    Default: ""
     AllowedPattern: '^$|^/.*$'
     ConstraintDescription: Origin paths must be blank or start with '/'.
     Description: Optional origin path appended to the API Gateway domain (e.g., /prod).
@@ -36,6 +36,9 @@ Parameters:
   SharedParametersStackName:
     Type: String
     Description: Name of the CloudFormation stack that exports shared parameter names.
+
+Conditions:
+  HasApiGatewayOriginPath: !Not [!Equals [!Ref ApiGatewayOriginPath, ""]]
 
 Resources:
   SiteBucket:
@@ -242,7 +245,7 @@ Resources:
               OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${SiteOriginAccessIdentity}'
           - Id: ApiGatewayOrigin
             DomainName: !Ref ApiGatewayDomainName
-            OriginPath: !Ref ApiGatewayOriginPath
+            OriginPath: !If [HasApiGatewayOriginPath, !Ref ApiGatewayOriginPath, !Ref "AWS::NoValue"]
             CustomOriginConfig:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols:

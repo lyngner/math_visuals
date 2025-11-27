@@ -209,9 +209,16 @@ jobs:
           endpoint = os.environ["API_ENDPOINT_URL"].rstrip("/")
           parsed = urlparse(endpoint)
           domain = parsed.netloc
-          path = parsed.path or "/"
-          if not path.startswith('/'):
+          path = parsed.path
+
+          if not path or path == "/":
+              path = ""
+          elif not path.startswith('/'):
               path = '/' + path
+
+          if path.endswith('/'):
+              path = path.rstrip('/')
+
           examples = endpoint.rstrip('/') + '/api/examples'
           print(f"API_GATEWAY_DOMAIN_NAME={domain}")
           print(f"API_GATEWAY_ORIGIN_PATH={path}")
@@ -301,8 +308,8 @@ jobs:
             echo "Fant ikke API-domene for CloudFront-oppsettet" >&2
             exit 1
           fi
-          if [ -z "$api_origin_path" ]; then
-            api_origin_path="/"
+          if [ -z "$api_origin_path" ] || [ "$api_origin_path" == "/" ]; then
+            api_origin_path=""
           fi
           aws cloudformation deploy \
             --stack-name "$STATIC_STACK_NAME" \
