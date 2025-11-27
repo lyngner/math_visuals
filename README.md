@@ -105,3 +105,30 @@ Se også den dedikerte veiledningen i [`docs/github-actions-setup.md`](docs/gith
 ## Drift og feilsøking
 
 Se [docs/redis-troubleshooting.md](docs/redis-troubleshooting.md) for Redis/Lambda 503- og WRONGPASS-feilsøking fra CloudShell.
+
+### CloudShell-sjekk av produksjons-backend
+
+Skriptet `scripts/cloudshell-prod-backend-check.sh` gjør en rask sanity check mot eksempeltjenesten i produksjon.
+
+Standardendepunktet er `https://d1vglpvtww9b2w.cloudfront.net/api/examples`, men du kan overstyre det med flagg eller miljøvariabel.
+
+```bash
+# Standard prod-sjekk
+./scripts/cloudshell-prod-backend-check.sh
+
+# Overstyr URL via flagg
+./scripts/cloudshell-prod-backend-check.sh --url https://<annet-endepunkt>/api/examples
+
+# Overstyr via miljøvariabel
+API_URL=https://<annet-endepunkt>/api/examples ./scripts/cloudshell-prod-backend-check.sh
+```
+
+Forventet output viser først HTTP-status fra en enkel curl-test, deretter resultatet fra `npm run check-examples-api`. Eksempel:
+
+```
+Kjører helsesjekk mot https://d1vglpvtww9b2w.cloudfront.net/api/examples ...
+✅ Endepunktet svarte med status 200. Kjører detaljert API-sjekk ...
+Sjekker https://d1vglpvtww9b2w.cloudfront.net/api/examples ...
+✅ Fikk 2 post(er). Lagres i varig lagring (KV).
+✅ Prod-backend ser frisk ut.
+```
