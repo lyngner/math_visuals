@@ -8,12 +8,16 @@ const DEFAULT_FIGURE_LIBRARY_ENDPOINT = '/api/figure-library';
 const REMOTE_LIBRARY_FALLBACK_CATEGORY_ID = 'remote-library';
 const REMOTE_LIBRARY_FALLBACK_CATEGORY_LABEL = 'Opplastede figurer';
 
+// The bundled figure data is shipped with the app and is therefore stable across reloads.
+// Treat the default (pre-fetch) metadata as persistent so we don't warn users about
+// temporary storage before we know the actual backend mode. Explicit metadata from
+// the API will override these values (e.g. to signal `memory`/`kv`).
 const defaultFigureLibraryMetadata = Object.freeze({
-  storageMode: 'memory',
-  storage: 'memory',
-  mode: 'memory',
-  persistent: false,
-  ephemeral: true,
+  storageMode: 'seed',
+  storage: 'seed',
+  mode: 'seed',
+  persistent: true,
+  ephemeral: false,
   limitation: ''
 });
 
