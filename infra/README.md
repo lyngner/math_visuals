@@ -132,3 +132,21 @@ rollen tilgang til `cognito-idp:DescribeUserPoolDomain` (eventuelt begrenset til
 det spesifikke brukerpoolet/domenet). Du kan bekrefte tilgangen fra AWS
 CloudShell ved å kjøre
 `scripts/cloudshell-check-cognito-domain.sh --domain=<cognito-domain>`.
+
+CloudFront-funksjonen som ruter frontend-banene deployes via
+`AWS::CloudFront::Function`. CloudFormation trenger da tillatelse til å hente
+eksisterende funksjonsversjoner med `cloudfront:GetFunction` når distribusjonen
+oppdateres. Hvis GitHub Actions-rollen mangler denne tillatelsen, ender stack-
+oppdateringen i rollback med feilmeldingen:
+
+```
+Access denied for operation 'AWS::CloudFront::Function: ... is not authorized
+to perform: cloudfront:GetFunction on resource: arn:aws:cloudfront::<account>:
+function/<name> because no identity-based policy allows the
+cloudfront:GetFunction action
+```
+
+Løsning: legg til en policy på GitHub Actions-rollen som gir
+`cloudfront:GetFunction` (eventuelt begrenset til funksjonen
+`math-visuals-static-site-viewer-router`). Når tilgangen er på plass vil neste
+deploy fullføre uten rollback.
