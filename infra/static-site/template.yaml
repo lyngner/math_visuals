@@ -48,15 +48,11 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
-  SiteOriginAccessControl:
-    Type: AWS::CloudFront::OriginAccessControl
+  SiteOriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
     Properties:
-      OriginAccessControlConfig:
-        Description: Access control for math visuals static assets bucket
-        Name: !Sub '${AWS::StackName}-s3-oac'
-        OriginAccessControlOriginType: s3
-        SigningBehavior: always
-        SigningProtocol: sigv4
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: Access identity for math visuals static assets bucket
 
   SiteBucketPolicy:
     Type: AWS::S3::BucketPolicy
@@ -65,16 +61,13 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Sid: AllowCloudFrontServicePrincipalReadOnly
+          - Sid: AllowCloudFrontOriginAccessIdentityReadOnly
             Effect: Allow
             Principal:
-              Service: cloudfront.amazonaws.com
+              CanonicalUser: !GetAtt SiteOriginAccessIdentity.S3CanonicalUserId
             Action:
               - s3:GetObject
             Resource: !Sub '${SiteBucket.Arn}/*'
-            Condition:
-              StringEquals:
-                AWS:SourceArn: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
 
   ApiOriginRequestPolicy:
     Type: AWS::CloudFront::OriginRequestPolicy
@@ -243,8 +236,8 @@ Resources:
         Origins:
           - Id: SiteBucketOrigin
             DomainName: !GetAtt SiteBucket.RegionalDomainName
-            S3OriginConfig: {}
-            OriginAccessControlId: !GetAtt SiteOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${SiteOriginAccessIdentity}'
           - Id: ApiGatewayOrigin
             DomainName: !Ref ApiGatewayDomainName
             OriginPath: !Ref ApiGatewayOriginPath
