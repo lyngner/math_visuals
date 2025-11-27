@@ -230,6 +230,15 @@ routed back to the API origin.
    `[{"id":"perlesnor","slug":"perlesnor","name":"Perlesnor"}, ...]`. The
    `/sortering/eksempel1` request should return a `200 OK` from the S3 origin.
 
+### Troubleshooting: empty example lists
+
+If the API returns data in CloudWatch but the frontend still shows an empty
+examples list, double-check that the `/api/*` behaviour forwards query strings
+to the API origin. In the CloudFront console, open **Behaviors**, select
+`/api/*`, and set **Origin request policy** to **Managed-AllViewer** (or another
+policy that forwards all query parameters). Save the change and wait a couple
+of minutes for the distribution to propagate before retrying the page.
+
 The outputs `ExamplesAllowedOriginsParameterName` and
 `SvgAllowedOriginsParameterName` mirror the shared stack so that deployment
 pipelines can retrieve the allow-list parameter names alongside the CloudFront
