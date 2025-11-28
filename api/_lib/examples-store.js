@@ -195,6 +195,9 @@ async function loadKvClient() {
   return loadRedisKvClient();
 }
 
+// Remove trailing segments that represent auto-generated example pages
+// (e.g. `/diagram/eksempel-1`). These should map to the canonical path so we
+// do not create a separate storage entry per example instance.
 function stripTrailingExampleSegment(path) {
   if (typeof path !== 'string') return path;
   const examplePattern = /^eksempel[-_]?\d+$/i;
@@ -720,6 +723,7 @@ async function deleteTrashEntries(ids) {
 
 module.exports = {
   normalizePath,
+  stripTrailingExampleSegment,
   getEntry,
   setEntry,
   deleteEntry,
