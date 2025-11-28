@@ -1200,6 +1200,18 @@
           </div>
         </header>
         <form class="categoryAddForm" data-add-category-form hidden>
+          <label>
+            <span>Kategorinavn</span>
+            <input
+              type="text"
+              class="categoryAddInput"
+              name="category-name"
+              placeholder="Skriv inn kategorinavn"
+              list="figure-category-suggestions"
+              data-add-category-input
+              autocomplete="off"
+            />
+          </label>
           <p class="categoryAddMessage" data-add-category-feedback hidden></p>
           <div class="categoryAddControls">
             <button type="submit" class="categoryAddSubmit">Legg til kategori</button>
