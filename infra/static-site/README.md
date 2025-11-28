@@ -73,6 +73,12 @@ API_GATEWAY_DOMAIN=$(aws cloudformation describe-stacks \
   --stack-name "$API_STACK_NAME" \
   --query 'Stacks[0].Outputs[?OutputKey==`ApiEndpoint`].OutputValue' \
   --output text | sed -E 's|https://([^/]+)/.*|\1|')
+
+# Validate the domain is an execute-api hostname without a protocol or path
+if [[ ! "$API_GATEWAY_DOMAIN" =~ ^[A-Za-z0-9.-]+\.execute-api\.[A-Za-z0-9-]+\.amazonaws\.com$ ]]; then
+  echo "Expected an execute-api host (got '$API_GATEWAY_DOMAIN')" >&2
+  exit 1
+fi
 ```
 
 ## Deploying the stack
