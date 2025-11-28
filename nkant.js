@@ -792,23 +792,69 @@ const STYLE_DEFAULTS = {
   constructionWidth: 3,
   constructionDash: "10 8"
 };
+function buildThemeStyleOverrides(theme, fallbacks = {}) {
+  const primaryStroke = resolveThemeColor(
+    theme,
+    "ui.primary",
+    fallbacks.edgeStroke || STYLE_DEFAULTS.edgeStroke
+  );
+  const angleStroke = resolveThemeColor(
+    theme,
+    "graphs.axis",
+    fallbacks.angStroke || primaryStroke || STYLE_DEFAULTS.angStroke
+  );
+  const faceFill = resolveThemeColor(
+    theme,
+    "ui.surface",
+    resolveThemeColor(theme, "ui.secondary", fallbacks.faceFill || STYLE_DEFAULTS.faceFill)
+  );
+  const textFill = resolveThemeColor(theme, "ui.primary", fallbacks.textFill || STYLE_DEFAULTS.textFill);
+  const constructionStroke = resolveThemeColor(
+    theme,
+    "dots.default",
+    fallbacks.constructionStroke || primaryStroke || STYLE_DEFAULTS.constructionStroke
+  );
+  const angFill = withAlphaColor(
+    angleStroke,
+    0.25,
+    withAlphaColor(fallbacks.angStroke || angleStroke, 0.25, STYLE_DEFAULTS.angFill)
+  );
+  return {
+    faceFill,
+    edgeStroke: primaryStroke,
+    radiusStroke: angleStroke,
+    angStroke: angleStroke,
+    angFill,
+    textFill,
+    textHalo: null,
+    textHaloW: 0,
+    constructionStroke,
+    constructionWidth: 3,
+    constructionDash: "10 8"
+  };
+}
 const STYLE_PROFILE_OVERRIDES = {
-  campus: theme => {
-    const campusBlue = resolveThemeColor(theme, "graphs.axis", "#2563eb");
-    return {
-      faceFill: "#ffffff",
-      edgeStroke: "#000000",
-      radiusStroke: campusBlue,
-      angStroke: campusBlue,
-      angFill: withAlphaColor(campusBlue, 0.25, "rgba(37, 99, 235, 0.25)"),
-      textFill: "#111827",
-      textHalo: null,
-      textHaloW: 0,
-      constructionStroke: "#6b7280",
-      constructionWidth: 3,
-      constructionDash: "10 8"
-    };
-  }
+  campus: theme => buildThemeStyleOverrides(theme, {
+    faceFill: "#ffffff",
+    edgeStroke: "#2C395B",
+    angStroke: "#1F4DE2",
+    textFill: "#111827",
+    constructionStroke: "#6b7280"
+  }),
+  kikora: theme => buildThemeStyleOverrides(theme, {
+    faceFill: "#FFE066",
+    edgeStroke: "#3A86FF",
+    angStroke: "#3A86FF",
+    textFill: "#111827",
+    constructionStroke: "#8338EC"
+  }),
+  annet: theme => buildThemeStyleOverrides(theme, {
+    faceFill: "#FCEDE4",
+    edgeStroke: "#355070",
+    angStroke: "#355070",
+    textFill: "#1F2937",
+    constructionStroke: "#577590"
+  })
 };
 
 const SETTINGS_FALLBACK_PALETTE = ["#1F4DE2", "#475569", "#ef4444", "#0ea5e9", "#10b981", "#f59e0b"];
@@ -1147,7 +1193,15 @@ function applyThemeToDocument() {
 function applyThemeStyles() {
   const theme = getThemeApi();
   const profileName = theme && typeof theme.getActiveProfileName === "function" ? theme.getActiveProfileName() : null;
-  const normalized = typeof profileName === "string" ? profileName.toLowerCase() : "";
+  const profileAttr = typeof document !== "undefined" && document.documentElement
+    ? document.documentElement.getAttribute("data-theme-profile")
+    : null;
+  const normalizedName = typeof profileName === "string" && profileName.trim()
+    ? profileName.trim().toLowerCase()
+    : typeof profileAttr === "string" && profileAttr.trim()
+      ? profileAttr.trim().toLowerCase()
+      : "";
+  const normalized = normalizedName;
   const overridesFactory = normalized && STYLE_PROFILE_OVERRIDES[normalized] ? STYLE_PROFILE_OVERRIDES[normalized] : null;
   Object.assign(STYLE, STYLE_DEFAULTS);
   const overrides = typeof overridesFactory === "function" ? overridesFactory(theme) : overridesFactory;
@@ -4698,6 +4752,23 @@ function scheduleThemeRefresh() {
   Promise.resolve().then(execute);
 }
 
+function observeThemeProfileAttribute() {
+  if (observeThemeProfileAttribute.started) return;
+  observeThemeProfileAttribute.started = true;
+  if (typeof MutationObserver === "undefined" || typeof document === "undefined") return;
+  const root = document.documentElement;
+  if (!root) return;
+  const observer = new MutationObserver(mutations => {
+    for (const mutation of mutations) {
+      if (mutation.type === "attributes" && mutation.attributeName === "data-theme-profile") {
+        scheduleThemeRefresh();
+        break;
+      }
+    }
+  });
+  observer.observe(root, { attributes: true, attributeFilter: ["data-theme-profile"] });
+}
+
 function handleThemeProfileChangeMessage(event) {
   const data = event && event.data;
   const type = typeof data === "string" ? data : data && data.type;
@@ -4714,6 +4785,8 @@ if (typeof window !== "undefined" && typeof window.addEventListener === "functio
   window.addEventListener("math-visuals:profile-change", handleThemeProfileChangeEvent);
   window.addEventListener("math-visuals:settings-changed", () => scheduleThemeRefresh());
 }
+
+observeThemeProfileAttribute();
 
 const settingsApi = getSettingsApi();
 if (settingsApi && typeof settingsApi.subscribe === "function") {
