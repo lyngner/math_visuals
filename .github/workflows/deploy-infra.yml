@@ -87,6 +87,11 @@ jobs:
             echo "LAMBDA_CODE_VERSION=$version_id" >> "$GITHUB_ENV"
           fi
 
+      - name: Recover data stack from ROLLBACK_COMPLETE
+        run: |
+          set -euo pipefail
+          bash scripts/helpers/delete-rollback-complete-stack.sh "$DATA_STACK_NAME"
+
       - name: Deploy data stack
         env:
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
