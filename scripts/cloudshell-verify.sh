@@ -532,10 +532,9 @@ if [[ "$TRACE" == true ]]; then
   CHECK_ARGS+=(--trace)
 fi
 CHECK_LOG=$(mktemp)
-set +e
-cloudshell_check_examples "${CHECK_ARGS[@]}" >"$CHECK_LOG" 2>&1
+CLOUDSHELL_STATUS=0
+( set +e; cloudshell_check_examples "${CHECK_ARGS[@]}" >"$CHECK_LOG" 2>&1 )
 CLOUDSHELL_STATUS=$?
-set -e
 cat "$CHECK_LOG"
 HELPER_STATUS=$CLOUDSHELL_STATUS
 if [[ "$CLOUDSHELL_STATUS" -ne 0 ]]; then
