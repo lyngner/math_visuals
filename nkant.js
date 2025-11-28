@@ -245,6 +245,7 @@ let renderedLabelMap = new Map();
 let btnToggleLabelEdit = null;
 let labelEditorControlsEl = null;
 let labelEditorActiveEl = null;
+let labelEditorListEl = null;
 let labelRotationInput = null;
 let labelRotationNumberInput = null;
 let btnResetLabel = null;
@@ -1441,9 +1442,13 @@ function applyLabelAdjustment(key) {
   }
   if (LABEL_EDITOR_STATE.enabled) {
     element.classList.add('label-draggable');
+    element.setAttribute('tabindex', '0');
+    element.setAttribute('role', 'button');
   } else {
     element.classList.remove('label-draggable');
     element.classList.remove('label-selected');
+    element.removeAttribute('tabindex');
+    element.removeAttribute('role');
   }
 }
 
@@ -1459,6 +1464,15 @@ function registerRenderedLabel(key, element, baseX, baseY, baseRotation = 0) {
   element.dataset.baseX = String(baseX);
   element.dataset.baseY = String(baseY);
   element.dataset.baseRotation = String(baseRotation || 0);
+  if (!element.__labelEditorBound) {
+    element.addEventListener('focus', () => {
+      if (LABEL_EDITOR_STATE.enabled) {
+        selectLabel(key);
+      }
+    });
+    element.addEventListener('keydown', evt => handleLabelKeyDown(evt, key));
+    element.__labelEditorBound = true;
+  }
   applyLabelAdjustment(key);
 }
 
@@ -1511,6 +1525,17 @@ function updateLabelEditorUI() {
   const rotation = canEditSelected ? getLabelAdjustment(LABEL_EDITOR_STATE.selectedKey).rotation : 0;
   if (labelRotationInput) labelRotationInput.disabled = !canEditSelected;
   if (labelRotationNumberInput) labelRotationNumberInput.disabled = !canEditSelected;
+  if (labelEditorListEl) {
+    labelEditorListEl.innerHTML = '';
+    renderedLabelMap.forEach((entry, key) => {
+      const option = document.createElement('option');
+      option.value = key;
+      option.textContent = (entry.element.textContent || entry.element.getAttribute('aria-label') || key).trim();
+      option.selected = key === LABEL_EDITOR_STATE.selectedKey;
+      labelEditorListEl.appendChild(option);
+    });
+    labelEditorListEl.disabled = !LABEL_EDITOR_STATE.enabled || !renderedLabelMap.size;
+  }
   syncRotationInputs(rotation);
   updateLabelHighlights();
 }
@@ -1594,6 +1619,47 @@ function handleLabelPointerUp(evt) {
   const drag = LABEL_EDITOR_STATE.drag;
   if (drag && drag.pointerId === evt.pointerId) {
     LABEL_EDITOR_STATE.drag = null;
+  }
+}
+
+function getLabelKeyboardStep(evt) {
+  if (evt.shiftKey) return 10;
+  if (evt.altKey || evt.metaKey) return 0.5;
+  return 1;
+}
+
+function handleLabelKeyDown(evt, key) {
+  if (!LABEL_EDITOR_STATE.enabled || !key) return;
+  if (key !== LABEL_EDITOR_STATE.selectedKey) {
+    selectLabel(key);
+  }
+  const adjustment = getLabelAdjustment(key);
+  let handled = false;
+  const step = getLabelKeyboardStep(evt);
+  if (evt.key === 'ArrowUp') {
+    setLabelAdjustment(key, { dy: adjustment.dy - step });
+    handled = true;
+  } else if (evt.key === 'ArrowDown') {
+    setLabelAdjustment(key, { dy: adjustment.dy + step });
+    handled = true;
+  } else if (evt.key === 'ArrowLeft') {
+    setLabelAdjustment(key, { dx: adjustment.dx - step });
+    handled = true;
+  } else if (evt.key === 'ArrowRight') {
+    setLabelAdjustment(key, { dx: adjustment.dx + step });
+    handled = true;
+  } else if (evt.key === '[' || evt.key === '-' || evt.key === '–') {
+    const rotationStep = evt.shiftKey ? 10 : 2;
+    setLabelAdjustment(key, { rotation: adjustment.rotation - rotationStep });
+    handled = true;
+  } else if (evt.key === ']' || evt.key === '+' || evt.key === '=') {
+    const rotationStep = evt.shiftKey ? 10 : 2;
+    setLabelAdjustment(key, { rotation: adjustment.rotation + rotationStep });
+    handled = true;
+  }
+  if (handled) {
+    evt.preventDefault();
+    selectLabel(key);
   }
 }
 
@@ -5134,6 +5200,7 @@ function bindUI() {
   btnToggleLabelEdit = $("#btnToggleLabelEdit");
   labelEditorControlsEl = $("#labelEditorControls");
   labelEditorActiveEl = $("#labelEditorActive");
+  labelEditorListEl = $("#labelEditorList");
   labelRotationInput = $("#labelRotation");
   labelRotationNumberInput = $("#labelRotationNumber");
   btnResetLabel = $("#btnResetLabelPosition");
@@ -5322,6 +5389,30 @@ function bindUI() {
   if (btnToggleLabelEdit) {
     btnToggleLabelEdit.addEventListener("click", () => {
       setLabelEditingEnabled(!LABEL_EDITOR_STATE.enabled);
+    });
+  }
+  if (labelEditorListEl) {
+    labelEditorListEl.addEventListener('change', () => {
+      const key = labelEditorListEl.value;
+      if (key) {
+        selectLabel(key);
+        const entry = getRenderedLabelEntry(key);
+        if (entry && entry.element && typeof entry.element.focus === 'function') {
+          entry.element.focus();
+        }
+      }
+    });
+    labelEditorListEl.addEventListener('keydown', evt => {
+      if (evt.key === 'Tab' && LABEL_EDITOR_STATE.enabled && renderedLabelMap.size) {
+        const keys = Array.from(renderedLabelMap.keys());
+        const currentIndex = keys.indexOf(LABEL_EDITOR_STATE.selectedKey);
+        const delta = evt.shiftKey ? -1 : 1;
+        const nextIndex = ((currentIndex >= 0 ? currentIndex : 0) + delta + keys.length) % keys.length;
+        const nextKey = keys[nextIndex];
+        selectLabel(nextKey);
+        labelEditorListEl.value = nextKey;
+        evt.preventDefault();
+      }
     });
   }
   if (labelRotationInput) {
