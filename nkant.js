@@ -186,7 +186,8 @@ const STATE = {
   },
   layout: "row", // "row" | "col"
   altText: "",
-  altTextSource: "auto"
+  altTextSource: "auto",
+  labelAdjustments: {}
 };
 const DEFAULT_STATE = JSON.parse(JSON.stringify(STATE));
 
@@ -235,6 +236,21 @@ let lastRenderSummary = {
   count: 0,
   jobs: []
 };
+const LABEL_EDITOR_STATE = {
+  enabled: false,
+  selectedKey: null,
+  drag: null
+};
+let renderedLabelMap = new Map();
+let btnToggleLabelEdit = null;
+let btnToggleLabelEditFloating = null;
+let labelEditorControlsEl = null;
+let labelEditorActiveEl = null;
+let labelRotationInput = null;
+let labelRotationNumberInput = null;
+let btnResetLabel = null;
+let btnResetAllLabels = null;
+let labelEditorSyncingRotation = false;
 const nkantNumberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 2
@@ -1357,6 +1373,251 @@ function addHaloText(parent, x, y, txt, fontSizePx, extraAttrs = {}) {
   t.textContent = txt;
   return t;
 }
+
+function labelKey(labelCtx, type, id) {
+  const prefix = labelCtx && typeof labelCtx.prefix === 'string' ? labelCtx.prefix : null;
+  const typePart = type ? String(type) : '';
+  const idPart = typeof id === 'string' || typeof id === 'number' ? id : '';
+  if (!prefix) return null;
+  return [prefix, typePart, idPart].filter(Boolean).join(':');
+}
+
+function resetRenderedLabelMap() {
+  renderedLabelMap = new Map();
+  LABEL_EDITOR_STATE.drag = null;
+}
+
+function getLabelAdjustment(key) {
+  if (!key) return { dx: 0, dy: 0, rotation: 0 };
+  const stored = STATE.labelAdjustments && STATE.labelAdjustments[key];
+  if (!stored || typeof stored !== 'object') return { dx: 0, dy: 0, rotation: 0 };
+  const parse = value => (Number.isFinite(value) ? value : 0);
+  return {
+    dx: parse(stored.dx),
+    dy: parse(stored.dy),
+    rotation: parse(stored.rotation)
+  };
+}
+
+function setLabelAdjustment(key, adjustment) {
+  if (!key) return;
+  const current = getLabelAdjustment(key);
+  const next = {
+    dx: Number.isFinite(adjustment.dx) ? adjustment.dx : current.dx,
+    dy: Number.isFinite(adjustment.dy) ? adjustment.dy : current.dy,
+    rotation: Number.isFinite(adjustment.rotation) ? adjustment.rotation : current.rotation
+  };
+  STATE.labelAdjustments = {
+    ...STATE.labelAdjustments,
+    [key]: next
+  };
+  applyLabelAdjustment(key);
+}
+
+function clearLabelAdjustment(key) {
+  if (!key) return;
+  if (STATE.labelAdjustments && Object.prototype.hasOwnProperty.call(STATE.labelAdjustments, key)) {
+    const { [key]: _, ...rest } = STATE.labelAdjustments;
+    STATE.labelAdjustments = rest;
+  }
+  applyLabelAdjustment(key);
+}
+
+function applyLabelAdjustment(key) {
+  if (!key) return;
+  const entry = renderedLabelMap.get(key);
+  if (!entry) return;
+  const { element, baseX, baseY, baseRotation } = entry;
+  const adjustment = getLabelAdjustment(key);
+  const finalX = baseX + adjustment.dx;
+  const finalY = baseY + adjustment.dy;
+  const finalRotation = (baseRotation || 0) + adjustment.rotation;
+  element.setAttribute('x', finalX);
+  element.setAttribute('y', finalY);
+  if (finalRotation) {
+    element.setAttribute('transform', `rotate(${finalRotation}, ${finalX}, ${finalY})`);
+  } else {
+    element.removeAttribute('transform');
+  }
+  if (LABEL_EDITOR_STATE.enabled) {
+    element.classList.add('label-draggable');
+  } else {
+    element.classList.remove('label-draggable');
+    element.classList.remove('label-selected');
+  }
+}
+
+function registerRenderedLabel(key, element, baseX, baseY, baseRotation = 0) {
+  if (!key) return;
+  renderedLabelMap.set(key, {
+    element,
+    baseX,
+    baseY,
+    baseRotation: baseRotation || 0
+  });
+  element.dataset.labelKey = key;
+  element.dataset.baseX = String(baseX);
+  element.dataset.baseY = String(baseY);
+  element.dataset.baseRotation = String(baseRotation || 0);
+  applyLabelAdjustment(key);
+}
+
+function placeAdjustableLabel(parent, key, x, y, txt, fontSizePx, extraAttrs = {}, baseRotation = 0) {
+  const attrs = { ...extraAttrs };
+  if (key) attrs['data-label-key'] = key;
+  const t = addHaloText(parent, x, y, txt, fontSizePx, attrs);
+  registerRenderedLabel(key, t, x, y, baseRotation);
+  return t;
+}
+
+/* ---------- LABEL EDITOR (UI) ---------- */
+function getRenderedLabelEntry(key) {
+  if (!key) return null;
+  return renderedLabelMap.get(key) || null;
+}
+
+function updateLabelHighlights() {
+  renderedLabelMap.forEach((entry, key) => {
+    const isSelected = LABEL_EDITOR_STATE.enabled && key === LABEL_EDITOR_STATE.selectedKey;
+    entry.element.classList.toggle('label-draggable', LABEL_EDITOR_STATE.enabled);
+    entry.element.classList.toggle('label-selected', isSelected);
+  });
+}
+
+function syncRotationInputs(value) {
+  labelEditorSyncingRotation = true;
+  if (labelRotationInput) {
+    labelRotationInput.value = String(Number.isFinite(value) ? value : 0);
+  }
+  if (labelRotationNumberInput) {
+    labelRotationNumberInput.value = String(Math.round(Number.isFinite(value) ? value : 0));
+  }
+  labelEditorSyncingRotation = false;
+}
+
+function updateLabelEditorUI() {
+  const toggleText = LABEL_EDITOR_STATE.enabled ? 'Ferdig med etiketter' : 'Rediger etiketter';
+  if (btnToggleLabelEdit) {
+    btnToggleLabelEdit.textContent = toggleText;
+  }
+  if (btnToggleLabelEditFloating) {
+    btnToggleLabelEditFloating.textContent = toggleText;
+    btnToggleLabelEditFloating.classList.toggle('active', LABEL_EDITOR_STATE.enabled);
+  }
+  if (labelEditorControlsEl) {
+    labelEditorControlsEl.hidden = !LABEL_EDITOR_STATE.enabled;
+  }
+  const selectedEntry = LABEL_EDITOR_STATE.selectedKey ? getRenderedLabelEntry(LABEL_EDITOR_STATE.selectedKey) : null;
+  const canEditSelected = LABEL_EDITOR_STATE.enabled && Boolean(selectedEntry);
+  const activeLabelText = selectedEntry ? (selectedEntry.element.textContent || selectedEntry.element.getAttribute('aria-label') || 'Valgt etikett') : 'Ingen valgt';
+  if (labelEditorActiveEl) {
+    labelEditorActiveEl.textContent = activeLabelText.trim();
+  }
+  const rotation = canEditSelected ? getLabelAdjustment(LABEL_EDITOR_STATE.selectedKey).rotation : 0;
+  if (labelRotationInput) labelRotationInput.disabled = !canEditSelected;
+  if (labelRotationNumberInput) labelRotationNumberInput.disabled = !canEditSelected;
+  syncRotationInputs(rotation);
+  updateLabelHighlights();
+}
+
+function setLabelEditingEnabled(enabled) {
+  LABEL_EDITOR_STATE.enabled = Boolean(enabled);
+  LABEL_EDITOR_STATE.drag = null;
+  renderedLabelMap.forEach((_, key) => applyLabelAdjustment(key));
+  updateLabelEditorUI();
+}
+
+function selectLabel(key) {
+  if (!key || !renderedLabelMap.has(key)) {
+    LABEL_EDITOR_STATE.selectedKey = null;
+  } else {
+    LABEL_EDITOR_STATE.selectedKey = key;
+  }
+  updateLabelEditorUI();
+}
+
+function resetSelectedLabelAdjustment() {
+  if (!LABEL_EDITOR_STATE.selectedKey) return;
+  clearLabelAdjustment(LABEL_EDITOR_STATE.selectedKey);
+  selectLabel(LABEL_EDITOR_STATE.selectedKey);
+}
+
+function resetAllLabelAdjustments() {
+  STATE.labelAdjustments = {};
+  renderedLabelMap.forEach((_, key) => applyLabelAdjustment(key));
+  selectLabel(null);
+}
+
+function pointerEventToSvgPoint(evt) {
+  const svg = document.getElementById('paper');
+  if (!svg || typeof svg.createSVGPoint !== 'function') return null;
+  const pt = svg.createSVGPoint();
+  pt.x = evt.clientX;
+  pt.y = evt.clientY;
+  const ctm = svg.getScreenCTM();
+  if (!ctm || typeof ctm.inverse !== 'function') return null;
+  const res = pt.matrixTransform(ctm.inverse());
+  return { x: res.x, y: res.y };
+}
+
+function handleLabelPointerDown(evt) {
+  if (!LABEL_EDITOR_STATE.enabled) return;
+  const target = evt.target && evt.target.closest ? evt.target.closest('[data-label-key]') : null;
+  if (!target) return;
+  const key = target.dataset.labelKey;
+  const entry = getRenderedLabelEntry(key);
+  if (!entry) return;
+  const start = pointerEventToSvgPoint(evt);
+  if (!start) return;
+  evt.preventDefault();
+  const adjustment = getLabelAdjustment(key);
+  LABEL_EDITOR_STATE.drag = {
+    key,
+    pointerId: evt.pointerId,
+    start,
+    startDx: adjustment.dx,
+    startDy: adjustment.dy
+  };
+  selectLabel(key);
+  if (target.setPointerCapture) {
+    target.setPointerCapture(evt.pointerId);
+  }
+}
+
+function handleLabelPointerMove(evt) {
+  const drag = LABEL_EDITOR_STATE.drag;
+  if (!LABEL_EDITOR_STATE.enabled || !drag || drag.pointerId !== evt.pointerId) return;
+  const pos = pointerEventToSvgPoint(evt);
+  if (!pos) return;
+  const dx = drag.startDx + (pos.x - drag.start.x);
+  const dy = drag.startDy + (pos.y - drag.start.y);
+  setLabelAdjustment(drag.key, { dx, dy });
+  selectLabel(drag.key);
+}
+
+function handleLabelPointerUp(evt) {
+  const drag = LABEL_EDITOR_STATE.drag;
+  if (drag && drag.pointerId === evt.pointerId) {
+    LABEL_EDITOR_STATE.drag = null;
+  }
+}
+
+function initLabelEditorInteractions() {
+  const svg = document.getElementById('paper');
+  if (!svg || initLabelEditorInteractions.bound) return;
+  svg.addEventListener('pointerdown', handleLabelPointerDown);
+  window.addEventListener('pointermove', handleLabelPointerMove);
+  window.addEventListener('pointerup', handleLabelPointerUp);
+  initLabelEditorInteractions.bound = true;
+}
+
+function syncLabelEditorAfterRender() {
+  if (LABEL_EDITOR_STATE.selectedKey && !renderedLabelMap.has(LABEL_EDITOR_STATE.selectedKey)) {
+    LABEL_EDITOR_STATE.selectedKey = null;
+  }
+  renderedLabelMap.forEach((_, key) => applyLabelAdjustment(key));
+  updateLabelEditorUI();
+}
 function drawConstructionLine(g, P, Q) {
   add(g, "line", {
     x1: P.x,
@@ -1600,6 +1861,7 @@ function renderDecorations(g, points, decorations, options = {}) {
   const skipHeights = options && options.skipHeights instanceof Set ? options.skipHeights : null;
   const pointOrder = options && Array.isArray(options.pointOrder) ? options.pointOrder : null;
   const baseCentroid = options && options.centroid ? options.centroid : centroidFromPointMap(points, pointOrder);
+  const labelCtx = options && options.labelCtx;
   decorations.forEach(dec => {
     if (!dec || typeof dec !== 'object') return;
     if (dec.type === 'diagonal') {
@@ -1711,7 +1973,7 @@ function renderDecorations(g, points, decorations, options = {}) {
           x: center.x + normal.x * arcRadius * 0.55,
           y: center.y + normal.y * arcRadius * 0.55
         };
-        addHaloText(g, labelPoint.x, labelPoint.y, radiusText, STYLE.sideFS, {
+        placeAdjustableLabel(g, labelKey(labelCtx, 'semicircle', `${key}-radius`), labelPoint.x, labelPoint.y, radiusText, STYLE.sideFS, {
           'text-anchor': 'middle',
           'dominant-baseline': 'middle'
         });
@@ -1726,7 +1988,7 @@ function renderDecorations(g, points, decorations, options = {}) {
           x: center.x + inward.x * Math.min(arcRadius * 0.6, 40),
           y: center.y + inward.y * Math.min(arcRadius * 0.6, 40)
         };
-        addHaloText(g, diameterPoint.x, diameterPoint.y, diameterText, STYLE.sideFS, {
+        placeAdjustableLabel(g, labelKey(labelCtx, 'semicircle', `${key}-diameter`), diameterPoint.x, diameterPoint.y, diameterText, STYLE.sideFS, {
           'text-anchor': 'middle',
           'dominant-baseline': 'middle'
         });
@@ -2961,6 +3223,7 @@ function rightAngleSizeFromSegments(baseLen, altLen) {
 
 /* ---------- VINKELTEGNING + PLASSERING (NY) ---------- */
 function renderAngle(g, Q, P, R, r, opts) {
+  opts = opts || {};
   const aDeg = angleAt(Q, P, R);
   const isRight = Math.abs(aDeg - 90) < 0.5;
 
@@ -3058,7 +3321,7 @@ function renderAngle(g, Q, P, R, r, opts) {
       x: Q.x + bis.x * (insideK * r),
       y: Q.y + bis.y * (insideK * r)
     };
-    addHaloText(g, Ti.x, Ti.y, opts.angleText, STYLE.angFS, {
+    placeAdjustableLabel(g, opts.angleKey, Ti.x, Ti.y, opts.angleText, STYLE.angFS, {
       "text-anchor": "middle",
       "dominant-baseline": "middle"
     });
@@ -3075,7 +3338,7 @@ function renderAngle(g, Q, P, R, r, opts) {
       x: Q.x + nBis.x * outLen,
       y: Q.y + nBis.y * outLen
     };
-    addHaloText(g, To.x, To.y, opts.pointLabel, STYLE.ptFS, {
+    placeAdjustableLabel(g, opts.pointKey, To.x, To.y, opts.pointLabel, STYLE.ptFS, {
       "text-anchor": "middle",
       "dominant-baseline": "middle"
     });
@@ -3083,7 +3346,7 @@ function renderAngle(g, Q, P, R, r, opts) {
 }
 
 /* ---------- TEKST FOR SIDER ---------- */
-function sideLabelText(g, P, Q, text, rotate, centroid, offset = 14) {
+function sideLabelText(g, P, Q, text, rotate, centroid, offset = 14, labelKey = null) {
   if (!text) return;
   const M = {
     x: (P.x + Q.x) / 2,
@@ -3099,15 +3362,19 @@ function sideLabelText(g, P, Q, text, rotate, centroid, offset = 14) {
   const adj = Math.max(offset, Math.min(22, dist(P, Q) * 0.18));
   const x = M.x + sgn * adj * nx / nlen;
   const y = M.y + sgn * adj * ny / nlen;
-  const t = addHaloText(g, x, y, text, STYLE.sideFS, {
-    "text-anchor": "middle",
-    "dominant-baseline": "middle"
-  });
+  let baseRotation = 0;
   if (rotate) {
     let theta = Math.atan2(vy, vx) * 180 / Math.PI;
     if (theta > 90) theta -= 180;
     if (theta < -90) theta += 180;
-    t.setAttribute("transform", `rotate(${theta}, ${x}, ${y})`);
+    baseRotation = theta;
+  }
+  const t = placeAdjustableLabel(g, labelKey, x, y, text, STYLE.sideFS, {
+    "text-anchor": "middle",
+    "dominant-baseline": "middle"
+  }, baseRotation);
+  if (rotate && baseRotation) {
+    t.setAttribute("transform", `rotate(${baseRotation}, ${x}, ${y})`);
   }
 }
 
@@ -3138,7 +3405,7 @@ function errorBox(g, rect, msg) {
     "font-size": 16
   }).textContent = msg;
 }
-function drawTriangleToGroup(g, rect, spec, adv, decorations) {
+function drawTriangleToGroup(g, rect, spec, adv, decorations, labelCtx) {
   var _Cs$1$y, _Cs$, _m$a, _m$b, _m$c, _m$d, _am$A, _am$B, _am$C, _am$D;
   const s = typeof spec === 'string' ? parseSpec(spec) : spec;
   const sol = solveTriangle(s);
@@ -3230,13 +3497,13 @@ function drawTriangleToGroup(g, rect, spec, adv, decorations) {
     // sider
     const m = adv.sides.mode,
       st = adv.sides.text;
-    sideLabelText(g, B, C, buildSideText((_m$a = m.a) !== null && _m$a !== void 0 ? _m$a : m.default, fmt(sol.a), st.a), true, ctr);
-    sideLabelText(g, C, A, buildSideText((_m$b = m.b) !== null && _m$b !== void 0 ? _m$b : m.default, fmt(sol.b), st.b), true, ctr);
-    sideLabelText(g, A, B, buildSideText((_m$c = m.c) !== null && _m$c !== void 0 ? _m$c : m.default, fmt(sol.c), st.c), true, ctr);
+    sideLabelText(g, B, C, buildSideText((_m$a = m.a) !== null && _m$a !== void 0 ? _m$a : m.default, fmt(sol.a), st.a), true, ctr, 14, labelKey(labelCtx, 'side', 'a'));
+    sideLabelText(g, C, A, buildSideText((_m$b = m.b) !== null && _m$b !== void 0 ? _m$b : m.default, fmt(sol.b), st.b), true, ctr, 14, labelKey(labelCtx, 'side', 'b'));
+    sideLabelText(g, A, B, buildSideText((_m$c = m.c) !== null && _m$c !== void 0 ? _m$c : m.default, fmt(sol.c), st.c), true, ctr, 14, labelKey(labelCtx, 'side', 'c'));
     if (activeHeight && heightLength !== null) {
       const heightText = buildSideText((_m$d = m.d) !== null && _m$d !== void 0 ? _m$d : m.default, fmt(heightLength), st.d);
       if (heightText) {
-        sideLabelText(g, activeHeight.vertex, heightPoint, heightText, true, ctr, 12);
+        sideLabelText(g, activeHeight.vertex, heightPoint, heightText, true, ctr, 12, labelKey(labelCtx, 'side', 'd'));
       }
     }
 
@@ -3253,23 +3520,31 @@ function drawTriangleToGroup(g, rect, spec, adv, decorations) {
       renderAngle(g, heightPoint, baseForAngle, activeHeight.vertex, angleRadius(heightPoint, baseForAngle, activeHeight.vertex), {
         mark: heightAngleMode.mark,
         angleText: heightAngleMode.angleText,
-        pointLabel: heightAngleMode.pointLabel
+        pointLabel: heightAngleMode.pointLabel,
+        angleKey: labelKey(labelCtx, 'angle', 'D'),
+        pointKey: labelKey(labelCtx, 'point', heightTag || 'D')
       });
     }
     renderAngle(g, A, B, C, angleRadius(A, B, C), {
       mark: Ares.mark,
       angleText: Ares.angleText,
-      pointLabel: Ares.pointLabel
+      pointLabel: Ares.pointLabel,
+      angleKey: labelKey(labelCtx, 'angle', 'A'),
+      pointKey: labelKey(labelCtx, 'point', 'A')
     });
     renderAngle(g, B, C, A, angleRadius(B, C, A), {
       mark: Bres.mark,
       angleText: Bres.angleText,
-      pointLabel: Bres.pointLabel
+      pointLabel: Bres.pointLabel,
+      angleKey: labelKey(labelCtx, 'angle', 'B'),
+      pointKey: labelKey(labelCtx, 'point', 'B')
     });
     renderAngle(g, C, A, B, angleRadius(C, A, B), {
       mark: Cres.mark,
       angleText: Cres.angleText,
-      pointLabel: Cres.pointLabel
+      pointLabel: Cres.pointLabel,
+      angleKey: labelKey(labelCtx, 'angle', 'C'),
+      pointKey: labelKey(labelCtx, 'point', 'C')
     });
     add(g, "polygon", {
       points: ptsTo(poly),
@@ -3283,7 +3558,8 @@ function drawTriangleToGroup(g, rect, spec, adv, decorations) {
     renderDecorations(g, pointsMap, decorations, {
       skipHeights,
       centroid: ctr,
-      pointOrder: ['A', 'B', 'C']
+      pointOrder: ['A', 'B', 'C'],
+      labelCtx
     });
     const summary = cloneJobForSummary({
       type: 'tri',
@@ -3433,7 +3709,7 @@ function pickSharedSideForDoubleTriangle(firstSol, secondSol, firstSpec, secondS
   return combos[0];
 }
 
-function drawDoubleTriangleToGroup(g, rect, spec, adv, decorations) {
+function drawDoubleTriangleToGroup(g, rect, spec, adv, decorations, labelCtx) {
   const sharedSpec = spec && spec.shared ? { ...spec.shared } : { label: '', value: null, requested: false };
   const firstSpec = spec && spec.first ? spec.first : {};
   const secondSpec = spec && spec.second ? spec.second : {};
@@ -3533,12 +3809,19 @@ function drawDoubleTriangleToGroup(g, rect, spec, adv, decorations) {
     const centroidTop = polygonCentroid(topPoly);
     const centroidBottom = polygonCentroid(bottomPoly);
     const sharedLabel = typeof sharedSpec.label === 'string' ? sharedSpec.label.trim() : '';
+    const topSideKey = key => labelKey(labelCtx, 'tri1-side', key);
+    const bottomSideKey = key => labelKey(labelCtx, 'tri2-side', key);
+    const sharedSideKey = key => labelKey(labelCtx, 'shared-side', key);
+    const topAngleKey = key => labelKey(labelCtx, 'tri1-angle', key);
+    const bottomAngleKey = key => labelKey(labelCtx, 'tri2-angle', key);
+    const topPointKey = key => labelKey(labelCtx, 'tri1-point', key);
+    const bottomPointKey = key => labelKey(labelCtx, 'tri2-point', key);
     const baseMode = advSides.mode && advSides.mode.c ? advSides.mode.c : advSides.mode && advSides.mode.default;
     const baseCustom = advSides.text && typeof advSides.text.c === 'string' && advSides.text.c.trim() ? advSides.text.c : (sharedLabel || 'c');
     const baseValueStr = fmt(firstSol.c);
     const baseText = buildSideText(baseMode, baseValueStr, baseCustom);
     if (baseText) {
-      sideLabelText(g, A, B, baseText, true, centroidTop, 24);
+      sideLabelText(g, A, B, baseText, true, centroidTop, 24, sharedSideKey('c'));
     }
     const sideMode = key => advSides.mode && advSides.mode[key] ? advSides.mode[key] : advSides.mode && advSides.mode.default;
     const sideText = (key, fallback) => {
@@ -3549,15 +3832,15 @@ function drawDoubleTriangleToGroup(g, rect, spec, adv, decorations) {
     const topAVal = fmt(firstSol.a);
     const topBVal = fmt(firstSol.b);
     const topAText = buildSideText(sideMode('a'), topAVal, sideText('a', 'a'));
-    if (topAText) sideLabelText(g, B, C, topAText, true, centroidTop);
+    if (topAText) sideLabelText(g, B, C, topAText, true, centroidTop, 14, topSideKey('a'));
     const topBText = buildSideText(sideMode('b'), topBVal, sideText('b', 'b'));
-    if (topBText) sideLabelText(g, A, C, topBText, true, centroidTop);
+    if (topBText) sideLabelText(g, A, C, topBText, true, centroidTop, 14, topSideKey('b'));
     const bottomAVal = fmt(secondSol.a);
     const bottomBVal = fmt(secondSol.b);
     const bottomAText = buildSideText(sideMode('d'), bottomAVal, sideText('d', 'a₂'));
-    if (bottomAText) sideLabelText(g, B, D, bottomAText, true, centroidBottom);
+    if (bottomAText) sideLabelText(g, B, D, bottomAText, true, centroidBottom, 14, bottomSideKey('a'));
     const bottomBText = buildSideText(sideMode('e'), bottomBVal, sideText('e', 'b₂'));
-    if (bottomBText) sideLabelText(g, A, D, bottomBText, true, centroidBottom);
+    if (bottomBText) sideLabelText(g, A, D, bottomBText, true, centroidBottom, 14, bottomSideKey('b'));
     const angleMode = key => advAngles.mode && advAngles.mode[key] ? advAngles.mode[key] : advAngles.mode && advAngles.mode.default;
     const angleText = key => advAngles.text && advAngles.text[key];
     const AresTop = parseAnglePointMode(angleMode('A'), firstSol.A, angleText('A'), 'A');
@@ -3566,17 +3849,23 @@ function drawDoubleTriangleToGroup(g, rect, spec, adv, decorations) {
     renderAngle(g, B, A, C, angleRadius(B, A, C), {
       mark: AresTop.mark,
       angleText: AresTop.angleText,
-      pointLabel: AresTop.pointLabel
+      pointLabel: AresTop.pointLabel,
+      angleKey: topAngleKey('A'),
+      pointKey: topPointKey('A')
     });
     renderAngle(g, A, B, C, angleRadius(A, B, C), {
       mark: BresTop.mark,
       angleText: BresTop.angleText,
-      pointLabel: BresTop.pointLabel
+      pointLabel: BresTop.pointLabel,
+      angleKey: topAngleKey('B'),
+      pointKey: topPointKey('B')
     });
     renderAngle(g, A, C, B, angleRadius(A, C, B), {
       mark: CresTop.mark,
       angleText: CresTop.angleText,
-      pointLabel: CresTop.pointLabel
+      pointLabel: CresTop.pointLabel,
+      angleKey: topAngleKey('C'),
+      pointKey: topPointKey('C')
     });
     const AresBottom = parseAnglePointMode(angleMode('A'), secondSol.A, angleText('A'), 'A');
     const BresBottom = parseAnglePointMode(angleMode('B'), secondSol.B, angleText('B'), 'B');
@@ -3584,24 +3873,31 @@ function drawDoubleTriangleToGroup(g, rect, spec, adv, decorations) {
     renderAngle(g, B, A, D, angleRadius(B, A, D), {
       mark: AresBottom.mark,
       angleText: AresBottom.angleText,
-      pointLabel: AresBottom.pointLabel
+      pointLabel: AresBottom.pointLabel,
+      angleKey: bottomAngleKey('A'),
+      pointKey: bottomPointKey('A')
     });
     renderAngle(g, A, B, D, angleRadius(A, B, D), {
       mark: BresBottom.mark,
       angleText: BresBottom.angleText,
-      pointLabel: BresBottom.pointLabel
+      pointLabel: BresBottom.pointLabel,
+      angleKey: bottomAngleKey('B'),
+      pointKey: bottomPointKey('B')
     });
     renderAngle(g, A, D, B, angleRadius(A, D, B), {
       mark: DresBottom.mark,
       angleText: DresBottom.angleText,
-      pointLabel: DresBottom.pointLabel
+      pointLabel: DresBottom.pointLabel,
+      angleKey: bottomAngleKey('D'),
+      pointKey: bottomPointKey('D')
     });
     const pointsMap = { A, B, C, D };
     if (decorations && decorations.length) {
       const decoCentroid = centroidFromPointMap(pointsMap, ['A', 'B', 'C', 'D']);
       renderDecorations(g, pointsMap, decorations, {
         centroid: decoCentroid,
-        pointOrder: ['A', 'B', 'C', 'D']
+        pointOrder: ['A', 'B', 'C', 'D'],
+        labelCtx
       });
     }
     const angleMarksTop = buildAngleMarkSummary([
@@ -3665,7 +3961,7 @@ function drawDoubleTriangleToGroup(g, rect, spec, adv, decorations) {
     restoreTextScale();
   }
 }
-function drawQuadToGroup(g, rect, spec, adv, decorations) {
+function drawQuadToGroup(g, rect, spec, adv, decorations, labelCtx) {
   var _m$a2, _m$b2, _m$c2, _m$d, _am$A2, _am$B2, _am$C2, _am$D;
   const s = typeof spec === 'string' ? parseSpec(spec) : spec;
   let {
@@ -3802,10 +4098,10 @@ function drawQuadToGroup(g, rect, spec, adv, decorations) {
     // sider
     const m = adv.sides.mode,
       st = adv.sides.text;
-    sideLabelText(g, A, B, buildSideText((_m$a2 = m.a) !== null && _m$a2 !== void 0 ? _m$a2 : m.default, fmt(a), st.a), true, ctr);
-    sideLabelText(g, B, C, buildSideText((_m$b2 = m.b) !== null && _m$b2 !== void 0 ? _m$b2 : m.default, fmt(b), st.b), true, ctr);
-    sideLabelText(g, C, D, buildSideText((_m$c2 = m.c) !== null && _m$c2 !== void 0 ? _m$c2 : m.default, fmt(c), st.c), true, ctr);
-    sideLabelText(g, D, A, buildSideText((_m$d = m.d) !== null && _m$d !== void 0 ? _m$d : m.default, fmt(d), st.d), true, ctr);
+    sideLabelText(g, A, B, buildSideText((_m$a2 = m.a) !== null && _m$a2 !== void 0 ? _m$a2 : m.default, fmt(a), st.a), true, ctr, 14, labelKey(labelCtx, 'quad-side', 'a'));
+    sideLabelText(g, B, C, buildSideText((_m$b2 = m.b) !== null && _m$b2 !== void 0 ? _m$b2 : m.default, fmt(b), st.b), true, ctr, 14, labelKey(labelCtx, 'quad-side', 'b'));
+    sideLabelText(g, C, D, buildSideText((_m$c2 = m.c) !== null && _m$c2 !== void 0 ? _m$c2 : m.default, fmt(c), st.c), true, ctr, 14, labelKey(labelCtx, 'quad-side', 'c'));
+    sideLabelText(g, D, A, buildSideText((_m$d = m.d) !== null && _m$d !== void 0 ? _m$d : m.default, fmt(d), st.d), true, ctr, 14, labelKey(labelCtx, 'quad-side', 'd'));
 
     // vinkler/punkter
     const am = adv.angles.mode,
@@ -3821,22 +4117,30 @@ function drawQuadToGroup(g, rect, spec, adv, decorations) {
     renderAngle(g, A, D, B, angleRadius(A, D, B), {
       mark: Ares.mark,
       angleText: Ares.angleText,
-      pointLabel: Ares.pointLabel
+      pointLabel: Ares.pointLabel,
+      angleKey: labelKey(labelCtx, 'quad-angle', 'A'),
+      pointKey: labelKey(labelCtx, 'quad-point', 'A')
     });
     renderAngle(g, B, A, C, angleRadius(B, A, C), {
       mark: Bres.mark,
       angleText: Bres.angleText,
-      pointLabel: Bres.pointLabel
+      pointLabel: Bres.pointLabel,
+      angleKey: labelKey(labelCtx, 'quad-angle', 'B'),
+      pointKey: labelKey(labelCtx, 'quad-point', 'B')
     });
     renderAngle(g, C, B, D, angleRadius(C, B, D), {
       mark: Cres.mark,
       angleText: Cres.angleText,
-      pointLabel: Cres.pointLabel
+      pointLabel: Cres.pointLabel,
+      angleKey: labelKey(labelCtx, 'quad-angle', 'C'),
+      pointKey: labelKey(labelCtx, 'quad-point', 'C')
     });
     renderAngle(g, D, C, A, angleRadius(D, C, A), {
       mark: Dres.mark,
       angleText: Dres.angleText,
-      pointLabel: Dres.pointLabel
+      pointLabel: Dres.pointLabel,
+      angleKey: labelKey(labelCtx, 'quad-angle', 'D'),
+      pointKey: labelKey(labelCtx, 'quad-point', 'D')
     });
     add(g, "polygon", {
       points: ptsTo(poly),
@@ -3853,7 +4157,8 @@ function drawQuadToGroup(g, rect, spec, adv, decorations) {
       D
     }, decorations, {
       centroid: ctr,
-      pointOrder: ['A', 'B', 'C', 'D']
+      pointOrder: ['A', 'B', 'C', 'D'],
+      labelCtx
     });
     const summary = cloneJobForSummary({
       type: 'quad',
@@ -3882,7 +4187,7 @@ function drawQuadToGroup(g, rect, spec, adv, decorations) {
     restoreTextScale();
   }
 }
-function drawCircleToGroup(g, rect, spec) {
+function drawCircleToGroup(g, rect, spec, labelCtx) {
   const cx = rect.x + rect.w / 2;
   const cy = rect.y + rect.h / 2;
   const radius = Math.max(40, Math.min(rect.w, rect.h) / 2 - 50);
@@ -3933,7 +4238,7 @@ function drawCircleToGroup(g, rect, spec) {
     const labelOffset = 16;
     const labelX = midX + Math.cos(radiusAngle + Math.PI / 2) * labelOffset;
     const labelY = midY + Math.sin(radiusAngle + Math.PI / 2) * labelOffset;
-    addHaloText(g, labelX, labelY, radiusText, STYLE.sideFS, {
+    placeAdjustableLabel(g, labelKey(labelCtx, 'circle', 'radius'), labelX, labelY, radiusText, STYLE.sideFS, {
       "text-anchor": "middle",
       "dominant-baseline": "middle"
     });
@@ -3949,7 +4254,7 @@ function drawCircleToGroup(g, rect, spec) {
       "stroke-linecap": "round",
       "stroke-dasharray": "12 10"
     });
-    addHaloText(g, cx, cy - circleRadius * 0.4, diameterText, STYLE.sideFS, {
+    placeAdjustableLabel(g, labelKey(labelCtx, 'circle', 'diameter'), cx, cy - circleRadius * 0.4, diameterText, STYLE.sideFS, {
       "text-anchor": "middle",
       "dominant-baseline": "middle"
     });
@@ -4024,7 +4329,7 @@ function deriveSequentialLabel(base, index, upperCase) {
   }
   return `${upperCase ? trimmed.toUpperCase() : trimmed}${index + 1}`;
 }
-function drawRegularPolygonToGroup(g, rect, spec, adv) {
+function drawRegularPolygonToGroup(g, rect, spec, adv, labelCtx) {
   const countRaw = spec && Number.isFinite(spec.sides) ? spec.sides : 5;
   const count = Math.max(3, Math.round(countRaw));
   const cx = rect.x + rect.w / 2;
@@ -4068,7 +4373,7 @@ function drawRegularPolygonToGroup(g, rect, spec, adv) {
       label = customText;
     }
     if (label) {
-      sideLabelText(g, P, Q, label, true, ctr, 18);
+      sideLabelText(g, P, Q, label, true, ctr, 18, labelKey(labelCtx, 'polygon-side', sideKey));
     }
   }
   for (let i = 0; i < count; i++) {
@@ -4084,13 +4389,15 @@ function drawRegularPolygonToGroup(g, rect, spec, adv) {
     renderAngle(g, cur, prev, next, angleRadius(cur, prev, next), {
       mark: parsed.mark,
       angleText: parsed.angleText,
-      pointLabel: parsed.pointLabel
+      pointLabel: parsed.pointLabel,
+      angleKey: labelKey(labelCtx, 'polygon-angle', angleKey),
+      pointKey: labelKey(labelCtx, 'polygon-point', angleKey)
     });
   }
   // Previously the number of sides was annotated in the centre of the polygon
   // (e.g. "n=10"). This visual label is no longer desired, so we omit it.
 }
-function drawPolygonWithArcToGroup(g, rect, spec, adv, decorations) {
+function drawPolygonWithArcToGroup(g, rect, spec, adv, decorations, labelCtx) {
   const polygonSpec = spec && spec.polygon ? spec.polygon : {};
   const countRaw = polygonSpec && Number.isFinite(polygonSpec.sides) ? polygonSpec.sides : 5;
   const count = Math.max(3, Math.round(countRaw));
@@ -4135,7 +4442,7 @@ function drawPolygonWithArcToGroup(g, rect, spec, adv, decorations) {
       label = customText;
     }
     if (label) {
-      sideLabelText(g, P, Q, label, true, ctr, 18);
+      sideLabelText(g, P, Q, label, true, ctr, 18, labelKey(labelCtx, 'polygon-side', sideKey));
     }
   }
   for (let i = 0; i < count; i++) {
@@ -4151,7 +4458,9 @@ function drawPolygonWithArcToGroup(g, rect, spec, adv, decorations) {
     renderAngle(g, cur, prev, next, angleRadius(cur, prev, next), {
       mark: parsed.mark,
       angleText: parsed.angleText,
-      pointLabel: parsed.pointLabel
+      pointLabel: parsed.pointLabel,
+      angleKey: labelKey(labelCtx, 'polygon-angle', angleKey),
+      pointKey: labelKey(labelCtx, 'polygon-point', angleKey)
     });
   }
   const resolvedSide = normalizeArcSideSpecifier(spec && spec.side, count);
@@ -4218,7 +4527,7 @@ function drawPolygonWithArcToGroup(g, rect, spec, adv, decorations) {
       x: center.x + normal.x * arcRadius * 0.55,
       y: center.y + normal.y * arcRadius * 0.55
     };
-    addHaloText(g, labelPoint.x, labelPoint.y, radiusText, STYLE.sideFS, {
+    placeAdjustableLabel(g, labelKey(labelCtx, 'polygon-arc', `${resolvedSide.label || 'arc'}-radius`), labelPoint.x, labelPoint.y, radiusText, STYLE.sideFS, {
       "text-anchor": "middle",
       "dominant-baseline": "middle"
     });
@@ -4232,7 +4541,7 @@ function drawPolygonWithArcToGroup(g, rect, spec, adv, decorations) {
       x: center.x + inward.x * Math.min(arcRadius * 0.6, 40),
       y: center.y + inward.y * Math.min(arcRadius * 0.6, 40)
     };
-    addHaloText(g, diameterPoint.x, diameterPoint.y, diameterText, STYLE.sideFS, {
+    placeAdjustableLabel(g, labelKey(labelCtx, 'polygon-arc', `${resolvedSide.label || 'arc'}-diameter`), diameterPoint.x, diameterPoint.y, diameterText, STYLE.sideFS, {
       "text-anchor": "middle",
       "dominant-baseline": "middle"
     });
@@ -4247,7 +4556,8 @@ function drawPolygonWithArcToGroup(g, rect, spec, adv, decorations) {
   if (decorations && decorations.length) {
     renderDecorations(g, pointsMap, decorations, {
       centroid: ctr,
-      pointOrder
+      pointOrder,
+      labelCtx
     });
   }
 }
@@ -4653,6 +4963,7 @@ function buildAdvForFig(figState) {
 async function renderCombined() {
   const svg = document.getElementById("paper");
   svg.innerHTML = "";
+  resetRenderedLabelMap();
   const jobs = await collectJobsFromSpecs(STATE.specsText);
   const n = jobs.length;
   const fig2Settings = document.getElementById("fig2Settings");
@@ -4671,6 +4982,7 @@ async function renderCombined() {
       count: 0,
       jobs: []
     };
+    syncLabelEditorAfterRender();
     maybeRefreshAltText('config');
     scheduleResponsiveFigureSizeUpdate();
     return;
@@ -4701,20 +5013,21 @@ async function renderCombined() {
       obj
     } = jobs[i];
     const adv = buildAdvForFig(i === 0 ? STATE.fig1 : STATE.fig2);
+    const labelCtx = { prefix: `fig${i + 1}` };
     let summaryEntry = null;
     try {
       if (type === "tri") {
-        summaryEntry = drawTriangleToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations);
+        summaryEntry = drawTriangleToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations, labelCtx);
       } else if (type === "quad") {
-        summaryEntry = drawQuadToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations);
+        summaryEntry = drawQuadToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations, labelCtx);
       } else if (type === "doubleTri") {
-        summaryEntry = drawDoubleTriangleToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations);
+        summaryEntry = drawDoubleTriangleToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations, labelCtx);
       } else if (type === "circle") {
-        drawCircleToGroup(groups[i], rects[i], obj);
+        drawCircleToGroup(groups[i], rects[i], obj, labelCtx);
       } else if (type === "polygon") {
-        drawRegularPolygonToGroup(groups[i], rects[i], obj, adv);
+        drawRegularPolygonToGroup(groups[i], rects[i], obj, adv, labelCtx);
       } else if (type === "polygonArc") {
-        drawPolygonWithArcToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations);
+        drawPolygonWithArcToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations, labelCtx);
       } else {
         throw new Error(`Ukjent figurtype: ${type}`);
       }
@@ -4729,6 +5042,7 @@ async function renderCombined() {
     count: n,
     jobs: summaries
   };
+  syncLabelEditorAfterRender();
   maybeRefreshAltText('config');
   adjustSvgViewBoxToContent(svg);
   svg.setAttribute("aria-label", n === 1 ? "Én figur" : `${n} figurer i samme bilde`);
@@ -4822,6 +5136,14 @@ function bindUI() {
   const btnSvg = $("#btnSvg");
   const btnPng = $("#btnPng");
   const btnDraw = $("#btnDraw");
+  btnToggleLabelEdit = $("#btnToggleLabelEdit");
+  btnToggleLabelEditFloating = $("#btnToggleLabelEditFloating");
+  labelEditorControlsEl = $("#labelEditorControls");
+  labelEditorActiveEl = $("#labelEditorActive");
+  labelRotationInput = $("#labelRotation");
+  labelRotationNumberInput = $("#labelRotationNumber");
+  btnResetLabel = $("#btnResetLabelPosition");
+  btnResetAllLabels = $("#btnResetAllLabels");
   const f1Sides = $("#f1Sides"),
     f1Angles = $("#f1Angles");
   const f2Sides = $("#f2Sides"),
@@ -4995,6 +5317,38 @@ function bindUI() {
       downloadPNG(svg, "nkant.png", 2); // 2× oppløsning
     });
   }
+  const handleRotationChange = value => {
+    if (labelEditorSyncingRotation) return;
+    if (!LABEL_EDITOR_STATE.enabled || !LABEL_EDITOR_STATE.selectedKey) return;
+    const num = Number(value);
+    if (!Number.isFinite(num)) return;
+    setLabelAdjustment(LABEL_EDITOR_STATE.selectedKey, { rotation: num });
+    syncRotationInputs(num);
+  };
+  if (btnToggleLabelEdit) {
+    btnToggleLabelEdit.addEventListener("click", () => {
+      setLabelEditingEnabled(!LABEL_EDITOR_STATE.enabled);
+    });
+  }
+  if (btnToggleLabelEditFloating) {
+    btnToggleLabelEditFloating.addEventListener("click", () => {
+      setLabelEditingEnabled(!LABEL_EDITOR_STATE.enabled);
+    });
+  }
+  if (labelRotationInput) {
+    labelRotationInput.addEventListener("input", () => handleRotationChange(labelRotationInput.value));
+  }
+  if (labelRotationNumberInput) {
+    labelRotationNumberInput.addEventListener("input", () => handleRotationChange(labelRotationNumberInput.value));
+  }
+  if (btnResetLabel) {
+    btnResetLabel.addEventListener("click", resetSelectedLabelAdjustment);
+  }
+  if (btnResetAllLabels) {
+    btnResetAllLabels.addEventListener("click", resetAllLabelAdjustments);
+  }
+  initLabelEditorInteractions();
+  updateLabelEditorUI();
 }
 
 /* ---------- INIT ---------- */
@@ -5074,6 +5428,7 @@ function applyStateToUI() {
   };
   updateFigure(STATE.fig1, "f1", "value", "custom+mark+value");
   updateFigure(STATE.fig2, "f2", "none", "custom+mark+value");
+  updateLabelEditorUI();
 }
 function applyExamplesConfig() {
   ensureStateDefaults();
