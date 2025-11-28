@@ -2835,6 +2835,52 @@ function appendAxisLabelsToSvgClone(node) {
   }
 }
 
+function curveLabelExportText(label) {
+  if (!label) return '';
+  const primary = typeof label._plainText === 'string' ? label._plainText : '';
+  if (primary && primary.trim()) return primary.trim();
+  const secondary = typeof label.plaintext === 'string' ? label.plaintext : '';
+  if (secondary && secondary.trim()) return secondary.trim();
+  const fallback = label.rendNodeText && label.rendNodeText.textContent ? label.rendNodeText.textContent : '';
+  return fallback && fallback.trim() ? fallback.trim() : '';
+}
+
+function appendCurveLabelsToSvgClone(node) {
+  if (!node || !ADV.curveName || !ADV.curveName.show) return;
+  if (!Array.isArray(graphs) || graphs.length === 0) return;
+  const doc = node.ownerDocument || (typeof document !== 'undefined' ? document : null);
+  if (!doc) return;
+  const fontSizeRaw = Number.parseFloat(ADV.curveName.fontSize);
+  const fontSize = Number.isFinite(fontSizeRaw) ? fontSizeRaw : 15;
+  const group = doc.createElementNS('http://www.w3.org/2000/svg', 'g');
+  group.setAttribute('data-export-curve-labels', '');
+  graphs.forEach(g => {
+    const label = g && g.labelElement;
+    if (!label || label.visProp && label.visProp.visible === false) return;
+    const textContent = curveLabelExportText(label);
+    if (!textContent) return;
+    const x = typeof label.X === 'function' ? Number(label.X()) : NaN;
+    const y = typeof label.Y === 'function' ? Number(label.Y()) : NaN;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    const screenPos = worldToScreenPoint({ x, y });
+    if (!screenPos) return;
+    const textEl = doc.createElementNS('http://www.w3.org/2000/svg', 'text');
+    textEl.setAttribute('x', String(screenPos.x));
+    textEl.setAttribute('y', String(screenPos.y));
+    textEl.setAttribute('fill', normalizeColorValue(g && g.color) || '#111827');
+    textEl.setAttribute('font-size', `${fontSize}`);
+    textEl.setAttribute('font-family', 'Inter, "Segoe UI", system-ui, sans-serif');
+    textEl.setAttribute('dominant-baseline', 'middle');
+    textEl.setAttribute('text-anchor', 'start');
+    textEl.setAttribute('pointer-events', 'none');
+    textEl.textContent = textContent;
+    group.appendChild(textEl);
+  });
+  if (group.childNodes.length) {
+    node.appendChild(group);
+  }
+}
+
 function placeAxisNames() {
   if (!brd) return;
   const xWorld = computeAxisLabelWorldPosition('x');
@@ -5769,6 +5815,7 @@ function cloneBoardSvgRoot() {
   node.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
   sanitizeSvgForeignObjects(node);
   appendAxisLabelsToSvgClone(node);
+  appendCurveLabelsToSvgClone(node);
   const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
   if (helper && typeof helper.ensureSvgBackground === 'function') {
     helper.ensureSvgBackground(node, {
