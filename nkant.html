@@ -399,12 +399,16 @@ Rettvinklet trekant</textarea>
                 <button id="btnResetAllLabels" class="btn" type="button">Nullstill alle</button>
               </div>
             </div>
+            <div class="label-editor__list">
+              <label class="small" for="labelEditorList">Velg etikett fra liste</label>
+              <select id="labelEditorList" size="4" aria-label="Liste over etiketter"></select>
+            </div>
             <div class="label-editor__rotation">
               <label for="labelRotation">Rotasjon</label>
               <input id="labelRotation" type="range" min="-180" max="180" value="0" />
               <input id="labelRotationNumber" class="tight" type="number" min="-180" max="180" value="0" />
             </div>
-            <p class="label-editor__hint small">Dra etiketter direkte i tegningen for å flytte dem. Bruk rotasjonen for å vri teksten når den ligger langs en kant.</p>
+            <p class="label-editor__hint small">Dra etiketter direkte i tegningen for å flytte dem. I redigeringsmodus kan du også velge etiketter med TAB eller fra listen over, bruke piltastene for å flytte (SHIFT for større steg, ALT/⌘ for finjustering) og [ eller - / ] eller + for å rotere.</p>
           </div>
         </div>
       </div>
