@@ -172,6 +172,9 @@ jobs:
         run: |
           set -euo pipefail
 
+          echo "Ensuring $API_STACK_NAME is ready for an update..."
+          scripts/helpers/wait-for-stable-stack.sh "$API_STACK_NAME"
+
           log_stack_events() {
             echo "Capturing recent events for $API_STACK_NAME after failure..." >&2
             aws cloudformation describe-stack-events \
