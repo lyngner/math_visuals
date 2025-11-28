@@ -360,8 +360,13 @@ jobs:
       - name: Invalidate CloudFront cache
         if: ${{ env.STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID != '' }}
         run: |
+          set -o noglob
           PATHS="${CLOUDFRONT_INVALIDATION_PATHS:-/*}"
+          set +o noglob
+
           echo "Using invalidation paths: $PATHS"
+          IFS=' ' read -r -a path_args <<< "$PATHS"
+
           aws cloudfront create-invalidation \
             --distribution-id "$STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID" \
-            --paths $PATHS
+            --paths "${path_args[@]}"
