@@ -4,6 +4,10 @@ Description: >-
   for the math visuals static site, routing selected paths to an API Gateway origin.
 
 Parameters:
+  SiteEnvironmentName:
+    Type: String
+    Default: prod
+    Description: Short environment identifier used for tagging (e.g. prod, dev).
   SiteBucketName:
     Type: String
     Description: Globally-unique name for the S3 bucket hosting the static site.
@@ -52,6 +56,9 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      Tags:
+        - Key: Environment
+          Value: !Ref SiteEnvironmentName
 
   SiteOriginAccessIdentity:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
@@ -238,6 +245,7 @@ Resources:
         PriceClass: !Ref CloudFrontPriceClass
         DefaultRootObject: index.html
         HttpVersion: http2
+        Comment: !Sub 'Math Visuals static site (${SiteEnvironmentName})'
         Origins:
           - Id: SiteBucketOrigin
             DomainName: !GetAtt SiteBucket.RegionalDomainName
@@ -399,6 +407,9 @@ Resources:
             ErrorCachingMinTTL: 0
         ViewerCertificate:
           CloudFrontDefaultCertificate: true
+      Tags:
+        - Key: Environment
+          Value: !Ref SiteEnvironmentName
 
 Outputs:
   StaticSiteBucketName:
