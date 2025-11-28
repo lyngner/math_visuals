@@ -64,7 +64,7 @@ resolve_api_origin_id() {
 summarize_behaviors() {
   local config_json=$1
   jq -r '
-    .CacheBehaviors.Items // []
+    ((.DistributionConfig.CacheBehaviors // .CacheBehaviors // {Items: []}).Items // [])
     | to_entries
     | map((.key | tostring) + ": " + .value.PathPattern + " -> origin '\''" + .value.TargetOriginId + "'\'' (AllowedMethods: " + ((.value.AllowedMethods // []) | join(",")) + ")")
     | .[]?
@@ -73,7 +73,7 @@ summarize_behaviors() {
 
 summarize_origins() {
   local config_json=$1
-  jq -r '.Origins.Items[] | "- " + .Id + " => " + .DomainName' <<<"$config_json"
+  jq -r '((.DistributionConfig.Origins // .Origins).Items // [])[] | "- " + .Id + " => " + .DomainName' <<<"$config_json"
 }
 
 ensure_api_behavior() {
@@ -81,20 +81,23 @@ ensure_api_behavior() {
   local etag updated_config applied_fix=false
 
   etag=$(jq -r '.ETag' <<<"$config_json")
-  updated_config=$(jq '.DistributionConfig' <<<"$config_json")
+  updated_config=$(jq '
+    .DistributionConfig
+    | .CacheBehaviors = ((.CacheBehaviors // {}) + {Items: ((.CacheBehaviors.Items // []))})
+  ' <<<"$config_json")
 
   local api_index api_origin_id current_api_target
   api_index=$(jq -r '
-    (.CacheBehaviors.Items // [])
+    ((.CacheBehaviors // {Items: []}).Items)
     | map(.PathPattern)
     | index("/api/*")
   ' <<<"$updated_config")
 
   api_origin_id=$(resolve_api_origin_id "$config_json")
   current_api_target=$(jq -r '
-    (.CacheBehaviors.Items // [])
-      | map(select(.PathPattern == "/api/*"))
-      | .[0].TargetOriginId // ""
+    ((.CacheBehaviors // {Items: []}).Items)
+    | map(select(.PathPattern == "/api/*"))
+    | .[0].TargetOriginId // ""
   ' <<<"$updated_config")
 
   if [[ -z "$api_origin_id" ]]; then
