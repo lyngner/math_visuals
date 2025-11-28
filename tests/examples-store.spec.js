@@ -18,6 +18,7 @@ const { mockKv, cleanup: cleanupKvMock } = setupKvMock();
 
 const {
   normalizePath,
+  stripTrailingExampleSegment,
   setEntry,
   getEntry,
   deleteEntry,
@@ -106,6 +107,12 @@ test.describe('examples-store serialization', () => {
 });
 
 test.describe('examples-store path normalization', () => {
+  test('exposes helper for stripping trailing example segments', () => {
+    expect(typeof stripTrailingExampleSegment).toBe('function');
+    expect(stripTrailingExampleSegment('/diagram/eksempel-42/')).toBe('/diagram');
+    expect(stripTrailingExampleSegment('/diagram/example-42/')).toBe('/diagram/example-42');
+  });
+
   test('strips html suffixes to match canonical keys', () => {
     expect(normalizePath('/nkant.html')).toBe('/nkant');
     expect(normalizePath('/nkant.htm')).toBe('/nkant');
@@ -132,6 +139,13 @@ test.describe('examples-store path normalization', () => {
     });
     expect(normalizePath('/Br%C3%98KVEGG.HTML')).toBe('/br%C3%B8kvegg');
     expect(normalizePath('/brøkvegg/index.html')).toBe('/br%C3%B8kvegg');
+  });
+
+  test('strips trailing generated example segments', () => {
+    expect(normalizePath('/diagram/eksempel-1')).toBe('/diagram');
+    expect(normalizePath('/diagram/eksempel_12/')).toBe('/diagram');
+    expect(normalizePath('/eksempel-2')).toBe('/');
+    expect(normalizePath('/eksempel-2/diagram')).toBe('/eksempel-2/diagram');
   });
 });
 
