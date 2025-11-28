@@ -38,4 +38,4 @@ case "$status" in
   *)
     echo "Stack $STACK_NAME status is $status; no deletion required."
     ;;
-fi
+esac
