@@ -1133,6 +1133,7 @@ function resolveSettingsPalette(count) {
 
 function applySettingsPaletteToStyle() {
   const paletteResult = resolveSettingsPalette(4);
+  if (paletteResult && paletteResult.source === "fallback") return;
   const palette = paletteResult && Array.isArray(paletteResult.colors) ? paletteResult.colors : [];
   if (!palette.length) return;
   const fallbackLine = STYLE_DEFAULTS.edgeStroke;
@@ -1217,19 +1218,19 @@ function applyThemeToDocument() {
 
 function applyThemeStyles() {
   const theme = getThemeApi();
+  const activeProject = typeof document !== "undefined" && document.documentElement
+    ? document.documentElement.getAttribute("data-mv-active-project")
+    : null;
   const profileName = theme && typeof theme.getActiveProfileName === "function" ? theme.getActiveProfileName() : null;
   const profileAttr = typeof document !== "undefined" && document.documentElement
     ? document.documentElement.getAttribute("data-theme-profile")
     : null;
-  const projectAttr = typeof document !== "undefined" && document.documentElement
-    ? document.documentElement.getAttribute("data-mv-active-project")
-    : null;
-  const normalizedName = typeof profileName === "string" && profileName.trim()
-    ? profileName.trim().toLowerCase()
-    : typeof profileAttr === "string" && profileAttr.trim()
-      ? profileAttr.trim().toLowerCase()
-      : typeof projectAttr === "string" && projectAttr.trim()
-        ? projectAttr.trim().toLowerCase()
+  const normalizedName = typeof activeProject === "string" && activeProject.trim()
+    ? activeProject.trim().toLowerCase()
+    : typeof profileName === "string" && profileName.trim()
+      ? profileName.trim().toLowerCase()
+      : typeof profileAttr === "string" && profileAttr.trim()
+        ? profileAttr.trim().toLowerCase()
         : "";
   const normalized = normalizedName;
   const overridesFactory = normalized && STYLE_PROFILE_OVERRIDES[normalized] ? STYLE_PROFILE_OVERRIDES[normalized] : null;
@@ -5085,14 +5086,14 @@ function observeThemeProfileAttribute() {
     for (const mutation of mutations) {
       if (
         mutation.type === "attributes" &&
-        (mutation.attributeName === "data-theme-profile" || mutation.attributeName === "data-mv-active-project")
+        mutation.attributeName === "data-mv-active-project"
       ) {
         scheduleThemeRefresh();
         break;
       }
     }
   });
-  observer.observe(root, { attributes: true, attributeFilter: ["data-theme-profile", "data-mv-active-project"] });
+  observer.observe(root, { attributes: true, attributeFilter: ["data-mv-active-project"] });
 }
 
 function handleThemeProfileChangeMessage(event) {
