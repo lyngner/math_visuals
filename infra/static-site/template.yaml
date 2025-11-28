@@ -13,6 +13,8 @@ Parameters:
     Description: Globally-unique name for the S3 bucket hosting the static site.
   ApiGatewayDomainName:
     Type: String
+    AllowedPattern: '^[A-Za-z0-9.-]+\.execute-api\.[A-Za-z0-9-]+\.amazonaws\.com$'
+    ConstraintDescription: Must be an API Gateway execute-api host without a scheme or path.
     Description: >-
       Fully-qualified domain name of the API Gateway stage (for example,
       a1b2c3d4.execute-api.us-east-1.amazonaws.com).
