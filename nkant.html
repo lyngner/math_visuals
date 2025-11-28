@@ -108,6 +108,30 @@
       color: #4338ca;
       font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
     }
+    .label-editor { display: grid; gap: 10px; }
+    .label-editor__controls {
+      display: grid;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      background: #f9fafb;
+    }
+    .label-editor__row { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+    .label-editor__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .label-editor__badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 8px;
+      background: #eef2ff;
+      color: #4338ca;
+      font-weight: 600;
+      min-width: 140px;
+    }
+    .label-editor__rotation { display: grid; grid-template-columns: 70px 1fr 70px; gap: 8px; align-items: center; }
+    .label-editor__hint { margin: 0; color: #6b7280; }
+    .label-draggable { cursor: grab; }
+    .label-selected { filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.9)); }
   </style>
   <link rel="stylesheet" href="/split.css" />
 </head>
@@ -358,6 +382,30 @@ Rettvinklet trekant</textarea>
           <label>Plassering:</label>
           <label><input type="radio" name="layout" value="row" checked> Ved siden av hverandre</label>
           <label><input type="radio" name="layout" value="col"> Under hverandre</label>
+        </div>
+
+        <div class="sep"></div>
+        <div class="label-editor">
+          <div class="legend">Etikettjustering</div>
+          <button id="btnToggleLabelEdit" class="btn" type="button">Rediger etiketter</button>
+          <div id="labelEditorControls" class="label-editor__controls" hidden>
+            <div class="label-editor__row">
+              <div>
+                <div class="small">Aktiv etikett</div>
+                <div id="labelEditorActive" class="label-editor__badge">Ingen valgt</div>
+              </div>
+              <div class="label-editor__actions">
+                <button id="btnResetLabelPosition" class="btn" type="button">Tilbakestill valgt</button>
+                <button id="btnResetAllLabels" class="btn" type="button">Nullstill alle</button>
+              </div>
+            </div>
+            <div class="label-editor__rotation">
+              <label for="labelRotation">Rotasjon</label>
+              <input id="labelRotation" type="range" min="-180" max="180" value="0" />
+              <input id="labelRotationNumber" class="tight" type="number" min="-180" max="180" value="0" />
+            </div>
+            <p class="label-editor__hint small">Dra etiketter direkte i tegningen for å flytte dem. Bruk rotasjonen for å vri teksten når den ligger langs en kant.</p>
+          </div>
         </div>
       </div>
         <div class="card" id="exportCard">
