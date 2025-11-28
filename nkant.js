@@ -5122,7 +5122,13 @@ function refreshThemeAndRender() {
   }
 }
 
+const THEME_REFRESH_MIN_INTERVAL_MS = 100;
+let lastThemeRefreshTime = 0;
+
 function scheduleThemeRefresh() {
+  const now = Date.now();
+  if (now - lastThemeRefreshTime < THEME_REFRESH_MIN_INTERVAL_MS) return;
+  lastThemeRefreshTime = now;
   if (scheduleThemeRefresh.pending) return;
   const execute = () => {
     scheduleThemeRefresh.pending = false;
