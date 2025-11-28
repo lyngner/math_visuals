@@ -5148,14 +5148,19 @@ function observeThemeProfileAttribute() {
   if (typeof MutationObserver === "undefined" || typeof document === "undefined") return;
   const root = document.documentElement;
   if (!root) return;
+  let lastActiveProject = root.getAttribute && root.getAttribute("data-mv-active-project");
   const observer = new MutationObserver(mutations => {
     for (const mutation of mutations) {
       if (
         mutation.type === "attributes" &&
         mutation.attributeName === "data-mv-active-project"
       ) {
-        scheduleThemeRefresh();
-        break;
+        const current = root.getAttribute && root.getAttribute("data-mv-active-project");
+        if (current !== lastActiveProject) {
+          lastActiveProject = current;
+          scheduleThemeRefresh();
+          break;
+        }
       }
     }
   });
