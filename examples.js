@@ -1231,6 +1231,7 @@
   let splitterObserver = null;
   let splitterObserverStarted = false;
   let taskModeDescriptionRenderRetryScheduled = false;
+  let taskModeDescriptionEditing = false;
   function normalizeAppMode(value) {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim().toLowerCase();
@@ -1283,6 +1284,35 @@
         updateDescriptionEditVisibilityForMode(targetMode);
       } catch (_) {}
     }, 0);
+  }
+
+  function focusDescriptionInput(options) {
+    const input = getDescriptionInput();
+    if (!input) return;
+    const opts = options && typeof options === 'object' ? options : {};
+    const preventScroll = opts.preventScroll !== false;
+    if (typeof input.focus === 'function') {
+      try {
+        input.focus({ preventScroll });
+      } catch (_) {
+        try {
+          input.focus();
+        } catch (_) {}
+      }
+    }
+  }
+
+  function setTaskModeDescriptionEditing(enabled, options) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const next = enabled === true;
+    const changed = next !== taskModeDescriptionEditing || opts.force === true;
+    taskModeDescriptionEditing = next;
+    if (changed) {
+      updateDescriptionEditVisibilityForMode(currentAppMode);
+    }
+    if (taskModeDescriptionEditing && opts.focus !== false) {
+      focusDescriptionInput({ preventScroll: opts.preventScroll });
+    }
   }
 
   function applyAppMode(mode) {
@@ -1506,6 +1536,8 @@
     globalScope.mathVisuals.applyAppMode = applyAppMode;
     globalScope.mathVisuals.setAppMode = (mode, options) => setAppMode(mode, options);
     globalScope.mathVisuals.getAppMode = () => currentAppMode;
+    globalScope.mathVisuals.startTaskDescriptionEdit = options => startTaskModeDescriptionEdit(options);
+    globalScope.mathVisuals.stopTaskDescriptionEdit = () => stopTaskModeDescriptionEdit();
     globalScope.mathVisuals.evaluateTaskInputs = () => evaluateTaskInputs();
     globalScope.mathVisuals.resetTaskInputs = () => resetTaskInputs();
     if (!globalScope.mathVisuals.settings && globalScope.MathVisualsSettings) {
@@ -5512,6 +5544,9 @@
   function updateDescriptionEditVisibilityForMode(mode) {
     const normalized = normalizeAppMode(mode != null ? mode : currentAppMode) || DEFAULT_APP_MODE;
     const isTaskMode = normalized === 'task';
+    if (!isTaskMode) {
+      taskModeDescriptionEditing = false;
+    }
     let input = null;
     try {
       input = getDescriptionInput();
@@ -5528,39 +5563,69 @@
 
     const container = input.closest('.example-description');
     if (container) {
+      container.classList.toggle('example-description--task-mode', isTaskMode);
+      container.classList.toggle('example-description--task-editing', isTaskMode && taskModeDescriptionEditing);
       if (isTaskMode) {
-        container.classList.add('example-description--task-mode');
+        container.removeAttribute('hidden');
+        container.removeAttribute('aria-hidden');
+        delete container.dataset.hiddenInEditMode;
       } else {
-        container.classList.remove('example-description--task-mode');
+        container.setAttribute('hidden', '');
+        container.setAttribute('aria-hidden', 'true');
+        container.dataset.hiddenInEditMode = 'true';
+      }
+      const examplesCard = container.closest('.card--examples');
+      if (examplesCard) {
+        if (isTaskMode && taskModeDescriptionEditing) {
+          examplesCard.dataset.descriptionEditing = 'true';
+        } else {
+          delete examplesCard.dataset.descriptionEditing;
+        }
       }
     }
-    if (isTaskMode) {
-      input.setAttribute('data-task-mode-hidden', 'true');
+    const shouldShowInput = isTaskMode && taskModeDescriptionEditing;
+    if (shouldShowInput) {
+      input.hidden = false;
+      input.removeAttribute('hidden');
+      input.removeAttribute('aria-hidden');
+    } else {
       input.hidden = true;
       input.setAttribute('aria-hidden', 'true');
-    } else {
-      if (input.getAttribute('data-task-mode-hidden') === 'true') {
-        input.hidden = false;
-        input.removeAttribute('hidden');
-      }
-      input.removeAttribute('data-task-mode-hidden');
-      input.removeAttribute('aria-hidden');
     }
     const preview = getDescriptionPreviewElement();
     if (preview) {
-      if (isTaskMode) {
-        if (preview.dataset.empty === 'true') {
-          preview.setAttribute('hidden', '');
-          preview.setAttribute('aria-hidden', 'true');
-        } else {
+      const shouldShowPlaceholder = isTaskMode && preview.dataset.empty === 'true' && !taskModeDescriptionEditing;
+      if (shouldShowPlaceholder) {
+        if (!preview.dataset.placeholder) {
+          preview.dataset.placeholder = 'true';
+          preview.textContent = 'Klikk for å legge til oppgavetekst';
+        }
+        preview.removeAttribute('hidden');
+        preview.setAttribute('aria-hidden', 'false');
+      } else {
+        delete preview.dataset.placeholder;
+        if (isTaskMode && !taskModeDescriptionEditing && preview.dataset.empty !== 'true') {
           preview.removeAttribute('hidden');
           preview.setAttribute('aria-hidden', 'false');
+        } else {
+          preview.setAttribute('hidden', '');
+          preview.setAttribute('aria-hidden', 'true');
         }
-      } else if (preview.dataset.empty === 'true') {
-        preview.setAttribute('hidden', '');
-        preview.setAttribute('aria-hidden', 'true');
       }
     }
+  }
+
+  function startTaskModeDescriptionEdit(options) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const shouldSwitchMode = opts.setTaskMode !== false;
+    if (shouldSwitchMode && normalizeAppMode(currentAppMode) !== 'task') {
+      setAppMode('task', { force: true, notifyParent: opts.notifyParent !== false });
+    }
+    setTaskModeDescriptionEditing(true, { focus: opts.focus !== false, preventScroll: opts.preventScroll });
+  }
+
+  function stopTaskModeDescriptionEdit() {
+    setTaskModeDescriptionEditing(false);
   }
 
   function ensureTaskModeDescriptionRendered() {
@@ -5651,15 +5716,25 @@
     const container = input.closest('.example-description');
     if (container && !descriptionContainersWithListeners.has(container)) {
       const handleContainerClick = event => {
-        if (!input || currentAppMode === 'task') return;
+        if (!input) return;
         if (event && event.defaultPrevented) return;
         const target = event && event.target;
-        if (target && typeof target.closest === 'function') {
-          if (target.closest('textarea') === input) return;
-          const preview = container.querySelector('.example-description-preview');
-          if (preview && preview.contains(target) && !preview.hasAttribute('hidden') && preview.dataset.empty !== 'true') {
-            return;
+        const preview = container.querySelector('.example-description-preview');
+        const targetIsInput = target && typeof target.closest === 'function' && target.closest('textarea') === input;
+        if (targetIsInput) return;
+        const targetIsTaskInput =
+          target &&
+          typeof target.closest === 'function' &&
+          (target.closest('.math-vis-answerbox__input') || target.closest('[data-task-check-host]'));
+        if (targetIsTaskInput) return;
+        if (currentAppMode === 'task') {
+          const clickedPreview = preview && preview.contains(target);
+          const previewHidden = !preview || preview.hasAttribute('hidden') || preview.dataset.empty === 'true';
+          if (clickedPreview || previewHidden) {
+            setTaskModeDescriptionEditing(true, { focus: true });
+            if (event && typeof event.preventDefault === 'function') event.preventDefault();
           }
+          return;
         }
         if (typeof input.focus === 'function' && document.activeElement !== input) {
           try {

@@ -4,6 +4,7 @@ const {
   attachExamplesBackendMock,
   normalizeExamplePath
 } = require('./helpers/examples-backend-mock');
+const { openTaskDescriptionEditor } = require('./helpers/description-editor');
 
 const PAGE_PATH = '/brøkfigurer.html';
 const CANONICAL_PATH = normalizeExamplePath(PAGE_PATH);
@@ -75,6 +76,7 @@ test.describe('legacy example storage keys', () => {
     const legacyEntry = await backend.client.get(LEGACY_DECODED_PATH);
     expect(legacyEntry).toBeUndefined();
 
+    await openTaskDescriptionEditor(page);
     await expect(page.locator('#exampleDescription')).toHaveValue(description);
   });
 
@@ -127,6 +129,7 @@ test.describe('legacy example storage keys', () => {
     const legacyEntry = await backend.client.get(GRAFTEGNER_LEGACY_PATH);
     expect(legacyEntry).toBeUndefined();
 
+    await openTaskDescriptionEditor(page);
     await expect(page.locator('#exampleDescription')).toHaveValue(description);
   });
 });

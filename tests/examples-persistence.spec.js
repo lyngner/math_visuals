@@ -4,6 +4,7 @@ const {
   attachExamplesBackendMock,
   normalizeExamplePath
 } = require('./helpers/examples-backend-mock');
+const { openTaskDescriptionEditor } = require('./helpers/description-editor');
 
 const EXAMPLE_PATH = '/diagram/index.html';
 const CANONICAL_PATH = normalizeExamplePath(EXAMPLE_PATH);
@@ -75,6 +76,7 @@ test.describe('Persisted example compatibility', () => {
     await expect(savedTab).toHaveCount(1);
 
     await savedTab.click();
+    await openTaskDescriptionEditor(page);
     await expect(page.locator('#exampleDescription')).toHaveValue(persistedExample.description);
 
     const storedEntry = await backend.client.get(CANONICAL_PATH);

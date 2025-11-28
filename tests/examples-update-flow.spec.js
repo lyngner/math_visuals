@@ -6,6 +6,7 @@ const {
   attachExamplesBackendMock,
   normalizeExamplePath
 } = require('./helpers/examples-backend-mock');
+const { fillTaskDescription, openTaskDescriptionEditor } = require('./helpers/description-editor');
 
 const EXAMPLE_PATH = '/diagram/index.html';
 const CANONICAL_PATH = normalizeExamplePath(EXAMPLE_PATH);
@@ -29,8 +30,7 @@ test.describe('Examples update flow', () => {
   });
 
   test('sends updated payload and shows save status feedback', async ({ page }) => {
-    const description = page.locator('#exampleDescription');
-    await description.fill('Første versjon');
+    await fillTaskDescription(page, 'Første versjon');
 
     const initialRequest = page.waitForRequest(
       request => request.url().includes('/api/examples') && request.method() === 'PUT'
@@ -38,7 +38,7 @@ test.describe('Examples update flow', () => {
     await page.locator('#btnSaveExample').click();
     await initialRequest;
 
-    await description.fill('Oppdatert beskrivelse');
+    await fillTaskDescription(page, 'Oppdatert beskrivelse');
 
     const putPromise = page.waitForRequest(
       request => request.url().includes('/api/examples') && request.method() === 'PUT'
@@ -84,25 +84,25 @@ test.describe('Examples update flow', () => {
 
     await expect(page.locator('.example-tabs-empty')).toBeVisible();
     await expect(tabs).toHaveCount(0);
+    await openTaskDescriptionEditor(page);
     await expect(page.locator('#exampleDescription')).toHaveValue('');
   });
 
   test('disables action buttons during update and reflects saving state', async ({ page }) => {
-    const description = page.locator('#exampleDescription');
     const saveButton = page.locator('#btnSaveExample');
     const updateButton = page.locator('#btnUpdateExample');
     const deleteButton = page.locator('#btnDeleteExample');
     const statusIndicator = page.locator('.example-save-status');
     const spinner = page.locator('.example-save-status__spinner');
 
-    await description.fill('Eksempel én');
+    await fillTaskDescription(page, 'Eksempel én');
     const firstSave = page.waitForRequest(
       request => request.url().includes('/api/examples') && request.method() === 'PUT'
     );
     await saveButton.click();
     await firstSave;
 
-    await description.fill('Eksempel to');
+    await fillTaskDescription(page, 'Eksempel to');
     const secondSave = page.waitForRequest(
       request => request.url().includes('/api/examples') && request.method() === 'PUT'
     );
@@ -111,7 +111,7 @@ test.describe('Examples update flow', () => {
 
     await expect(deleteButton).toBeEnabled();
 
-    await description.fill('Oppdatert eksempel to');
+    await fillTaskDescription(page, 'Oppdatert eksempel to');
 
     const updateRequestPromise = page.waitForRequest(
       request => request.url().includes('/api/examples') && request.method() === 'PUT'
@@ -141,12 +141,11 @@ test.describe('Examples update flow', () => {
   });
 
   test('prevents deleting the final example and blocks direct archive attempts', async ({ page }) => {
-    const description = page.locator('#exampleDescription');
     const deleteButton = page.locator('#btnDeleteExample');
     const statusIndicator = page.locator('.example-save-status');
     const statusText = page.locator('.example-save-status__text');
 
-    await description.fill('Eneste eksempel');
+    await fillTaskDescription(page, 'Eneste eksempel');
 
     const initialSave = backend.waitForPut(CANONICAL_PATH, {
       timeout: 5000,

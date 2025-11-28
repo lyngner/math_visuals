@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
 const { attachExamplesBackendMock } = require('./helpers/examples-backend-mock');
+const { fillTaskDescription, openTaskDescriptionEditor } = require('./helpers/description-editor');
 
 test.describe('task mode description preview', () => {
   let backend;
@@ -9,25 +10,27 @@ test.describe('task mode description preview', () => {
     backend = await attachExamplesBackendMock(page.context());
   });
 
-  test('hides preview until formatting is used', async ({ page }) => {
+  test('renders preview in task mode and supports formatting', async ({ page }) => {
     await page.goto('/diagram/index.html', { waitUntil: 'load' });
-    const input = page.locator('#exampleDescription');
+    await openTaskDescriptionEditor(page);
     const preview = page.locator('.example-description-preview');
 
-    await input.fill('');
-    await expect(preview).toBeHidden();
+    await page.evaluate(() => window.mathVisuals.stopTaskDescriptionEdit());
+    await expect(preview).toBeVisible();
+    await expect(preview).toContainText('Klikk for å legge til oppgavetekst');
 
-    await input.fill('Vanlig tekst uten formatering');
-    await expect(preview).toBeHidden();
+    await fillTaskDescription(page, 'Vanlig tekst uten formatering');
+    await expect(preview).toBeVisible();
+    await expect(preview).toHaveText('Vanlig tekst uten formatering');
 
-    await input.fill('Vis @math{1 + 1} i teksten');
+    await fillTaskDescription(page, 'Vis @math{1 + 1} i teksten');
     await expect(preview).toBeVisible();
   });
 
   test('shows description text when switching to task mode', async ({ page }) => {
     await page.goto('/diagram/index.html', { waitUntil: 'load' });
     const description = 'Dette er en testoppgave';
-    await page.fill('#exampleDescription', description);
+    await fillTaskDescription(page, description);
     await page.evaluate(() => window.mathVisuals.setAppMode('task', { force: true }));
     const preview = page.locator('.example-description-preview');
     await expect(preview).toBeVisible();
@@ -50,7 +53,7 @@ test.describe('task mode description preview', () => {
   test('renders math markup without exposing raw tokens in task mode', async ({ page }) => {
     await page.goto('/diagram/index.html', { waitUntil: 'load' });
     const description = 'Flytt punktene slik at linja gir @math{y=ax+b}.';
-    await page.fill('#exampleDescription', description);
+    await fillTaskDescription(page, description);
     await page.evaluate(() => window.mathVisuals.setAppMode('task', { force: true }));
     const preview = page.locator('.example-description-preview');
     await expect(preview).toBeVisible();
@@ -61,7 +64,7 @@ test.describe('task mode description preview', () => {
   test('renders KaTeX math and answer inputs in task mode', async ({ page }) => {
     await page.goto('/diagram/index.html', { waitUntil: 'load' });
     const description = 'Regn ut @math{\\tfrac{1}{2}} + @input[answer="7/12"|size="3"]';
-    await page.fill('#exampleDescription', description);
+    await fillTaskDescription(page, description);
     await page.evaluate(() => window.mathVisuals.setAppMode('task', { force: true }));
 
     const preview = page.locator('.example-description-preview');
@@ -75,7 +78,7 @@ test.describe('task mode description preview', () => {
 
   test('renders simple fractions as proper fractions in task mode', async ({ page }) => {
     await page.goto('/diagram/index.html', { waitUntil: 'load' });
-    await page.fill('#exampleDescription', 'Regn ut @math{1/2}');
+    await fillTaskDescription(page, 'Regn ut @math{1/2}');
     await page.evaluate(() => window.mathVisuals.setAppMode('task', { force: true }));
 
     const preview = page.locator('.example-description-preview');
