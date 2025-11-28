@@ -328,6 +328,8 @@ jobs:
         run: |
           set -euo pipefail
           npm run build
+          ls -al public/palette/palette-config.js
+          ls -al public/packages/palette/dist
           aws s3 sync public/ "s3://$SITE_BUCKET_NAME/" --delete
 
       - name: Invalidate CloudFront cache
