@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { FIGURE_LIBRARY_UPLOAD_TOOL_ID } = require('../api/_lib/figure-library-store');
+const { fillTaskDescription } = require('./helpers/description-editor');
 
 test.describe.configure({ mode: 'skip' }); // Temporarily disable due to persistent 404 failures in CI
 const fs = require('node:fs/promises');
@@ -416,7 +417,7 @@ test.describe('Eksempelarkiv eksport-import flyt', () => {
     await page.goto('/graftegner.html', { waitUntil: 'networkidle' });
     await page.waitForSelector('#btnSvg');
 
-    await page.fill('#exampleDescription', 'Eksempelarkivtest-eksempel');
+    await fillTaskDescription(page, 'Eksempelarkivtest-eksempel');
 
     await page.evaluate(() => {
       const fallbackState = {

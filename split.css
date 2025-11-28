@@ -281,6 +281,10 @@ body[data-app-mode="task"] .grid.split-enabled > .splitter::before {
   resize: none;
 }
 
+body:not([data-app-mode="task"]) .card--examples .example-description {
+  display: none;
+}
+
 body[data-app-mode="task"] .card--examples {
   display: flex !important;
   gap: 12px;
@@ -290,7 +294,6 @@ body[data-app-mode="task"] .card--examples {
   padding: 0;
 }
 
-body[data-app-mode="task"] .card--examples .toolbar,
 body[data-app-mode="task"] .card--examples .example-tabs {
   display: none !important;
 }
@@ -304,12 +307,21 @@ body[data-app-mode="task"] .card--examples .example-description textarea {
   min-height: 0;
 }
 
+body[data-app-mode="task"] .card--examples .example-description.example-description--task-editing textarea {
+  display: block;
+  min-height: 72px;
+}
+
 body[data-app-mode="task"] .card--examples .example-description label {
   display: none;
 }
 
 body[data-app-mode="task"] .card--examples .example-description .example-description-preview:not([data-empty="true"]) {
   display: block;
+}
+
+body[data-app-mode="task"] .card--examples .example-description.example-description--task-editing .example-description-preview {
+  display: none !important;
 }
 
 body[data-app-mode="task"] .card--examples .example-description {

@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
 const { attachExamplesBackendMock } = require('./helpers/examples-backend-mock');
+const { fillTaskDescription } = require('./helpers/description-editor');
 
 const DIAGRAM_PATH = '/diagram/index.html';
 
@@ -20,10 +21,7 @@ const TRASH_RESPONSE_BASE = {
 };
 
 async function setDescription(page, value) {
-  const input = page.locator('#exampleDescription');
-  await expect(input).toBeVisible();
-  await input.fill('');
-  await input.fill(value);
+  await fillTaskDescription(page, value);
 }
 
 test.describe('Description renderer interactions', () => {

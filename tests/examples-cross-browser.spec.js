@@ -4,6 +4,7 @@ const {
   attachExamplesBackendMock,
   normalizeExamplePath
 } = require('./helpers/examples-backend-mock');
+const { fillTaskDescription, openTaskDescriptionEditor } = require('./helpers/description-editor');
 
 const EXAMPLE_PATH = '/diagram/index.html';
 const CANONICAL_PATH = normalizeExamplePath(EXAMPLE_PATH);
@@ -35,7 +36,7 @@ test.describe('Example creation portability', () => {
     const descriptionValue = `E2E-${testInfo.project.name}-${Date.now()}`;
 
     await page.fill('#cfgTitle', titleValue);
-    await page.fill('#exampleDescription', descriptionValue);
+    await fillTaskDescription(page, descriptionValue);
     const savePromise = backend.waitForPut(CANONICAL_PATH, {
       description: `cross-browser save (${testInfo.project.name})`
     });
@@ -59,6 +60,7 @@ test.describe('Example creation portability', () => {
     await expect(otherTabs).toHaveCount(initialCount + 1);
     await otherTabs.last().click();
 
+    await openTaskDescriptionEditor(otherPage);
     await expect(otherPage.locator('#exampleDescription')).toHaveValue(descriptionValue);
     await expect(otherPage.locator('#cfgTitle')).toHaveValue(titleValue);
 

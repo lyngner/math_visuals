@@ -575,6 +575,10 @@ select:disabled {
   font-style: italic;
 }
 
+body:not([data-app-mode="task"]) .card--examples .example-description {
+  display: none;
+}
+
 .card--examples .example-description-preview .katex {
   display: inline-block;
   font-size: 1.05em;
@@ -700,7 +704,6 @@ body[data-app-mode="task"] .card--examples .example-description {
   padding: 0;
 }
 
-body[data-app-mode="task"] .card--examples .toolbar,
 body[data-app-mode="task"] .card--examples .example-tabs {
   display: none !important;
 }
@@ -718,8 +721,17 @@ body[data-app-mode="task"] .card--examples .example-description textarea {
   min-height: 0;
 }
 
+body[data-app-mode="task"] .card--examples .example-description.example-description--task-editing textarea {
+  display: block;
+  min-height: 72px;
+}
+
 body[data-app-mode="task"] .card--examples .example-description .example-description-preview:not([data-empty="true"]) {
   display: block;
+}
+
+body[data-app-mode="task"] .card--examples .example-description.example-description--task-editing .example-description-preview {
+  display: none !important;
 }
 
 body[data-app-mode="task"] .card--examples .example-description .example-description-preview {

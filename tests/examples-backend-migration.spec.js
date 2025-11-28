@@ -4,6 +4,7 @@ const {
   attachExamplesBackendMock,
   normalizeExamplePath
 } = require('./helpers/examples-backend-mock');
+const { openTaskDescriptionEditor } = require('./helpers/description-editor');
 
 const PAGE_PATH = '/brøkfigurer.html';
 const CANONICAL_PATH = normalizeExamplePath(PAGE_PATH);
@@ -70,6 +71,7 @@ test.describe('examples backend migration', () => {
     const legacyEntry = await backend.client.get(LEGACY_PRIMARY_PATH);
     expect(legacyEntry).toBeUndefined();
 
+    await openTaskDescriptionEditor(page);
     await expect(page.locator('#exampleDescription')).toHaveValue('Backend legacy eksempel', { timeout: 15000 });
 
     const normalizedVariants = LEGACY_VARIANTS.map(value => normalizeExamplePath(value));
