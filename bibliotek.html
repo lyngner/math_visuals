@@ -5,6 +5,19 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Figurbibliotek</title>
   <link rel="stylesheet" href="/base.css" />
+  <script>
+    (function ensureShellNavigation() {
+      if (typeof window === 'undefined') return;
+      if (window.top !== window) return;
+      const currentPath = window.location.pathname || '/bibliotek';
+      const search = window.location.search || '';
+      if (search.includes('path=')) return;
+      const url = new URL(window.location.href);
+      url.pathname = '/';
+      url.searchParams.set('path', currentPath);
+      window.location.replace(url.toString());
+    })();
+  </script>
   <style>
     :root {
       --beta-color: #2563eb;
