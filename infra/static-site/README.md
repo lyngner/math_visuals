@@ -237,10 +237,14 @@ routed back to the API origin.
    curl -I "https://$CLOUDFRONT_DOMAIN/sortering/eksempel1"
    ```
 
-   The `/api/examples` call should return a `200` with
-   `content-type: application/json` and a JSON payload such as
-   `[{"id":"perlesnor","slug":"perlesnor","name":"Perlesnor"}, ...]`. The
-   `/sortering/eksempel1` request should return a `200 OK` from the S3 origin.
+The `/api/examples` call should return a `200` with
+`content-type: application/json` and a JSON payload such as
+`[{"id":"perlesnor","slug":"perlesnor","name":"Perlesnor"}, ...]`. The
+`/sortering/eksempel1` request should return a `200 OK` from the S3 origin.
+If `/api/examples` returns an error, the response should still include
+`Content-Type: application/json` and a JSON body like
+`{"error":"Not Found","message":"..."}` rather than HTML. This confirms that
+both CloudFront routing and the Lambda handler wrap errors consistently.
 
 ### Troubleshooting: empty example lists
 
