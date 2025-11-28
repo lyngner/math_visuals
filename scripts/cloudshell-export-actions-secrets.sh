@@ -6,7 +6,8 @@ usage() {
   cat <<'USAGE'
 Bruk: scripts/cloudshell-export-actions-secrets.sh [--region REGION] [--shared-stack NAVN] [--static-stack NAVN]
        [--api-artifact-bucket NAVN] [--api-artifact-key STI] [--api-stage-name NAVN]
-       [--aws-iac-role-arn ARN] [--price-class PRICE_CLASS] [--auto-detect|--no-auto-detect]
+       [--aws-iac-role-arn ARN] [--price-class PRICE_CLASS] [--environment ENV]
+       [--auto-detect|--no-auto-detect]
 
 Henter secrets/parameterverdier fra CloudFormation-stacker og skriver KEY=VALUE-linjer til stdout
 for bruk som GitHub Actions-secrets.
@@ -31,6 +32,7 @@ Flagg:
   --api-stage-name         API-steg/alias (standard: $API_STAGE_NAME)
   --aws-iac-role-arn       ARN for GitHub OIDC-rollen (kreves, ingen standard utover placeholder)
   --price-class            CloudFront price class (standard: $STATIC_SITE_CLOUDFRONT_PRICE_CLASS)
+  --environment            Setter forvalg for dev/prod. dev => *-dev stack-navn og API stage "dev" (standard: prod)
   --auto-detect            Oppdag S3-bøtte og OIDC-rolle automatisk (standard)
   --no-auto-detect         Skru av automatisk oppdagelse og bruk verdier som er oppgitt
   -h, --help               Vis denne hjelpeteksten
@@ -143,25 +145,41 @@ main() {
   API_STAGE_NAME=${API_STAGE_NAME:-prod}
   AWS_IAC_ROLE_ARN=${AWS_IAC_ROLE_ARN:-<fyll-inn-rolle-arn>}
   STATIC_SITE_CLOUDFRONT_PRICE_CLASS=${STATIC_SITE_CLOUDFRONT_PRICE_CLASS:-PriceClass_All}
+  ENVIRONMENT=${ENVIRONMENT:-prod}
+  shared_stack_set=false
+  static_stack_set=false
+  api_stage_set=false
   AUTO_DETECT=true
   local show_help=false
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --region) REGION="$2"; shift 2;;
-      --shared-stack) SHARED_STACK="$2"; shift 2;;
-      --static-stack) STATIC_STACK="$2"; shift 2;;
+      --shared-stack) SHARED_STACK="$2"; shared_stack_set=true; shift 2;;
+      --static-stack) STATIC_STACK="$2"; static_stack_set=true; shift 2;;
       --api-artifact-bucket) API_ARTIFACT_BUCKET="$2"; shift 2;;
       --api-artifact-key) API_ARTIFACT_KEY="$2"; shift 2;;
-      --api-stage-name) API_STAGE_NAME="$2"; shift 2;;
+      --api-stage-name) API_STAGE_NAME="$2"; api_stage_set=true; shift 2;;
       --aws-iac-role-arn) AWS_IAC_ROLE_ARN="$2"; shift 2;;
       --price-class) STATIC_SITE_CLOUDFRONT_PRICE_CLASS="$2"; shift 2;;
+      --environment) ENVIRONMENT="$2"; shift 2;;
       --auto-detect) AUTO_DETECT=true; shift;;
       --no-auto-detect) AUTO_DETECT=false; shift;;
       -h|--help) show_help=true; shift;;
       *) echo "Ukjent flagg: $1" >&2; usage; exit 1;;
     esac
   done
+
+  case "$ENVIRONMENT" in
+    dev)
+      [[ "$shared_stack_set" == true ]] || SHARED_STACK="math-visuals-shared-dev"
+      [[ "$static_stack_set" == true ]] || STATIC_STACK="math-visuals-static-site-dev"
+      [[ "$api_stage_set" == true ]] || API_STAGE_NAME="dev"
+      ;;
+    prod|production|*)
+      ENVIRONMENT="prod"
+      ;;
+  esac
 
   if [[ "$show_help" == true ]]; then
     usage
