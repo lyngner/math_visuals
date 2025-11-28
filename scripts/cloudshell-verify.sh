@@ -9,6 +9,7 @@ DEFAULT_API_STACK=${DEFAULT_API_STACK:-math-visuals-api}
 DEFAULT_LOG_GROUP=${DEFAULT_LOG_GROUP:-/aws/lambda/math-visuals-api}
 DEFAULT_METRIC_NAMESPACE=${DEFAULT_METRIC_NAMESPACE:-MathVisuals/Verification}
 OVERALL_STATUS=0
+S3_DOMAIN_PATTERNS=(".s3." ".s3-website-" ".s3.amazonaws.com")
 
 usage() {
   cat <<'USAGE'
@@ -20,6 +21,7 @@ Tilgjengelige flagg:
   --data-stack=STACK           CloudFormation-stacken som eier Redis-outputs (standard: math-visuals-data)
   --api-stack=STACK            CloudFormation-stacken som eier API-et (for logg-lookup, standard: math-visuals-api)
   --static-stack=STACK         CloudFormation-stacken som eier CloudFront/S3-outputs (standard: math-visuals-static-site)
+  --api-gateway-domain=DOMAIN  Overstyr ApiGatewayDomainName-parameteren fra stacken (f.eks. abc.execute-api.us-east-1.amazonaws.com)
   --api-url=URL                Overstyr CloudFront-oppslaget og bruk denne URL-en for /api/examples-testene (hopper over describe-stacks)
   --log-group=NAME             CloudWatch-logggruppen til Lambdaen (standard: /aws/lambda/math-visuals-api)
   --trace                      Slå på shell tracing (set -x) for å feilsøke tidlige stopp
@@ -37,11 +39,13 @@ STATIC_STACK=$DEFAULT_STATIC_STACK
 API_STACK=$DEFAULT_API_STACK
 LOG_GROUP=$DEFAULT_LOG_GROUP
 API_URL_OVERRIDE=""
+API_GATEWAY_DOMAIN_OVERRIDE=""
 TRACE=false
 SHOW_HELP=false
 LOG_GROUP_SET=false
 CF_DOMAIN=""
 API_URL=""
+API_GATEWAY_DOMAIN=""
 HELPER_STATUS="not-run"
 OVERALL_STATUS=0
 AWS_TAIL_CMD=()
@@ -91,6 +95,9 @@ while [[ $# -gt 0 ]]; do
       ;;
     --static-stack=*)
       STATIC_STACK="${1#*=}"
+      ;;
+    --api-gateway-domain=*)
+      API_GATEWAY_DOMAIN_OVERRIDE="${1#*=}"
       ;;
     --api-url=*)
       API_URL_OVERRIDE="${1#*=}"
@@ -210,6 +217,16 @@ describe_output_for_stack() {
     --region "$REGION" \
     --stack-name "$stack_name" \
     --query "Stacks[0].Outputs[?OutputKey==\`$output_key\`].OutputValue" \
+    --output text
+}
+
+describe_parameter_for_stack() {
+  local stack_name="$1"
+  local parameter_key="$2"
+  aws cloudformation describe-stacks \
+    --region "$REGION" \
+    --stack-name "$stack_name" \
+    --query "Stacks[0].Parameters[?ParameterKey==\`$parameter_key\`].ParameterValue" \
     --output text
 }
 
@@ -546,6 +563,9 @@ if [[ -n "$API_URL_OVERRIDE" ]]; then
     echo "Kunne ikke lese domenet fra --api-url=$API_URL_OVERRIDE. Oppgi en URL som starter med http(s)://" >&2
     exit 1
   fi
+  if stack_exists "$STATIC_STACK"; then
+    API_GATEWAY_DOMAIN=$(describe_parameter_for_stack "$STATIC_STACK" "ApiGatewayDomainName")
+  fi
 else
   STATIC_STACK_FOUND=true
   if ! stack_exists "$STATIC_STACK"; then
@@ -557,6 +577,7 @@ else
 
   if [[ "$STATIC_STACK_FOUND" == true ]]; then
     CF_DOMAIN=$(describe_output_for_stack "$STATIC_STACK" "CloudFrontDistributionDomainName")
+    API_GATEWAY_DOMAIN=$(describe_parameter_for_stack "$STATIC_STACK" "ApiGatewayDomainName")
   fi
   if [[ -z "$CF_DOMAIN" || "$CF_DOMAIN" == "None" ]]; then
     echo "Fant ikke CloudFrontDistributionDomainName i stacken $STATIC_STACK" >&2
@@ -564,6 +585,16 @@ else
   fi
   API_URL="https://${CF_DOMAIN}/api/examples"
 fi
+
+if [[ -n "$API_GATEWAY_DOMAIN_OVERRIDE" ]]; then
+  API_GATEWAY_DOMAIN="$API_GATEWAY_DOMAIN_OVERRIDE"
+fi
+
+if [[ -z "$API_GATEWAY_DOMAIN" || "$API_GATEWAY_DOMAIN" == "None" ]]; then
+  echo "Fant ikke ApiGatewayDomainName-parameteren. Oppgi --api-gateway-domain=<api-endpoint> eller bekreft at stacken $STATIC_STACK har parameteren satt." >&2
+  exit 1
+fi
+
 echo "==> Slår opp CloudFront-domenet (${CF_DOMAIN}) og sjekker API-responsen for mode=kv ..."
 curl -fsS "$API_URL" | jq '{mode, storage, persistent, updatedAt}'
 
@@ -582,10 +613,33 @@ if [[ -z "$DISTRIBUTION_ID" || "$DISTRIBUTION_ID" == "None" ]]; then
 fi
 
 echo "==> Henter CloudFront-distribusjonen (${DISTRIBUTION_ID}) og viser origins ..."
-aws cloudfront get-distribution-config \
+distribution_config=$(aws cloudfront get-distribution-config \
   --region "$CLOUDFRONT_REGION" \
-  --id "$DISTRIBUTION_ID" \
-  | jq '.DistributionConfig.Origins.Items'
+  --id "$DISTRIBUTION_ID")
+
+API_ORIGIN_DOMAIN=$(jq -r '.DistributionConfig.Origins.Items[] | select(.Id=="ApiGatewayOrigin") | .DomainName // ""' <<<"$distribution_config")
+if [[ -z "$API_ORIGIN_DOMAIN" || "$API_ORIGIN_DOMAIN" == "None" ]]; then
+  echo "Fant ikke en origin med Id=ApiGatewayOrigin i CloudFront-distribusjonen. Kontroller parameterne før redeploy." >&2
+  exit 1
+fi
+
+api_origin_domain_lc=${API_ORIGIN_DOMAIN,,}
+for pattern in "${S3_DOMAIN_PATTERNS[@]}"; do
+  if [[ "$api_origin_domain_lc" == *"$pattern"* ]]; then
+    echo "ApiGatewayOrigin peker til et S3-domene (${API_ORIGIN_DOMAIN}). Dette vil sende API-trafikk til bucket-oppsettet." >&2
+    echo "Oppdater ApiGatewayDomainName til API Gateway-endepunktet (f.eks. abc.execute-api.us-east-1.amazonaws.com) før du kjører deploy-skriptet." >&2
+    exit 1
+  fi
+done
+
+expected_api_domain_lc=${API_GATEWAY_DOMAIN,,}
+if [[ "$api_origin_domain_lc" != "$expected_api_domain_lc" ]]; then
+  echo "ApiGatewayOrigin peker til ${API_ORIGIN_DOMAIN}, men ApiGatewayDomainName er satt til ${API_GATEWAY_DOMAIN}." >&2
+  echo "Bekreft at parameteren matcher API Gateway-domenet før redeploy for å unngå å reintrodusere regressjonen." >&2
+  exit 1
+fi
+
+jq '.DistributionConfig.Origins.Items' <<<"$distribution_config"
 
 # 4. Tail CloudWatch-loggene
 resolve_log_group
