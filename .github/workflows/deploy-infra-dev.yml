@@ -89,7 +89,7 @@ jobs:
 
       - name: Deploy data stack
         env:
-          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD_DEV }}
         run: |
           aws cloudformation deploy \
             --stack-name "$DATA_STACK_NAME" \
@@ -102,9 +102,9 @@ jobs:
 
       - name: Sync shared Redis connection parameters
         env:
-          REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
-          REDIS_PORT: ${{ secrets.REDIS_PORT }}
-          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT_DEV }}
+          REDIS_PORT: ${{ secrets.REDIS_PORT_DEV }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD_DEV }}
         run: |
           set -euo pipefail
           
