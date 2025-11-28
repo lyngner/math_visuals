@@ -1529,6 +1529,10 @@ let axX = null;
 let axY = null;
 let xName = null;
 let yName = null;
+const AXIS_LABEL_STATE = {
+  x: { manual: false, position: null },
+  y: { manual: false, position: null }
+};
 let axisArrowX = null;
 let axisArrowY = null;
 let customTicksX = null;
@@ -2351,6 +2355,8 @@ function destroyBoard() {
   axY = null;
   xName = null;
   yName = null;
+  resetAxisLabelState('x');
+  resetAxisLabelState('y');
   axisArrowX = null;
   axisArrowY = null;
   customTicksX = null;
@@ -2706,8 +2712,47 @@ function axisLabelText(axisKey) {
   return trimmed ? trimmed : fallback;
 }
 
+function axisLabelState(axisKey) {
+  if (axisKey === 'y') return AXIS_LABEL_STATE.y;
+  return AXIS_LABEL_STATE.x;
+}
+
+function resetAxisLabelState(axisKey) {
+  const state = axisLabelState(axisKey);
+  if (!state) return;
+  state.manual = false;
+  state.position = null;
+}
+
+function rememberAxisLabelPosition(axisKey, pos, manualOverride) {
+  const state = axisLabelState(axisKey);
+  if (!state) return;
+  if (manualOverride != null) {
+    state.manual = !!manualOverride;
+    if (!state.manual && !pos) {
+      state.position = null;
+      return;
+    }
+  }
+  if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+    state.position = [pos.x, pos.y];
+  }
+}
+
+function manualAxisLabelPosition(axisKey) {
+  const state = axisLabelState(axisKey);
+  if (!state || !state.manual) return null;
+  const pos = state.position;
+  if (!Array.isArray(pos) || pos.length < 2) return null;
+  const [x, y] = pos;
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
 function computeAxisLabelWorldPosition(axisKey) {
   if (!brd) return null;
+  const manual = manualAxisLabelPosition(axisKey);
+  if (manual) return manual;
   const box = brd.getBoundingBox();
   if (!Array.isArray(box) || box.length < 4) return null;
   const [xmin, ymax, xmax, ymin] = box;
@@ -2721,12 +2766,16 @@ function computeAxisLabelWorldPosition(axisKey) {
     const arrowHalfHeight = axisArrowHalfHeight();
     const x = Number.isFinite(xmax) ? xmax : 0;
     const y = ((Number.isFinite(arrowHalfHeight) ? arrowHalfHeight : 0) + offsetY);
-    return { x, y };
+    const pos = { x, y };
+    rememberAxisLabelPosition(axisKey, pos, false);
+    return pos;
   }
   const arrowHalfWidth = axisArrowHalfWidth();
   const x = ((Number.isFinite(arrowHalfWidth) ? arrowHalfWidth : 0) + offsetX);
   const y = Number.isFinite(ymax) ? ymax : 0;
-  return { x, y };
+  const pos = { x, y };
+  rememberAxisLabelPosition(axisKey, pos, false);
+  return pos;
 }
 
 function worldToScreenPoint(worldPoint) {
@@ -2788,20 +2837,11 @@ function appendAxisLabelsToSvgClone(node) {
 
 function placeAxisNames() {
   if (!brd) return;
-  const [xmin, ymax, xmax, ymin] = brd.getBoundingBox();
-  const rx = xmax - xmin;
-  const ry = ymax - ymin;
-  const canvasWidth = Math.max(1, brd.canvasWidth || 1);
-  const canvasHeight = Math.max(1, brd.canvasHeight || 1);
-  const offsetX = Number.isFinite(rx) ? (rx / canvasWidth) * AXIS_LABEL_OFFSET_PX : 0;
-  const offsetY = Number.isFinite(ry) ? (ry / canvasHeight) * AXIS_LABEL_OFFSET_PX : 0;
-  const arrowHalfWidth = axisArrowHalfWidth();
-  const arrowHalfHeight = axisArrowHalfHeight();
-  const xLabelY = (Number.isFinite(arrowHalfHeight) ? arrowHalfHeight : 0) + offsetY;
-  const yLabelX = (Number.isFinite(arrowHalfWidth) ? arrowHalfWidth : 0) + offsetX;
-  const xLabelPos = [Number.isFinite(xmax) ? xmax : 0, Number.isFinite(xLabelY) ? xLabelY : 0];
-  const yLabelPos = [Number.isFinite(yLabelX) ? yLabelX : 0, Number.isFinite(ymax) ? ymax : 0];
-  const axisLabelCss = 'pointer-events:none;user-select:none;';
+  const xWorld = computeAxisLabelWorldPosition('x');
+  const yWorld = computeAxisLabelWorldPosition('y');
+  const xLabelPos = [Number.isFinite(xWorld === null || xWorld === void 0 ? void 0 : xWorld.x) ? xWorld.x : 0, Number.isFinite(xWorld === null || xWorld === void 0 ? void 0 : xWorld.y) ? xWorld.y : 0];
+  const yLabelPos = [Number.isFinite(yWorld === null || yWorld === void 0 ? void 0 : yWorld.x) ? yWorld.x : 0, Number.isFinite(yWorld === null || yWorld === void 0 ? void 0 : yWorld.y) ? yWorld.y : 0];
+  const axisLabelCss = 'user-select:none;cursor:move;touch-action:none;';
   if (!xName) {
     xName = brd.create('text', [...xLabelPos, () => axisLabelChip('x')], {
       display: 'html',
@@ -2843,6 +2883,12 @@ function placeAxisNames() {
   }
   xName.moveTo(xLabelPos);
   yName.moveTo(yLabelPos);
+  clampLabelToView(xName);
+  clampLabelToView(yName);
+  rememberAxisLabelPosition('x', { x: xName.X(), y: xName.Y() }, !!manualAxisLabelPosition('x'));
+  rememberAxisLabelPosition('y', { x: yName.X(), y: yName.Y() }, !!manualAxisLabelPosition('y'));
+  makeAxisLabelDraggable('x', xName);
+  makeAxisLabelDraggable('y', yName);
 }
 
 /* ====== Lås 1:1 når lockAspect===true,
@@ -3064,6 +3110,84 @@ function clampLabelToView(label) {
   if (Math.abs(xClamped - x) > 1e-12 || Math.abs(yClamped - y) > 1e-12) {
     label.moveTo([xClamped, yClamped]);
   }
+}
+function makeAxisLabelDraggable(axisKey, label) {
+  if (!label) return;
+  const setup = () => {
+    const node = label.rendNode;
+    if (!node) return false;
+    if (node._axisDragSetup) return true;
+    node._axisDragSetup = true;
+    node.style.pointerEvents = 'auto';
+    node.style.cursor = 'move';
+    node.style.touchAction = 'none';
+    let dragging = false;
+    let offset = [0, 0];
+    const toCoords = ev => {
+      try {
+        const c = brd.getUsrCoordsOfMouse(ev);
+        if (Array.isArray(c) && c.length >= 2) {
+          return [c[0], c[1]];
+        }
+      } catch (_) {}
+      return null;
+    };
+    const clampAndRemember = manual => {
+      clampLabelToView(label);
+      rememberAxisLabelPosition(axisKey, { x: label.X(), y: label.Y() }, manual);
+    };
+    const start = ev => {
+      if (ev.button != null && ev.button !== 0) return;
+      const coords = toCoords(ev);
+      if (!coords) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      dragging = true;
+      rememberAxisLabelPosition(axisKey, { x: label.X(), y: label.Y() }, true);
+      clampLabelToView(label);
+      offset = [label.X() - coords[0], label.Y() - coords[1]];
+      if (typeof node.setPointerCapture === 'function' && ev.pointerId != null) {
+        try {
+          node.setPointerCapture(ev.pointerId);
+        } catch (_) {}
+      }
+    };
+    const move = ev => {
+      if (!dragging) return;
+      const coords = toCoords(ev);
+      if (!coords) return;
+      ev.preventDefault();
+      label.moveTo([coords[0] + offset[0], coords[1] + offset[1]]);
+      clampAndRemember(true);
+    };
+    const end = ev => {
+      if (!dragging) return;
+      dragging = false;
+      ev.preventDefault();
+      ev.stopPropagation();
+      clampAndRemember(true);
+      if (typeof node.releasePointerCapture === 'function' && ev.pointerId != null) {
+        try {
+          node.releasePointerCapture(ev.pointerId);
+        } catch (_) {}
+      }
+    };
+    node.addEventListener('pointerdown', start);
+    node.addEventListener('pointermove', move);
+    node.addEventListener('pointerup', end);
+    node.addEventListener('pointercancel', end);
+    node.addEventListener('dblclick', ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      resetAxisLabelState(axisKey);
+      const pos = computeAxisLabelWorldPosition(axisKey);
+      if (pos) {
+        label.moveTo([pos.x, pos.y]);
+      }
+    });
+    return true;
+  };
+  if (!setup()) setTimeout(() => setup(), 0);
 }
 function makeLabelDraggable(label, g, reposition) {
   if (!label) return;
