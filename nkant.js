@@ -1134,7 +1134,10 @@ function resolveSettingsPalette(count) {
 
 function applySettingsPaletteToStyle() {
   const paletteResult = resolveSettingsPalette(4);
-  if (paletteResult && paletteResult.source === "fallback") return;
+  if (paletteResult && paletteResult.source === "fallback") {
+    // Avoid overriding profile colors when only the fallback palette is available.
+    return;
+  }
   const palette = paletteResult && Array.isArray(paletteResult.colors) ? paletteResult.colors : [];
   if (!palette.length) return;
   const fallbackLine = STYLE_DEFAULTS.edgeStroke;
