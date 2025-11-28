@@ -8,95 +8,7 @@
 /* ---------- DEFAULT SPECS (leses fra HTML) ---------- */
 let DEFAULT_SPECS = "";
 
-const PALETTE_CLIENT_ERROR_CODES = new Set(['MODULE_NOT_FOUND', 'ERR_MODULE_NOT_FOUND', 'ERR_REQUIRE_ESM']);
-
-const paletteModule = loadPaletteServiceClient();
-const { paletteService } = paletteModule;
-
-function loadPaletteServiceClient() {
-  const moduleExports = tryRequirePaletteClient();
-  if (moduleExports && moduleExports.paletteService && typeof moduleExports.paletteService.resolveGroupPalette === 'function') {
-    return moduleExports;
-  }
-  const scopes = [
-    typeof globalThis !== 'undefined' ? globalThis : null,
-    typeof window !== 'undefined' ? window : null,
-    typeof global !== 'undefined' ? global : null
-  ];
-  for (const scope of scopes) {
-    const client = resolvePaletteClientFromScope(scope);
-    if (client) {
-      return client;
-    }
-  }
-  return createFallbackPaletteClient();
-}
-
-function tryRequirePaletteClient() {
-  if (typeof require !== 'function') {
-    return null;
-  }
-  try {
-    return require('./palette/palette-service-client.js');
-  } catch (error) {
-    if (!error || !PALETTE_CLIENT_ERROR_CODES.has(error.code)) {
-      throw error;
-    }
-  }
-  return null;
-}
-
-function resolvePaletteClientFromScope(scope) {
-  if (!scope || typeof scope !== 'object') {
-    return null;
-  }
-  const client = scope.MathVisualsPaletteServiceClient;
-  if (client && client.paletteService && typeof client.paletteService.resolveGroupPalette === 'function') {
-    return client;
-  }
-  const group = scope.MathVisualsGroupPalette;
-  if (!group || typeof group !== 'object') {
-    return null;
-  }
-  const service = group.service && typeof group.service === 'object' ? group.service : group;
-  const resolver = service.resolveGroupPalette || service.resolve || group.resolveGroupPalette || group.resolve;
-  if (typeof resolver !== 'function') {
-    return null;
-  }
-  return {
-    paletteService: {
-      resolveGroupPalette(options = {}) {
-        return resolver.call(service, options);
-      }
-    }
-  };
-}
-
-function createFallbackPaletteClient() {
-  return {
-    paletteService: {
-      resolveGroupPalette(options = {}) {
-        const base = Array.isArray(options.base) ? options.base.filter(isValidColor) : [];
-        const fallback = Array.isArray(options.fallback) ? options.fallback.filter(isValidColor) : [];
-        const source = base.length ? base : fallback;
-        if (!source.length) {
-          return [];
-        }
-        const count = Number.isFinite(options.count) && options.count > 0 ? Math.trunc(options.count) : source.length;
-        const size = Math.max(1, count);
-        const result = [];
-        for (let index = 0; index < size; index += 1) {
-          result.push(source[index % source.length]);
-        }
-        return result;
-      }
-    }
-  };
-}
-
-function isValidColor(value) {
-  return typeof value === 'string' && value.trim().length > 0;
-}
+const NKANT_GROUP_PALETTE_SIZE = 6;
 
 /* ---------- ADV (dine verdier) ---------- */
 const ADV_CONFIG = {
@@ -808,70 +720,53 @@ const STYLE_DEFAULTS = {
   constructionWidth: 3,
   constructionDash: "10 8"
 };
-function buildThemeStyleOverrides(theme, fallbacks = {}) {
-  const primaryStroke = resolveThemeColor(
-    theme,
-    "ui.primary",
-    fallbacks.edgeStroke || STYLE_DEFAULTS.edgeStroke
-  );
-  const angleStroke = resolveThemeColor(
-    theme,
-    "graphs.axis",
-    fallbacks.angStroke || primaryStroke || STYLE_DEFAULTS.angStroke
-  );
-  const faceFill = resolveThemeColor(
-    theme,
-    "ui.surface",
-    resolveThemeColor(theme, "ui.secondary", fallbacks.faceFill || STYLE_DEFAULTS.faceFill)
-  );
-  const textFill = resolveThemeColor(theme, "ui.primary", fallbacks.textFill || STYLE_DEFAULTS.textFill);
-  const constructionStroke = resolveThemeColor(
-    theme,
-    "dots.default",
-    fallbacks.constructionStroke || primaryStroke || STYLE_DEFAULTS.constructionStroke
-  );
-  const angFill = withAlphaColor(
-    angleStroke,
-    0.25,
-    withAlphaColor(fallbacks.angStroke || angleStroke, 0.25, STYLE_DEFAULTS.angFill)
-  );
-  return {
-    faceFill,
-    edgeStroke: primaryStroke,
-    radiusStroke: angleStroke,
-    angStroke: angleStroke,
-    angFill,
-    textFill,
-    textHalo: null,
-    textHaloW: 0,
-    constructionStroke,
-    constructionWidth: 3,
-    constructionDash: "10 8"
-  };
+function sanitizeThemePaletteValue(value) {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  return trimmed || "";
 }
-const STYLE_PROFILE_OVERRIDES = {
-  campus: theme => buildThemeStyleOverrides(theme, {
-    faceFill: "#ffffff",
-    edgeStroke: "#2C395B",
-    angStroke: "#1F4DE2",
-    textFill: "#111827",
-    constructionStroke: "#6b7280"
-  }),
-  kikora: theme => buildThemeStyleOverrides(theme, {
-    faceFill: "#FFE066",
-    edgeStroke: "#3A86FF",
-    angStroke: "#3A86FF",
-    textFill: "#111827",
-    constructionStroke: "#8338EC"
-  }),
-  annet: theme => buildThemeStyleOverrides(theme, {
-    faceFill: "#FCEDE4",
-    edgeStroke: "#355070",
-    angStroke: "#355070",
-    textFill: "#1F2937",
-    constructionStroke: "#577590"
-  })
-};
+
+function getThemeColor(token, fallback) {
+  const theme = getThemeApi();
+  if (theme && typeof theme.getColor === "function") {
+    try {
+      const value = theme.getColor(token, fallback);
+      if (typeof value === "string" && value.trim()) {
+        return value.trim();
+      }
+    } catch (_) {}
+  }
+  return typeof fallback === "string" && fallback.trim() ? fallback.trim() : undefined;
+}
+
+function ensurePalette(base, count, fallback) {
+  const sanitizeList = values => {
+    if (!Array.isArray(values)) return [];
+    const result = [];
+    for (const value of values) {
+      const sanitized = sanitizeThemePaletteValue(value);
+      if (sanitized) {
+        result.push(sanitized);
+      }
+    }
+    return result;
+  };
+  const basePalette = sanitizeList(base);
+  const fallbackPalette = basePalette.length ? [] : sanitizeList(fallback);
+  const source = basePalette.length ? basePalette : fallbackPalette;
+  if (!source.length) {
+    return [];
+  }
+  if (!Number.isFinite(count) || count <= 0) {
+    return source.slice();
+  }
+  const size = Math.max(1, Math.trunc(count));
+  const result = [];
+  for (let index = 0; index < size; index += 1) {
+    result.push(source[index % source.length]);
+  }
+  return result;
+}
 
 const SETTINGS_FALLBACK_PALETTE = ["#1F4DE2", "#475569", "#ef4444", "#0ea5e9", "#10b981", "#f59e0b"];
 
@@ -898,30 +793,6 @@ function getPaletteApi() {
   return api && typeof api.getGroupPalette === "function" ? api : null;
 }
 
-function getPaletteConfig() {
-  const scopes = [
-    typeof window !== "undefined" ? window : null,
-    typeof globalThis !== "undefined" ? globalThis : null,
-    typeof global !== "undefined" ? global : null
-  ];
-  for (const scope of scopes) {
-    if (!scope || typeof scope !== "object") continue;
-    const config = scope.MathVisualsPaletteConfig;
-    if (config && typeof config === "object") {
-      return config;
-    }
-  }
-  if (typeof require === "function") {
-    try {
-      const mod = require("./palette/palette-config.js");
-      if (mod && typeof mod === "object") {
-        return mod;
-      }
-    } catch (_) {}
-  }
-  return null;
-}
-
 function getPaletteProjectResolver() {
   const scopes = [
     typeof window !== "undefined" ? window : null,
@@ -944,16 +815,6 @@ function getPaletteProjectResolver() {
     } catch (_) {}
   }
   return null;
-}
-
-function resolveProjectFallbackPalette(projectName) {
-  const config = getPaletteConfig();
-  if (!config || typeof config !== "object") return [];
-  const fallbacks = config.PROJECT_FALLBACKS;
-  if (!fallbacks || typeof fallbacks !== "object") return [];
-  const key = typeof projectName === "string" && projectName.trim() ? projectName.trim().toLowerCase() : null;
-  const base = (key && fallbacks[key]) || fallbacks.default || [];
-  return Array.isArray(base) ? base.slice() : [];
 }
 
 function resolveProjectNameHint() {
@@ -1014,153 +875,6 @@ function resolveProjectNameHint() {
   return null;
 }
 
-function sanitizeSettingsColor(value) {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const match = /^#?([0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.exec(trimmed);
-  if (!match) return null;
-  let hex = match[1].toLowerCase();
-  if (hex.length === 3) {
-    hex = hex.split("").map(ch => ch + ch).join("");
-  } else if (hex.length === 4) {
-    const rgb = hex.slice(0, 3).split("");
-    hex = rgb.map(ch => ch + ch).join("");
-  } else if (hex.length === 8) {
-    hex = hex.slice(0, 6);
-  }
-  return `#${hex}`;
-}
-
-function normalizeSettingsPalette(values) {
-  if (!Array.isArray(values)) return [];
-  const normalized = [];
-  for (const value of values) {
-    const sanitized = sanitizeSettingsColor(value);
-    if (sanitized) {
-      normalized.push(sanitized);
-      if (normalized.length >= SETTINGS_FALLBACK_PALETTE.length) {
-        break;
-      }
-    }
-  }
-  return normalized;
-}
-
-function cycleSettingsPalette(values, count) {
-  const base = normalizeSettingsPalette(values);
-  if (!base.length) return [];
-  if (!Number.isInteger(count) || count <= 0) {
-    return base.slice();
-  }
-  const result = [];
-  for (let i = 0; i < count; i += 1) {
-    result.push(base[i % base.length]);
-  }
-  return result;
-}
-
-function resolveSettingsPalette(count) {
-  const target = Number.isInteger(count) && count > 0 ? count : undefined;
-  const project = resolveProjectNameHint();
-  const groupTarget = target && target > 0 ? target : 3;
-  const settingsApi = getSettingsApi();
-  const paletteApi = getPaletteApi();
-  if (paletteApi) {
-    let palette = null;
-    try {
-      const resolved = paletteApi.getGroupPalette("nkant", { count: groupTarget, project });
-      palette = resolved && Array.isArray(resolved.colors) ? resolved.colors : resolved;
-    } catch (_) {
-      palette = null;
-    }
-    const resolved = cycleSettingsPalette(palette, groupTarget);
-    if (resolved.length) {
-      return { colors: resolved, source: "group" };
-    }
-  }
-  const theme = getThemeApi();
-  if (theme && typeof theme.getGroupPalette === "function") {
-    let palette = null;
-    try {
-      const resolved = theme.getGroupPalette("nkant", { project, count: groupTarget });
-      palette = resolved && Array.isArray(resolved.colors) ? resolved.colors : resolved;
-    } catch (_) {
-      palette = null;
-    }
-    if (
-      (!Array.isArray(palette) || palette.length < groupTarget) &&
-      theme.getGroupPalette.length >= 3
-    ) {
-      try {
-        const resolved = theme.getGroupPalette("nkant", groupTarget, project ? { project } : undefined);
-        palette = resolved && Array.isArray(resolved.colors) ? resolved.colors : resolved;
-      } catch (_) {
-        palette = null;
-      }
-    }
-    const resolved = cycleSettingsPalette(palette, groupTarget);
-    if (resolved.length) {
-      return { colors: resolved, source: "group" };
-    }
-  }
-  const projectFallbackPalette = resolveProjectFallbackPalette(project);
-  const fallbackCount = target || (projectFallbackPalette.length || groupTarget);
-  const serviceResolved = paletteService.resolveGroupPalette({
-    groupId: "nkant",
-    project: project || undefined,
-    count: fallbackCount,
-    fallback: projectFallbackPalette,
-    settings: settingsApi || undefined
-  });
-  const servicePalette =
-    serviceResolved && Array.isArray(serviceResolved.colors) ? serviceResolved.colors : serviceResolved;
-  const resolvedServicePalette = cycleSettingsPalette(servicePalette, fallbackCount);
-  if (resolvedServicePalette.length) {
-    return {
-      colors: resolvedServicePalette,
-      source: projectFallbackPalette.length ? "project-fallback" : "fallback"
-    };
-  }
-  if (projectFallbackPalette.length) {
-    const projectResolved = cycleSettingsPalette(projectFallbackPalette, target || projectFallbackPalette.length);
-    if (projectResolved.length) {
-      return { colors: projectResolved, source: "project-fallback" };
-    }
-  }
-  const fallback = cycleSettingsPalette(SETTINGS_FALLBACK_PALETTE, target || SETTINGS_FALLBACK_PALETTE.length);
-  return { colors: fallback, source: "fallback" };
-}
-
-function applySettingsPaletteToStyle() {
-  const paletteResult = resolveSettingsPalette(4);
-  if (paletteResult && paletteResult.source === "fallback") {
-    // Avoid overriding profile colors when only the fallback palette is available.
-    return;
-  }
-  const palette = paletteResult && Array.isArray(paletteResult.colors) ? paletteResult.colors : [];
-  if (!palette.length) return;
-  const fallbackLine = STYLE_DEFAULTS.edgeStroke;
-  const fallbackAngle = STYLE_DEFAULTS.angStroke;
-  const fallbackFill = STYLE_DEFAULTS.faceFill;
-  const sanitized = palette.map(value => sanitizeSettingsColor(value));
-  const useGroupOrder = paletteResult && paletteResult.source === "group";
-  const lineColor = useGroupOrder
-    ? sanitized[0] || fallbackLine
-    : sanitized[1] || sanitized[0] || fallbackLine;
-  const angleColor = useGroupOrder
-    ? sanitized[1] || lineColor || fallbackAngle
-    : sanitized[2] || lineColor || fallbackAngle;
-  const fillColor = useGroupOrder
-    ? sanitized[2] || fallbackFill
-    : sanitized[3] || fallbackFill;
-  STYLE.edgeStroke = lineColor || fallbackLine;
-  STYLE.angStroke = angleColor || fallbackAngle;
-  STYLE.faceFill = fillColor || fallbackFill;
-  STYLE.radiusStroke = angleColor || fallbackAngle;
-  STYLE.angFill = withAlphaColor(STYLE.angStroke, 0.25, withAlphaColor(fallbackAngle, 0.25, STYLE_DEFAULTS.angFill));
-}
-
 const STYLE = {
   ...STYLE_DEFAULTS
 };
@@ -1184,13 +898,6 @@ function pushTextScale(renderScale) {
 function getThemeApi() {
   const theme = typeof window !== "undefined" ? window.MathVisualsTheme : null;
   return theme && typeof theme === "object" ? theme : null;
-}
-
-function resolveThemeColor(theme, token, fallback) {
-  if (!theme || typeof theme.getColor !== "function") return fallback;
-  const value = theme.getColor(token, fallback);
-  if (typeof value === "string" && value.trim()) return value.trim();
-  return fallback;
 }
 
 function withAlphaColor(color, alpha, fallback) {
@@ -1220,34 +927,61 @@ function applyThemeToDocument() {
   }
 }
 
-function applyThemeStyles() {
+function refreshNkantTheme() {
+  applyThemeToDocument();
   const theme = getThemeApi();
-  const activeProject = typeof document !== "undefined" && document.documentElement
-    ? document.documentElement.getAttribute("data-mv-active-project")
+  const paletteApi = getPaletteApi();
+  const activeProfileNameRaw = theme && typeof theme.getActiveProfileName === "function"
+    ? theme.getActiveProfileName()
     : null;
-  const profileName = theme && typeof theme.getActiveProfileName === "function" ? theme.getActiveProfileName() : null;
-  const profileAttr = typeof document !== "undefined" && document.documentElement
-    ? document.documentElement.getAttribute("data-theme-profile")
-    : null;
-  const normalizedName = typeof activeProject === "string" && activeProject.trim()
-    ? activeProject.trim().toLowerCase()
-    : typeof profileName === "string" && profileName.trim()
-      ? profileName.trim().toLowerCase()
-      : typeof profileAttr === "string" && profileAttr.trim()
-        ? profileAttr.trim().toLowerCase()
-        : "";
-  const normalized = normalizedName;
-  const overridesFactory = normalized && STYLE_PROFILE_OVERRIDES[normalized] ? STYLE_PROFILE_OVERRIDES[normalized] : null;
-  Object.assign(STYLE, STYLE_DEFAULTS);
-  const overrides = typeof overridesFactory === "function" ? overridesFactory(theme) : overridesFactory;
-  if (overrides) {
-    Object.assign(STYLE, overrides);
+  const normalizedProfileName = resolveProjectNameHint()
+    || (typeof activeProfileNameRaw === "string" ? activeProfileNameRaw.trim().toLowerCase() : "");
+  const paletteRequest = { count: NKANT_GROUP_PALETTE_SIZE, project: normalizedProfileName || undefined };
+  let groupPalette = [];
+  if (paletteApi) {
+    try {
+      groupPalette = paletteApi.getGroupPalette("nkant", paletteRequest) || [];
+    } catch (_) {
+      groupPalette = [];
+    }
   }
-  applySettingsPaletteToStyle();
+  if ((!Array.isArray(groupPalette) || !groupPalette.length) && theme && typeof theme.getGroupPalette === "function") {
+    try {
+      groupPalette = theme.getGroupPalette("nkant", paletteRequest) || [];
+    } catch (_) {
+      groupPalette = [];
+    }
+  }
+  const palette = ensurePalette(groupPalette, NKANT_GROUP_PALETTE_SIZE, SETTINGS_FALLBACK_PALETTE);
+  const primaryColor = palette[0] || STYLE_DEFAULTS.edgeStroke;
+  const secondaryColor = palette[1] || primaryColor || STYLE_DEFAULTS.angStroke;
+  const tertiaryColor = palette[2] || STYLE_DEFAULTS.faceFill;
+  const textColor = getThemeColor("ui.primary", STYLE_DEFAULTS.textFill) || STYLE_DEFAULTS.textFill;
+  const constructionStroke = getThemeColor("dots.default", STYLE_DEFAULTS.constructionStroke)
+    || STYLE_DEFAULTS.constructionStroke;
+  Object.assign(STYLE, STYLE_DEFAULTS, {
+    edgeStroke: primaryColor,
+    angStroke: secondaryColor,
+    radiusStroke: secondaryColor,
+    faceFill: tertiaryColor,
+    textFill: textColor,
+    angFill: withAlphaColor(
+      secondaryColor,
+      0.25,
+      withAlphaColor(STYLE_DEFAULTS.angStroke, 0.25, STYLE_DEFAULTS.angFill)
+    ),
+    constructionStroke
+  });
+  if (typeof document === "undefined") return;
+  const svg = document.getElementById("paper");
+  if (!svg) return;
+  const result = renderCombined();
+  if (result && typeof result.catch === "function") {
+    result.catch(() => {});
+  }
 }
 
-applyThemeToDocument();
-applyThemeStyles();
+refreshNkantTheme();
 
 /* ---------- HJELPERE ---------- */
 const deg = r => r * 180 / Math.PI;
@@ -5114,15 +4848,7 @@ async function renderCombined() {
 }
 
 function refreshThemeAndRender() {
-  applyThemeToDocument();
-  applyThemeStyles();
-  if (typeof document === "undefined") return;
-  const svg = document.getElementById("paper");
-  if (!svg) return;
-  const result = renderCombined();
-  if (result && typeof result.catch === "function") {
-    result.catch(() => {});
-  }
+  refreshNkantTheme();
 }
 
 const THEME_REFRESH_MIN_INTERVAL_MS = 100;
@@ -5158,22 +4884,25 @@ function observeThemeProfileAttribute() {
   const root = document.documentElement;
   if (!root) return;
   let lastActiveProject = root.getAttribute && root.getAttribute("data-mv-active-project");
+  let lastThemeProfile = root.getAttribute && root.getAttribute("data-theme-profile");
   const observer = new MutationObserver(mutations => {
     for (const mutation of mutations) {
       if (
         mutation.type === "attributes" &&
-        mutation.attributeName === "data-mv-active-project"
+        (mutation.attributeName === "data-mv-active-project" || mutation.attributeName === "data-theme-profile")
       ) {
         const current = root.getAttribute && root.getAttribute("data-mv-active-project");
-        if (current !== lastActiveProject) {
+        const currentProfile = root.getAttribute && root.getAttribute("data-theme-profile");
+        if (current !== lastActiveProject || currentProfile !== lastThemeProfile) {
           lastActiveProject = current;
+          lastThemeProfile = currentProfile;
           scheduleThemeRefresh();
           break;
         }
       }
     }
   });
-  observer.observe(root, { attributes: true, attributeFilter: ["data-mv-active-project"] });
+  observer.observe(root, { attributes: true, attributeFilter: ["data-mv-active-project", "data-theme-profile"] });
 }
 
 function handleThemeProfileChangeMessage(event) {
