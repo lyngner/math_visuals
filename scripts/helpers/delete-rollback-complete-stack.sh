@@ -13,10 +13,18 @@ if ! command -v aws >/dev/null 2>&1; then
   exit 1
 fi
 
-status=$(aws cloudformation describe-stacks \
+describe_output=$(aws cloudformation describe-stacks \
   --stack-name "$STACK_NAME" \
   --query 'Stacks[0].StackStatus' \
-  --output text 2>/dev/null || true)
+  --output text 2>&1)
+describe_exit=$?
+
+if [[ $describe_exit -ne 0 ]]; then
+  echo "Unable to describe stack $STACK_NAME (exit code $describe_exit): $describe_output" >&2
+  exit 1
+fi
+
+status=$describe_output
 
 if [[ -z "$status" || "$status" == "None" ]]; then
   echo "Stack $STACK_NAME does not exist; nothing to clean up."
@@ -24,8 +32,8 @@ if [[ -z "$status" || "$status" == "None" ]]; then
 fi
 
 case "$status" in
-  ROLLBACK_COMPLETE)
-    echo "Stack $STACK_NAME is in ROLLBACK_COMPLETE. Deleting so it can be recreated..."
+  ROLLBACK_COMPLETE|ROLLBACK_FAILED|UPDATE_ROLLBACK_FAILED|UPDATE_ROLLBACK_COMPLETE|UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS|IMPORT_ROLLBACK_COMPLETE|IMPORT_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS|IMPORT_ROLLBACK_FAILED|CREATE_FAILED)
+    echo "Stack $STACK_NAME is in non-updatable state $status. Deleting so it can be recreated..."
     aws cloudformation delete-stack --stack-name "$STACK_NAME"
     echo "Waiting for stack deletion to finish..."
     if aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME"; then
