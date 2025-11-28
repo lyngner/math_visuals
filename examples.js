@@ -3294,8 +3294,18 @@
   const baseHealthStatus = {
     checked: false,
     ok: false,
-    mode: null
+    mode: null,
+    degraded: false,
+    lastCheckedAt: null
   };
+  let baseHealthFailureStreak = 0;
+  const BASE_HEALTH_FAILURE_THRESHOLD = 3;
+
+  function logBaseHealthEvent(details) {
+    try {
+      console.log('[ExamplesBaseHealth]', details);
+    } catch (_) {}
+  }
 
   function ensureExamplesStatusElement() {
     if (typeof document === 'undefined') return null;
@@ -3402,12 +3412,20 @@
     );
   }
 
-  function rememberBaseHealth(ok, mode) {
+  function rememberBaseHealth(ok, mode, options) {
+    const opts = options && typeof options === 'object' ? options : {};
     baseHealthStatus.checked = true;
     baseHealthStatus.ok = ok === true;
+    baseHealthStatus.degraded = opts.degraded === true;
+    baseHealthStatus.lastCheckedAt = Date.now();
     if (mode) {
       const normalized = normalizeBackendStoreMode(mode) || mode;
       baseHealthStatus.mode = normalized;
+    }
+    if (baseHealthStatus.ok) {
+      baseHealthFailureStreak = 0;
+    } else if (opts.incrementFailure) {
+      baseHealthFailureStreak += 1;
     }
   }
 
@@ -3640,34 +3658,68 @@
         Accept: 'application/json'
       }
     };
+
+    const recordDegraded = (mode, reason, res, parsingError) => {
+      const resolvedMode = mode || baseHealthStatus.mode || backendMode || persistedBackendMode || null;
+      logBaseHealthEvent({
+        status: 'degraded',
+        reason: reason || 'unknown',
+        statusCode: res && typeof res.status === 'number' ? res.status : null,
+        contentType: res ? extractContentType(res.headers) : null,
+        parsingError: parsingError ? parsingError.message || String(parsingError) : undefined
+      });
+      rememberBaseHealth(false, resolvedMode, {
+        degraded: true,
+        incrementFailure: true
+      });
+      const shouldMarkUnavailable =
+        baseHealthFailureStreak >= BASE_HEALTH_FAILURE_THRESHOLD || (res && res.status === 404);
+      if (shouldMarkUnavailable) {
+        markBackendUnavailable(res && res.status === 404 ? 'missing' : 'offline');
+      } else {
+        markBackendAvailable(resolvedMode);
+      }
+    };
+
     let res;
     try {
       res = await fetchWithTimeout(examplesApiBase, fetchOptions, BACKEND_FETCH_TIMEOUT_MS);
     } catch (error) {
-      rememberBaseHealth(false, baseHealthStatus.mode);
+      recordDegraded(baseHealthStatus.mode, 'network-error');
       return null;
     }
+
+    const looksLikeJson = responseLooksLikeJson(res);
     let payload = null;
-    if (responseLooksLikeJson(res)) {
+    let parsingError = null;
+    if (looksLikeJson) {
       try {
         payload = await res.json();
-      } catch (_) {
-        payload = null;
+      } catch (error) {
+        parsingError = error;
       }
     }
+
+    if (parsingError) {
+      recordDegraded(baseHealthStatus.mode, 'parse-error', res, parsingError);
+      return { ok: baseHealthStatus.ok, mode: baseHealthStatus.mode, degraded: true };
+    }
+
     const responseMode = resolveStoreModeFromResponse(res, payload);
     const normalizedMode = normalizeBackendStoreMode(responseMode);
     const mode = normalizedMode || resolveKnownStoreMode(responseMode);
-    if (res && res.ok) {
+
+    if (res && res.ok && looksLikeJson && payload) {
       const resolvedMode =
         normalizedMode || mode || baseHealthStatus.mode || persistedBackendMode || backendMode || null;
-      rememberBaseHealth(true, resolvedMode || baseHealthStatus.mode || normalizedMode);
+      rememberBaseHealth(true, resolvedMode || baseHealthStatus.mode || normalizedMode, { degraded: false });
       clearMissingBackendState(resolvedMode || baseHealthStatus.mode || normalizedMode);
       markBackendAvailable(resolvedMode || normalizedMode);
-    } else {
-      rememberBaseHealth(false, mode || baseHealthStatus.mode || normalizedMode);
+      return { ok: baseHealthStatus.ok, mode: baseHealthStatus.mode, degraded: false };
     }
-    return { ok: baseHealthStatus.ok, mode: baseHealthStatus.mode };
+
+    recordDegraded(mode || baseHealthStatus.mode || normalizedMode, looksLikeJson ? 'bad-status' : 'unexpected-content', res);
+    return { ok: baseHealthStatus.ok, mode: baseHealthStatus.mode, degraded: true };
   }
   function schedulePostSyncReload() {
     if (!examplesApiBase) return;
