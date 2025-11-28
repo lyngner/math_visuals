@@ -304,6 +304,18 @@ jobs:
 
           api_domain="${STATIC_SITE_API_DOMAIN:-$API_GATEWAY_DOMAIN_NAME}"
           api_origin_path="${STATIC_SITE_API_ORIGIN_PATH:-$API_GATEWAY_ORIGIN_PATH}"
+
+          if [ -n "${STATIC_SITE_API_DOMAIN:-}" ]; then
+            api_domain="${api_domain#http://}"
+            api_domain="${api_domain#https://}"
+            api_domain="${api_domain%%/*}"
+
+            if [[ ! "$api_domain" =~ ^[A-Za-z0-9.-]+\.execute-api\.[A-Za-z0-9-]+\.amazonaws\.com$ ]]; then
+              echo "STATIC_SITE_API_DOMAIN='$STATIC_SITE_API_DOMAIN' er ikke et execute-api-domene; bruker ApiEndpoint i stedet." >&2
+              api_domain="$API_GATEWAY_DOMAIN_NAME"
+            fi
+          fi
+
           if [[ ! "$api_domain" =~ ^[A-Za-z0-9.-]+\.execute-api\.[A-Za-z0-9-]+\.amazonaws\.com$ ]]; then
             echo "ApiGatewayDomainName must be an execute-api hostname without protocol or path (got '$api_domain')" >&2
             exit 1
