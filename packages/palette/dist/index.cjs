@@ -23,7 +23,9 @@ const RAW_COLOR_SLOT_GROUPS = [
     title: 'Graftegner',
     description: 'Standardfarger for nye grafer og koordinatsystem.',
     slots: [
-      { index: 0, label: 'Graf', description: 'Brukes for grafer og funksjoner.' },
+      { index: 0, label: 'Graf 1', description: 'Standardfarge for første graf.' },
+      { index: 46, label: 'Graf 2', description: 'Standardfarge for andre graf.' },
+      { index: 47, label: 'Graf 3', description: 'Standardfarge for tredje graf.' },
       { index: 19, label: 'Akser', description: 'Farge for akser og rutenett.' }
     ]
   },
