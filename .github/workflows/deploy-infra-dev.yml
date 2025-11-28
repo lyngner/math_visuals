@@ -1,4 +1,4 @@
-name: Deploy infrastructure
+name: Deploy infrastructure (dev)
 
 permissions:
   contents: read
@@ -6,7 +6,7 @@ permissions:
 
 on:
   push:
-    branches: [main]
+    branches: [dev]
   workflow_dispatch:
     inputs:
       cloudfront_invalidation_paths:
@@ -21,25 +21,25 @@ jobs:
     if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.merged }}
     env:
       # Required GitHub secrets for AWS access and stack configuration
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-      AWS_IAC_ROLE_ARN: ${{ secrets.AWS_IAC_ROLE_ARN }}
-      STATIC_SITE_BUCKET_NAME: ${{ secrets.STATIC_SITE_BUCKET_NAME }}
-      STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID }}
-      STATIC_SITE_API_DOMAIN: ${{ secrets.STATIC_SITE_API_DOMAIN }}
-      STATIC_SITE_API_ORIGIN_PATH: ${{ secrets.STATIC_SITE_API_ORIGIN_PATH }}
-      STATIC_SITE_CLOUDFRONT_PRICE_CLASS: ${{ secrets.STATIC_SITE_CLOUDFRONT_PRICE_CLASS }}
-      API_ARTIFACT_BUCKET: ${{ secrets.API_ARTIFACT_BUCKET }}
-      API_ARTIFACT_KEY: ${{ secrets.API_ARTIFACT_KEY }}
-      # Default to the template's prod stage when the secret is missing so the
+      AWS_REGION: ${{ secrets.AWS_REGION_DEV }}
+      AWS_IAC_ROLE_ARN: ${{ secrets.AWS_IAC_ROLE_ARN_DEV }}
+      STATIC_SITE_BUCKET_NAME: ${{ secrets.STATIC_SITE_BUCKET_NAME_DEV }}
+      STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID_DEV }}
+      STATIC_SITE_API_DOMAIN: ${{ secrets.STATIC_SITE_API_DOMAIN_DEV }}
+      STATIC_SITE_API_ORIGIN_PATH: ${{ secrets.STATIC_SITE_API_ORIGIN_PATH_DEV }}
+      STATIC_SITE_CLOUDFRONT_PRICE_CLASS: ${{ secrets.STATIC_SITE_CLOUDFRONT_PRICE_CLASS_DEV || 'PriceClass_100' }}
+      API_ARTIFACT_BUCKET: ${{ secrets.API_ARTIFACT_BUCKET_DEV }}
+      API_ARTIFACT_KEY: ${{ secrets.API_ARTIFACT_KEY_DEV }}
+      # Default to the template's dev stage when the secret is missing so the
       # deploy step doesn't fail with an empty StageName parameter.
-      API_STAGE_NAME: ${{ secrets.API_STAGE_NAME || 'prod' }}
-      CLOUDFRONT_INVALIDATION_PATHS: ${{ github.event.inputs.cloudfront_invalidation_paths || secrets.CLOUDFRONT_INVALIDATION_PATHS || '/*' }}
+      API_STAGE_NAME: ${{ secrets.API_STAGE_NAME_DEV || 'dev' }}
+      CLOUDFRONT_INVALIDATION_PATHS: ${{ github.event.inputs.cloudfront_invalidation_paths || secrets.CLOUDFRONT_INVALIDATION_PATHS_DEV || '/*' }}
       # Stack names and defaults
-      STATIC_STACK_NAME: math-visuals-static-site
-      API_STACK_NAME: math-visuals-api
-      DATA_STACK_NAME: math-visuals-data
-      DATA_ENVIRONMENT_NAME: prod
-      SHARED_PARAMETERS_STACK_NAME: math-visuals-shared
+      STATIC_STACK_NAME: math-visuals-static-site-dev
+      API_STACK_NAME: math-visuals-api-dev
+      DATA_STACK_NAME: math-visuals-data-dev
+      DATA_ENVIRONMENT_NAME: dev
+      SHARED_PARAMETERS_STACK_NAME: math-visuals-shared-dev
       SKIP_EXAMPLES_SEEDING: "true"
     steps:
       - name: Checkout repository

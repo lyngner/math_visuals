@@ -70,6 +70,10 @@ Produksjonsmiljøet deployes via GitHub Actions-workflowen [`deploy-infra.yml`](
 
 Når alle stacker er oppdatert kan workflowen (valgfritt) invalidere CloudFront-distribusjonen slik at nye filer serveres umiddelbart.
 
+For utviklingsmiljøet finnes nå en egen GitHub Actions-pipeline [`deploy-infra-dev.yml`](.github/workflows/deploy-infra-dev.yml) som kjører på `push` til `dev`. Den deployer dedikerte dev-stacker med prefiksene `math-visuals-*-dev`, bruker `API_STAGE_NAME=dev`, dev-spesifikke Redis-hemmeligheter og en egen statisk bøtte/CloudFront-distribusjon. Flyten er: push til `dev` → workflowen oppretter/oppdaterer dev-data, API og statisk side → verifiser den eksponerte CloudFront-URL-en fra `math-visuals-static-site-dev`-stacken (`CloudFrontDistributionDomainName`-outputen) → merge til `main` for produksjonsutrulling. Dev-distribusjonen bruker samme CloudFront-funksjon og cache-/origin-policy som produksjon fordi konfigurasjonen er parameterisert (bøttenavn, origin-path og prisnivå settes via secrets), og `SiteEnvironmentName`-parameteren i `infra/static-site/template.yaml` merker ressursene med riktig miljø.
+
+Dev-URL (oppdater med domenet fra første `deploy-infra-dev`-kjøring): `https://<cloudfront-domain-for-math-visuals-static-site-dev>`.
+
 > **Avvikle Vercel:** Produksjonen kjøres allerede i AWS, men når de siste etterkontrollene er ferdige kan den gamle Vercel-instansen fjernes. Følg sjekklisten i `docs/examples-storage.md` (flytt DNS til CloudFront, eksporter eventuelle resterende data via AWS-stacken, slett Upstash/KV i Vercel og steng prosjektet).
 
 ### Manuell opplasting
@@ -99,6 +103,25 @@ Følgende GitHub Secrets må være definert for at workflowen skal lykkes:
 | `CLOUDFRONT_INVALIDATION_PATHS` | *(Valgfritt)* Mellomromsseparert liste over stier som skal invaliders (standard `/*`). Kan overstyres ved `workflow_dispatch` med `cloudfront_invalidation_paths`-input. |
 
 Secretsene over injiseres som miljøvariabler i de respektive deploy-stegene. Dersom `STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID` er tom hoppes invalidasjonssteget over automatisk.
+
+Dev-workflowen speiler kravene over, men forventer dedikerte `_DEV`-hemmeligheter så dev-stacker, Redis-verdier og artefakt-bøtter holdes adskilt fra produksjon:
+
+| Secret | Beskrivelse |
+| --- | --- |
+| `AWS_REGION_DEV` | Region for dev-stakkene. |
+| `AWS_IAC_ROLE_ARN_DEV` | IAM-rollen som OIDC-oppsettet antar for dev-miljøet. |
+| `STATIC_SITE_BUCKET_NAME_DEV` | S3-bøttenavn for dev-nettsiden. |
+| `STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID_DEV` | Dev-distribusjonens ID (brukes for invalidasjon). |
+| `STATIC_SITE_API_DOMAIN_DEV` | *(Valgfritt)* Overstyr API-domene for dev. |
+| `STATIC_SITE_API_ORIGIN_PATH_DEV` | *(Valgfritt)* Overstyr origin-path for dev (f.eks. `/dev`). |
+| `STATIC_SITE_CLOUDFRONT_PRICE_CLASS_DEV` | Prisnivå for dev-distribusjonen (standard `PriceClass_100`). |
+| `API_ARTIFACT_BUCKET_DEV` | Bøtten der dev-Lambda-artefaktet lastes opp. |
+| `API_ARTIFACT_KEY_DEV` | Nøkkel prefiks for dev-Lambda-artefaktet. |
+| `API_STAGE_NAME_DEV` | HTTP API-staget for dev (standard `dev`). |
+| `REDIS_PASSWORD_DEV` | Dev-passordet som brukes både for Secrets Manager og data-stacken. |
+| `REDIS_ENDPOINT_DEV` | Redis-endepunkt for dev som skrives til Parameter Store før API-deploy. |
+| `REDIS_PORT_DEV` | Redis-porten for dev. |
+| `CLOUDFRONT_INVALIDATION_PATHS_DEV` | *(Valgfritt)* Dev-invalideringsstier (standard `/*`). |
 
 Se også den dedikerte veiledningen i [`docs/github-actions-setup.md`](docs/github-actions-setup.md) for en komplett gjennomgang av hvordan du aktiverer Actions, oppretter OIDC-rollen i AWS og verifiserer at workflowene kjører som forventet.
 

@@ -16,3 +16,7 @@ CloudShell one-liner for GitHub Actions deploy-rollen:
 ```
 cd math_visuals && ./scripts/cloudshell-create-oidc-role.sh
 ```
+
+Dev-miljø:
+- `deploy-infra-dev.yml` kjører automatisk på `push` til `dev` og oppretter dev-stakkene `math-visuals-data-dev`, `math-visuals-api-dev` og `math-visuals-static-site-dev` med egne secrets/bøtter.
+- Hent CloudFront-domenet fra `CloudFrontDistributionDomainName`-outputen på `math-visuals-static-site-dev` etter første kjøring og oppdater README (dev-URL-feltet) slik at teamet vet hvor de kan teste endringene før merge til `main`.
