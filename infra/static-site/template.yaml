@@ -20,7 +20,7 @@ Parameters:
       a1b2c3d4.execute-api.us-east-1.amazonaws.com).
   ApiGatewayOriginPath:
     Type: String
-    Default: ""
+    Default: "/prod"
     AllowedPattern: '^$|^/.*$'
     ConstraintDescription: Origin paths must be blank or start with '/'.
     Description: Optional origin path appended to the API Gateway domain (e.g., /prod).

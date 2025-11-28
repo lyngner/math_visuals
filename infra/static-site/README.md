@@ -66,6 +66,12 @@ Derive `ApiGatewayDomainName` from the API stack's `ApiEndpoint` output by
 stripping the scheme and stage path with a single backreference so CloudFront's
 origin host remains valid:
 
+Set `ApiGatewayOriginPath` to the API Gateway stage name (for example `/prod`
+or `/dev`). Leaving it blank will cause CloudFront to call the stage-less
+endpoint (e.g., `/api/examples`), which API Gateway treats as a 404 and the
+SPA fallback rewrites to `index.html`. Keeping the origin path in sync with the
+deployed stage prevents HTML responses from being cached for API calls.
+
 ```bash
 API_STACK_NAME=${API_STACK_NAME:-math-visuals-api}
 
