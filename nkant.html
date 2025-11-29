@@ -389,10 +389,17 @@ Rettvinklet trekant</textarea>
           <label><input type="radio" name="layout" value="col"> Under hverandre</label>
         </div>
 
+        <div class="radio-row">
+          <label>Skriftstørrelse:</label>
+          <label><input type="radio" name="textSize" value="large" checked> Stor</label>
+          <label><input type="radio" name="textSize" value="normal"> Normal</label>
+          <label><input type="radio" name="textSize" value="small"> Liten</label>
+        </div>
+
         <div class="sep"></div>
         <div class="label-editor">
           <div class="legend">Etikettjustering</div>
-          <button id="btnToggleLabelEdit" class="btn" type="button">Rediger etiketter</button>
+          <button id="btnToggleLabelEdit" class="btn" type="button" hidden>Rediger etiketter</button>
           <div id="labelEditorControls" class="label-editor__controls" hidden>
             <div class="label-editor__row">
               <div>
@@ -408,7 +415,7 @@ Rettvinklet trekant</textarea>
               <label class="small" for="labelEditorList">Velg etikett fra liste</label>
               <select id="labelEditorList" size="4" aria-label="Liste over etiketter"></select>
             </div>
-            <div class="label-editor__rotation">
+            <div class="label-editor__rotation" hidden>
               <label for="labelRotation">Rotasjon</label>
               <input id="labelRotation" type="range" min="-180" max="180" value="0" />
               <input id="labelRotationNumber" class="tight" type="number" min="-180" max="180" value="0" />

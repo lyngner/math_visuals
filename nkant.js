@@ -46,6 +46,7 @@ const ADV_CONFIG = {
 /* ---------- STATE (UI) ---------- */
 const STATE = {
   specsText: "",
+  textSize: "large",
   fig1: {
     sides: {
       default: "value",
@@ -146,11 +147,14 @@ let lastRenderSummary = {
   count: 0,
   jobs: []
 };
+let baseTextScale = 1;
 let currentTextScale = 1;
 const textScaleStack = [];
 function pushTextScale(scale) {
   const prev = currentTextScale;
-  const next = Number.isFinite(scale) && scale > 0 ? Math.min(Math.max(scale, 0.35), 3) : 1;
+  const normalized = Number.isFinite(scale) && scale > 0 ? Math.min(Math.max(scale, 0.35), 3) : 1;
+  const base = Number.isFinite(baseTextScale) && baseTextScale > 0 ? baseTextScale : 1;
+  const next = normalized * base;
   textScaleStack.push(prev);
   currentTextScale = next;
   return () => {
@@ -158,16 +162,50 @@ function pushTextScale(scale) {
     currentTextScale = Number.isFinite(restoreTo) && restoreTo > 0 ? restoreTo : 1;
   };
 }
+const TEXT_SIZE_SCALE = {
+  large: 1,
+  normal: 0.9,
+  small: 0.8
+};
+function applyTextSizePreference(size) {
+  const scale = TEXT_SIZE_SCALE[size] || TEXT_SIZE_SCALE.large;
+  baseTextScale = scale;
+  if (!textScaleStack.length) {
+    currentTextScale = baseTextScale;
+  }
+}
 const LABEL_EDITOR_STATE = {
   enabled: false,
   selectedKey: null,
   drag: null
 };
+
+function getCurrentAppMode() {
+  if (typeof document !== 'undefined' && document.body && document.body.dataset && document.body.dataset.appMode) {
+    const mode = document.body.dataset.appMode;
+    if (typeof mode === 'string' && mode.trim()) {
+      return mode.trim();
+    }
+  }
+  if (typeof window !== 'undefined' && window.mathVisuals && typeof window.mathVisuals.getAppMode === 'function') {
+    try {
+      const mode = window.mathVisuals.getAppMode();
+      if (typeof mode === 'string' && mode.trim()) return mode.trim();
+    } catch (_) {}
+  }
+  return 'default';
+}
+
+function isLabelEditingAllowed() {
+  return getCurrentAppMode() !== 'task';
+}
 let renderedLabelMap = new Map();
 let btnToggleLabelEdit = null;
+let labelEditorSectionEl = null;
 let labelEditorControlsEl = null;
 let labelEditorActiveEl = null;
 let labelEditorListEl = null;
+let labelEditorRotationRowEl = null;
 let labelRotationInput = null;
 let labelRotationNumberInput = null;
 let btnResetLabel = null;
@@ -1159,19 +1197,26 @@ function syncRotationInputs(value) {
 }
 
 function updateLabelEditorUI() {
+  const labelEditingAllowed = isLabelEditingAllowed();
   if (btnToggleLabelEdit) {
-    btnToggleLabelEdit.textContent = LABEL_EDITOR_STATE.enabled ? 'Ferdig med etiketter' : 'Rediger etiketter';
+    btnToggleLabelEdit.hidden = true;
+  }
+  if (labelEditorSectionEl) {
+    labelEditorSectionEl.hidden = !labelEditingAllowed;
   }
   if (labelEditorControlsEl) {
-    labelEditorControlsEl.hidden = !LABEL_EDITOR_STATE.enabled;
+    labelEditorControlsEl.hidden = !LABEL_EDITOR_STATE.enabled || !labelEditingAllowed;
   }
   const selectedEntry = LABEL_EDITOR_STATE.selectedKey ? getRenderedLabelEntry(LABEL_EDITOR_STATE.selectedKey) : null;
-  const canEditSelected = LABEL_EDITOR_STATE.enabled && Boolean(selectedEntry);
+  const canEditSelected = LABEL_EDITOR_STATE.enabled && labelEditingAllowed && Boolean(selectedEntry);
   const activeLabelText = selectedEntry ? (selectedEntry.element.textContent || selectedEntry.element.getAttribute('aria-label') || 'Valgt etikett') : 'Ingen valgt';
   if (labelEditorActiveEl) {
     labelEditorActiveEl.textContent = activeLabelText.trim();
   }
   const rotation = canEditSelected ? getLabelAdjustment(LABEL_EDITOR_STATE.selectedKey).rotation : 0;
+  if (labelEditorRotationRowEl) {
+    labelEditorRotationRowEl.hidden = !canEditSelected;
+  }
   if (labelRotationInput) labelRotationInput.disabled = !canEditSelected;
   if (labelRotationNumberInput) labelRotationNumberInput.disabled = !canEditSelected;
   if (labelEditorListEl) {
@@ -1190,10 +1235,20 @@ function updateLabelEditorUI() {
 }
 
 function setLabelEditingEnabled(enabled) {
-  LABEL_EDITOR_STATE.enabled = Boolean(enabled);
+  const allowed = isLabelEditingAllowed();
+  LABEL_EDITOR_STATE.enabled = Boolean(enabled) && allowed;
   LABEL_EDITOR_STATE.drag = null;
   renderedLabelMap.forEach((_, key) => applyLabelAdjustment(key));
   updateLabelEditorUI();
+}
+
+function syncLabelEditingAvailability() {
+  const allowed = isLabelEditingAllowed();
+  const shouldEnable = allowed;
+  setLabelEditingEnabled(shouldEnable);
+  if (!allowed) {
+    selectLabel(null);
+  }
 }
 
 function selectLabel(key) {
@@ -4671,6 +4726,7 @@ function buildAdvForFig(figState) {
   };
 }
 async function renderCombined() {
+  applyTextSizePreference(STATE.textSize);
   const svg = document.getElementById("paper");
   svg.innerHTML = "";
   resetRenderedLabelMap();
@@ -4849,13 +4905,16 @@ function bindUI() {
   const $ = sel => document.querySelector(sel);
   const inpSpecs = $("#inpSpecs");
   const layoutRadios = document.querySelectorAll('input[name="layout"]');
+  const textSizeRadios = document.querySelectorAll('input[name="textSize"]');
   const btnSvg = $("#btnSvg");
   const btnPng = $("#btnPng");
   const btnDraw = $("#btnDraw");
   btnToggleLabelEdit = $("#btnToggleLabelEdit");
+  labelEditorSectionEl = document.querySelector('.label-editor');
   labelEditorControlsEl = $("#labelEditorControls");
   labelEditorActiveEl = $("#labelEditorActive");
   labelEditorListEl = $("#labelEditorList");
+  labelEditorRotationRowEl = document.querySelector('.label-editor__rotation');
   labelRotationInput = $("#labelRotation");
   labelRotationNumberInput = $("#labelRotationNumber");
   btnResetLabel = $("#btnResetLabelPosition");
@@ -4945,6 +5004,16 @@ function bindUI() {
   DEFAULT_SPECS = (inpSpecs === null || inpSpecs === void 0 ? void 0 : inpSpecs.value) || "";
   STATE.specsText = DEFAULT_SPECS;
   inpSpecs.value = STATE.specsText;
+  textSizeRadios.forEach(radio => {
+    radio.checked = radio.value === STATE.textSize;
+    radio.addEventListener('change', () => {
+      if (radio.checked) {
+        STATE.textSize = radio.value;
+        applyTextSizePreference(STATE.textSize);
+        renderCombined();
+      }
+    });
+  });
   f1Sides.value = STATE.fig1.sides.default;
   f1Angles.value = STATE.fig1.angles.default;
   f2Sides.value = STATE.fig2.sides.default;
@@ -5021,6 +5090,10 @@ function bindUI() {
       renderCombined();
     }
   }));
+  const handleAppModeChange = () => {
+    syncLabelEditingAvailability();
+  };
+  window.addEventListener('math-visuals:app-mode-changed', handleAppModeChange);
   if (btnSvg) {
     btnSvg.addEventListener("click", () => {
       const svg = document.getElementById("paper");
@@ -5091,6 +5164,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   bindUI();
   initResponsiveFigureSizing();
   initAltTextManager();
+  applyTextSizePreference(STATE.textSize);
+  syncLabelEditingAvailability();
   await renderCombined();
 });
 
@@ -5114,6 +5189,11 @@ function applyStateToUI() {
   var _STATE$specsText;
   const specInput = document.getElementById("inpSpecs");
   if (specInput) specInput.value = (_STATE$specsText = STATE.specsText) !== null && _STATE$specsText !== void 0 ? _STATE$specsText : "";
+  const textSizeRadios = document.querySelectorAll('input[name="textSize"]');
+  textSizeRadios.forEach(radio => {
+    radio.checked = radio.value === STATE.textSize;
+  });
+  applyTextSizePreference(STATE.textSize);
   const layout = STATE.layout || "row";
   document.querySelectorAll('input[name="layout"]').forEach(radio => {
     radio.checked = radio.value === layout;
