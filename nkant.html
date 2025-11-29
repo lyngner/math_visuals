@@ -18,20 +18,26 @@
       --figure-available-height: calc(100vh - 200px);
     }
     .card--figure {
-      padding: 0;
+      padding: 14px;
+      width: fit-content;
+      max-width: 100%;
+      justify-self: start;
+      align-items: center;
     }
     .card--figure .figure {
-      border-radius: 0;
-      background: transparent;
+      border-radius: 12px;
+      background: #fff;
       overflow: auto;
-      border: none;
+      border: 1px solid #e5e7eb;
       resize: both;
       min-width: 240px;
       min-height: 200px;
       display: flex;
       justify-content: center;
       align-items: center;
-      padding: 0;
+      padding: 12px;
+      width: fit-content;
+      max-width: 100%;
     }
     .figure svg {
       width: min(
