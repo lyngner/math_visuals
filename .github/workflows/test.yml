@@ -28,3 +28,36 @@ jobs:
 
       - name: Run tests
         run: npm test
+
+  playwright-smoke:
+    name: Playwright smoke tests
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        uses: microsoft/playwright-github-action@v1
+
+      - name: Run Playwright smoke spec
+        run: npx playwright test tests/figures-visibility.spec.js --trace on --output test-results/figures-visibility --reporter=line,html
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-smoke-artifacts
+          path: |
+            test-results/figures-visibility
+            playwright-report
+          if-no-files-found: ignore
