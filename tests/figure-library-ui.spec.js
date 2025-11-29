@@ -341,9 +341,8 @@ test.describe('Figurbibliotek opplastinger', () => {
     await expect(categoryDialog.locator('[data-category-apps="category"]')).toBeVisible();
     await categoryDialog.locator('[data-category-close]').click();
 
-    await page.getByRole('button', { name: 'Ny kategori' }).click();
     const addForm = page.locator('[data-add-category-form]');
-    await expect(addForm).toBeVisible();
+    await expect(addForm).toBeHidden();
     await expect(addForm.locator('[data-category-apps]')).toHaveCount(0);
   });
 
