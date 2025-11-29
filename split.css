@@ -193,6 +193,23 @@ body[data-app-mode="task"] .grid.split-enabled > .splitter::before {
   display: none;
 }
 
+.card--examples .example-description-preview[data-empty="true"][data-placeholder="true"] {
+  display: inline-flex;
+}
+
+.card--examples .example-description-preview[data-placeholder="true"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px dashed #c7d2fe;
+  border-radius: 10px;
+  background: #eef2ff;
+  color: #1e3a8a;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .card--examples .example-description-preview .katex {
   display: inline-block;
   font-size: 1.05em;
@@ -330,6 +347,10 @@ body[data-app-mode="task"] .card--examples .example-description {
 
 body[data-app-mode="task"] .card--examples .example-description .example-description-preview {
   margin-top: 0;
+}
+
+body[data-app-mode="task"] .card--examples .toolbar {
+  display: none !important;
 }
 
 .math-vis-description-rendered {

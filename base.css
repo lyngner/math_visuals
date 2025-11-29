@@ -570,9 +570,21 @@ select:disabled {
   display: none;
 }
 
+.card--examples .example-description-preview[data-empty="true"][data-placeholder="true"] {
+  display: inline-flex;
+}
+
 .card--examples .example-description-preview[data-placeholder="true"] {
-  color: var(--placeholder-color, #64748b);
-  font-style: italic;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px dashed #c7d2fe;
+  border-radius: var(--control-radius);
+  background: #eef2ff;
+  color: #1e3a8a;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 body:not([data-app-mode="task"]) .card--examples .example-description {
@@ -740,6 +752,10 @@ body[data-app-mode="task"] .card--examples .example-description .example-descrip
   background: none;
   padding: 0;
   font-size: 20px;
+}
+
+body[data-app-mode="task"] .card--examples .toolbar {
+  display: none !important;
 }
 
 body[data-app-mode="task"] [data-export-button] {

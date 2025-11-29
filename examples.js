@@ -5216,6 +5216,25 @@
     return preview;
   }
 
+  function clearDescriptionPlaceholder(preview) {
+    if (!preview) return;
+    delete preview.dataset.placeholder;
+    preview.removeAttribute('role');
+    preview.removeAttribute('tabindex');
+  }
+
+  function applyDescriptionPlaceholder(preview, label) {
+    if (!preview) return;
+    preview.dataset.placeholder = 'true';
+    if (typeof label === 'string') {
+      preview.textContent = label;
+    }
+    preview.removeAttribute('hidden');
+    preview.setAttribute('aria-hidden', 'false');
+    preview.tabIndex = 0;
+    preview.setAttribute('role', 'button');
+  }
+
   function updateTaskCheckAvailability(preview) {
     if (!preview || typeof preview.querySelector !== 'function') return;
     const container = preview.closest('.example-description');
@@ -5483,13 +5502,13 @@
     const trimmedValue = stringValue.trim();
     if (!trimmedValue) {
       clearChildren(preview);
-      delete preview.dataset.placeholder;
+      clearDescriptionPlaceholder(preview);
       applyState(false);
       return markRendered(false);
     }
     if (!bypassFormattingCheck && !hasDescriptionFormatting(stringValue)) {
       clearChildren(preview);
-      delete preview.dataset.placeholder;
+      clearDescriptionPlaceholder(preview);
       applyState(false);
       return markRendered(false);
     }
@@ -5517,7 +5536,7 @@
     };
     const renderLegacy = () => {
       const hasContent = renderPlainText();
-      delete preview.dataset.placeholder;
+      clearDescriptionPlaceholder(preview);
       applyState(hasContent);
       updateTaskCheckAvailability(preview);
       return markRendered(hasContent);
@@ -5528,7 +5547,7 @@
       try {
         const hasContent = !!renderer.renderInto(preview, stringValue);
         if (hasContent) {
-          delete preview.dataset.placeholder;
+          clearDescriptionPlaceholder(preview);
           applyState(hasContent);
           markRendered(hasContent);
         } else if (!preview.childNodes || preview.childNodes.length === 0) {
@@ -5648,14 +5667,9 @@
     if (preview) {
       const shouldShowPlaceholder = isTaskMode && preview.dataset.empty === 'true' && !taskModeDescriptionEditing;
       if (shouldShowPlaceholder) {
-        if (!preview.dataset.placeholder) {
-          preview.dataset.placeholder = 'true';
-          preview.textContent = 'Klikk for å legge til oppgavetekst';
-        }
-        preview.removeAttribute('hidden');
-        preview.setAttribute('aria-hidden', 'false');
+        applyDescriptionPlaceholder(preview, 'Legg til oppgave-tekst');
       } else {
-        delete preview.dataset.placeholder;
+        clearDescriptionPlaceholder(preview);
         if (isTaskMode && !taskModeDescriptionEditing && preview.dataset.empty !== 'true') {
           preview.removeAttribute('hidden');
           preview.setAttribute('aria-hidden', 'false');
