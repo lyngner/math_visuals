@@ -774,9 +774,9 @@ const STYLE_DEFAULTS = {
   textHalo: null,
   textHaloW: 0,
   fontFamily: "system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
-  sideFS: 26,
+  sideFS: 32,
   ptFS: 32,
-  angFS: 22,
+  angFS: 32,
   constructionStroke: "#4b5563",
   constructionWidth: 3,
   constructionDash: "10 8"
@@ -3096,7 +3096,8 @@ function renderAngle(g, Q, P, R, r, opts) {
     };
     placeAdjustableLabel(g, opts.angleKey, Ti.x, Ti.y, opts.angleText, STYLE.angFS, {
       "text-anchor": "middle",
-      "dominant-baseline": "middle"
+      "dominant-baseline": "middle",
+      fill: STYLE.angStroke
     });
   }
 
@@ -3113,7 +3114,8 @@ function renderAngle(g, Q, P, R, r, opts) {
     };
     placeAdjustableLabel(g, opts.pointKey, To.x, To.y, opts.pointLabel, STYLE.ptFS, {
       "text-anchor": "middle",
-      "dominant-baseline": "middle"
+      "dominant-baseline": "middle",
+      fill: STYLE.edgeStroke
     });
   }
 }
@@ -3144,7 +3146,8 @@ function sideLabelText(g, P, Q, text, rotate, centroid, offset = 14, labelKey = 
   }
   const t = placeAdjustableLabel(g, labelKey, x, y, text, STYLE.sideFS, {
     "text-anchor": "middle",
-    "dominant-baseline": "middle"
+    "dominant-baseline": "middle",
+    fill: STYLE.edgeStroke
   }, baseRotation);
   if (rotate && baseRotation) {
     t.setAttribute("transform", `rotate(${baseRotation}, ${x}, ${y})`);
