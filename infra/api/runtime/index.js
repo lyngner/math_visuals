@@ -89,6 +89,13 @@ function normalizeRoutePath(filePath) {
 
 function discoverHandlers() {
   const handlers = [];
+  if (!fs.existsSync(API_ROOT)) {
+    return handlers;
+  }
+  const rootStats = fs.statSync(API_ROOT);
+  if (!rootStats.isDirectory()) {
+    return handlers;
+  }
   const entries = fs.readdirSync(API_ROOT, { withFileTypes: true });
   for (const entry of entries) {
     const entryPath = path.join(API_ROOT, entry.name);
