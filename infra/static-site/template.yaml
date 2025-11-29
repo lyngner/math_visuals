@@ -379,6 +379,9 @@ Resources:
               - GET
               - HEAD
             Compress: true
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ViewerRequestRouterFunction.FunctionARN
             ForwardedValues:
               QueryString: true
               Cookies:
@@ -394,6 +397,9 @@ Resources:
               - GET
               - HEAD
             Compress: true
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt ViewerRequestRouterFunction.FunctionARN
             ForwardedValues:
               QueryString: true
               Cookies:
