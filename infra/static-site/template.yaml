@@ -301,7 +301,7 @@ Resources:
               - HEAD
             Compress: true
             CachePolicyId: !Ref CachePolicyId
-            OriginRequestPolicyId: !Ref ApiOriginRequestPolicy
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
           - PathPattern: '/bildearkiv/*'
             TargetOriginId: ApiGatewayOrigin
             ViewerProtocolPolicy: https-only
@@ -318,7 +318,7 @@ Resources:
               - HEAD
             Compress: true
             CachePolicyId: !Ref CachePolicyId
-            OriginRequestPolicyId: !Ref ApiOriginRequestPolicy
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
           - PathPattern: '/svg/*'
             TargetOriginId: ApiGatewayOrigin
             ViewerProtocolPolicy: https-only
@@ -335,7 +335,7 @@ Resources:
               - HEAD
             Compress: true
             CachePolicyId: !Ref CachePolicyId
-            OriginRequestPolicyId: !Ref ApiOriginRequestPolicy
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
           # Serve module bundles directly from the site bucket so browsers
           # receive application/javascript instead of the API Gateway HTML
           # responses. This rule must stay above the generic /figure-library/*
@@ -371,7 +371,7 @@ Resources:
               - HEAD
             Compress: true
             CachePolicyId: !Ref CachePolicyId
-            OriginRequestPolicyId: !Ref ApiOriginRequestPolicy
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
           - PathPattern: '/sortering/eksempel*'
             TargetOriginId: SiteBucketOrigin
             ViewerProtocolPolicy: redirect-to-https
