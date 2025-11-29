@@ -355,7 +355,11 @@ jobs:
           npm run build
           ls -al public/palette/palette-config.js
           ls -al public/packages/palette/dist
-          aws s3 sync public/ "s3://$SITE_BUCKET_NAME/" --delete
+          aws s3 sync public/ "s3://$SITE_BUCKET_NAME/" --delete \
+            --exclude ".git/*" \
+            --exclude "infra/*" \
+            --exclude "**/node_modules/*" \
+            --exclude "node_modules/*"
 
       - name: Invalidate CloudFront cache
         if: ${{ env.STATIC_SITE_CLOUDFRONT_DISTRIBUTION_ID != '' }}
