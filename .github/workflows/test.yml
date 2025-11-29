@@ -24,7 +24,7 @@ jobs:
         run: npm ci
 
       - name: Install Playwright browsers
-        uses: microsoft/playwright-github-action@v1
+        run: npx playwright install --with-deps
 
       - name: Run tests
         run: npm test
@@ -47,7 +47,7 @@ jobs:
         run: npm ci
 
       - name: Install Playwright browsers
-        uses: microsoft/playwright-github-action@v1
+        run: npx playwright install --with-deps
 
       - name: Run Playwright smoke spec
         run: npx playwright test tests/figures-visibility.spec.js --trace on --output test-results/figures-visibility --reporter=line,html
