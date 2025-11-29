@@ -43,59 +43,44 @@ const ADV_CONFIG = {
   }
 };
 
+const INITIAL_SPEC_LINES = [
+  "a=5, b=5, c=5, d=5, B=90",
+  "Rettvinklet trekant"
+];
+function createDefaultFigureState(index = 0, specText = "") {
+  const isFirst = index === 0;
+  return {
+    specText,
+    sides: {
+      default: isFirst ? "value" : "none",
+      a: "inherit",
+      b: "inherit",
+      c: "inherit",
+      d: "inherit",
+      aText: "a",
+      bText: "b",
+      cText: "c",
+      dText: "d"
+    },
+    angles: {
+      default: "custom+mark+value",
+      A: "inherit",
+      B: "inherit",
+      C: "inherit",
+      D: "inherit",
+      AText: "A",
+      BText: "B",
+      CText: "C",
+      DText: "D"
+    }
+  };
+}
 /* ---------- STATE (UI) ---------- */
 const STATE = {
   specsText: "",
   textSize: "large",
-  fig1: {
-    sides: {
-      default: "value",
-      a: "inherit",
-      b: "inherit",
-      c: "inherit",
-      d: "inherit",
-      aText: "a",
-      bText: "b",
-      cText: "c",
-      dText: "d"
-    },
-    angles: {
-      default: "custom+mark+value",
-      A: "inherit",
-      B: "inherit",
-      C: "inherit",
-      D: "inherit",
-      AText: "A",
-      BText: "B",
-      CText: "C",
-      DText: "D"
-    }
-  },
-  fig2: {
-    sides: {
-      default: "none",
-      a: "inherit",
-      b: "inherit",
-      c: "inherit",
-      d: "inherit",
-      aText: "a",
-      bText: "b",
-      cText: "c",
-      dText: "d"
-    },
-    angles: {
-      default: "custom+mark+value",
-      A: "inherit",
-      B: "inherit",
-      C: "inherit",
-      D: "inherit",
-      AText: "A",
-      BText: "B",
-      CText: "C",
-      DText: "D"
-    }
-  },
-  layout: "row", // "row" | "col"
+  figures: [],
+  layout: "grid", // 2x2 matrise
   altText: "",
   altTextSource: "auto",
   labelAdjustments: {}
@@ -139,14 +124,32 @@ function ensureStateDefaults() {
     });
   };
   fill(STATE, DEFAULT_STATE);
+  const existingFigures = Array.isArray(STATE.figures) ? STATE.figures.slice(0, 4) : [];
+  const baseSpecs = typeof STATE.specsText === "string" && STATE.specsText.trim()
+    ? STATE.specsText.split(/\n+/).slice(0, 4)
+    : INITIAL_SPEC_LINES.slice(0, 4);
+  const figures = (existingFigures.length ? existingFigures : baseSpecs).slice(0, 4);
+  STATE.figures = figures.map((fig, idx) => {
+    const base = createDefaultFigureState(idx, typeof fig === "string" ? fig : (fig && fig.specText) || baseSpecs[idx] || "");
+    const target = fig && typeof fig === "object" && !Array.isArray(fig) ? { ...fig } : { specText: typeof fig === "string" ? fig : "" };
+    fill(target, base);
+    return target;
+  });
+  STATE.specsText = STATE.figures.map(fig => fig && typeof fig.specText === "string" ? fig.specText : "").join("\n");
   return STATE;
+}
+function syncSpecsTextFromFigures() {
+  if (!Array.isArray(STATE.figures)) return "";
+  STATE.specsText = STATE.figures.map(fig => fig && typeof fig.specText === "string" ? fig.specText : "").join("\n");
+  return STATE.specsText;
 }
 let altTextManager = null;
 let lastRenderSummary = {
-  layoutMode: STATE.layout || 'row',
+  layoutMode: STATE.layout || 'grid',
   count: 0,
   jobs: []
 };
+let applyFigureSpecsToUI = () => {};
 let baseTextScale = 1;
 let currentTextScale = 1;
 const textScaleStack = [];
@@ -555,7 +558,7 @@ function describeDimensionEntry(entry, noun) {
   return '';
 }
 function getNkantAltSummary() {
-  const layoutMode = lastRenderSummary && typeof lastRenderSummary.layoutMode === 'string' ? lastRenderSummary.layoutMode : (STATE.layout || 'row');
+  const layoutMode = lastRenderSummary && typeof lastRenderSummary.layoutMode === 'string' ? lastRenderSummary.layoutMode : (STATE.layout || 'grid');
   const jobs = lastRenderSummary && Array.isArray(lastRenderSummary.jobs) ? lastRenderSummary.jobs : [];
   const count = lastRenderSummary && typeof lastRenderSummary.count === 'number' ? lastRenderSummary.count : jobs.length;
   return {
@@ -573,7 +576,7 @@ function buildNkantAltText(summary) {
   const sentences = [];
   sentences.push(`Figuren viser ${count === 1 ? 'én figur' : `${count} figurer`}.`);
   if (count > 1) {
-    const placement = data.layoutMode === 'col' ? 'under hverandre' : 'ved siden av hverandre';
+    const placement = data.layoutMode === 'col' ? 'under hverandre' : data.layoutMode === 'grid' ? 'i rutenett' : 'ved siden av hverandre';
     sentences.push(`Figurene er plassert ${placement}.`);
   }
   const jobs = Array.isArray(data.jobs) ? data.jobs : [];
@@ -4343,11 +4346,15 @@ const BASE_W = 600,
   BASE_H = 420,
   GAP = 60,
   TIGHT_VIEWBOX_MARGIN = 10;
-async function collectJobsFromSpecs(text) {
-  const lines = String(text).split(/\n/);
+async function collectJobsFromSpecs(specInput) {
+  const lines = Array.isArray(specInput)
+    ? specInput.map(line => (line == null ? "" : String(line)))
+    : String(specInput || "").split(/\n/);
   const jobs = [];
+  const jobFigureIndexes = [];
   const newLines = [];
-  for (const raw of lines) {
+  for (let idx = 0; idx < lines.length; idx++) {
+    const raw = lines[idx];
     const line = raw.trim();
     if (!line) {
       newLines.push("");
@@ -4363,7 +4370,10 @@ async function collectJobsFromSpecs(text) {
       } else if (job) {
         job.decorations = doubleTri.allowDecorations ? extras.map(dec => ({ ...dec })) : [];
       }
-      if (job) jobs.push(job);
+      if (job) {
+        jobs.push(job);
+        jobFigureIndexes.push(idx);
+      }
       const normalized = combineNormalizedText(doubleTri.normalized || baseLine, normalizedExtras);
       newLines.push(normalized || (doubleTri.normalized || line));
       continue;
@@ -4374,7 +4384,10 @@ async function collectJobsFromSpecs(text) {
       if (job && special.allowDecorations && extras.length) {
         job.decorations = extras.map(dec => ({ ...dec }));
       }
-      if (job) jobs.push(job);
+      if (job) {
+        jobs.push(job);
+        jobFigureIndexes.push(idx);
+      }
       const normalized = combineNormalizedText(special.normalized || baseLine, normalizedExtras);
       newLines.push(normalized || (special.normalized || line));
       continue;
@@ -4429,16 +4442,11 @@ async function collectJobsFromSpecs(text) {
       obj: finalObj,
       decorations: extras
     });
+    jobFigureIndexes.push(idx);
     const normalized = combineNormalizedText(normalizedBase, normalizedExtras);
     newLines.push(normalized || normalizedBase);
   }
-  const newText = newLines.join("\n");
-  if (newText !== text) {
-    STATE.specsText = newText;
-    const el = document.querySelector("#inpSpecs");
-    if (el) el.value = newText;
-  }
-  return jobs;
+  return { jobs, normalizedSpecs: newLines, figureIndexes: jobFigureIndexes };
 }
 function adjustSvgViewBoxToContent(svg, margin = TIGHT_VIEWBOX_MARGIN) {
   if (!svg || typeof svg.querySelectorAll !== 'function') return;
@@ -4595,9 +4603,9 @@ function buildNkantExportMeta(summary) {
     const labels = typeLabels[type] || typeLabels.figur;
     return formatNkantCount(count, labels[0], labels[1]);
   });
-  const layoutText = summary.layoutMode === 'col' ? 'kolonner' : 'rader';
+  const layoutText = summary.layoutMode === 'col' ? 'kolonner' : summary.layoutMode === 'grid' ? 'rutenett' : 'rader';
   const description = `N-kant med ${parts.join(', ')} i ${layoutText}.`;
-  const slugBaseParts = ['nkant', summary.layoutMode === 'col' ? 'kol' : 'rad'];
+  const slugBaseParts = ['nkant', summary.layoutMode === 'col' ? 'kol' : summary.layoutMode === 'grid' ? 'grid' : 'rad'];
   Object.entries(counts).forEach(([type, count]) => {
     slugBaseParts.push(`${count}${type}`);
   });
@@ -4741,10 +4749,22 @@ async function renderCombined() {
   const svg = document.getElementById("paper");
   svg.innerHTML = "";
   resetRenderedLabelMap();
-  const jobs = await collectJobsFromSpecs(STATE.specsText);
-  const n = jobs.length;
-  const fig2Settings = document.getElementById("fig2Settings");
-  if (fig2Settings) fig2Settings.style.display = n >= 2 ? "" : "none";
+  const specList = Array.isArray(STATE.figures) ? STATE.figures.map(fig => (fig && fig.specText) || "") : [];
+  const { jobs, normalizedSpecs, figureIndexes } = await collectJobsFromSpecs(specList);
+  if (Array.isArray(normalizedSpecs) && normalizedSpecs.length) {
+    normalizedSpecs.forEach((val, idx) => {
+      if (STATE.figures[idx]) {
+        STATE.figures[idx].specText = val;
+      }
+    });
+    syncSpecsTextFromFigures();
+    applyFigureSpecsToUI();
+  }
+  const jobEntries = jobs.map((job, idx) => ({
+    job,
+    figureIndex: Array.isArray(figureIndexes) && Number.isInteger(figureIndexes[idx]) ? figureIndexes[idx] : idx
+  }));
+  const n = jobEntries.length;
   if (n === 0) {
     svg.setAttribute("viewBox", `0 0 ${BASE_W} ${BASE_H}`);
     add(svg, "text", {
@@ -4764,65 +4784,65 @@ async function renderCombined() {
     scheduleResponsiveFigureSizeUpdate();
     return;
   }
-  const gapTotal = Math.max(0, n - 1) * GAP;
-  const rowLayout = n === 1 ? true : STATE.layout === "row";
-  const totalW = rowLayout ? BASE_W * n + gapTotal : BASE_W;
-  const totalH = rowLayout ? BASE_H : BASE_H * n + gapTotal;
+  const cols = Math.min(2, Math.max(1, n === 1 ? 1 : 2));
+  const rows = Math.max(1, Math.ceil(n / cols));
+  const totalW = cols * BASE_W + Math.max(0, cols - 1) * GAP;
+  const totalH = rows * BASE_H + Math.max(0, rows - 1) * GAP;
   svg.setAttribute("viewBox", `0 0 ${totalW} ${totalH}`);
   const groups = Array.from({
     length: n
   }, () => add(svg, "g", {}));
-  const rects = groups.map((_, i) => rowLayout ? {
-    x: i * (BASE_W + GAP),
-    y: 0,
-    w: BASE_W,
-    h: BASE_H
-  } : {
-    x: 0,
-    y: i * (BASE_H + GAP),
-    w: BASE_W,
-    h: BASE_H
+  const rects = groups.map((_, i) => {
+    const row = Math.floor(i / cols);
+    const col = i % cols;
+    return {
+      x: col * (BASE_W + GAP),
+      y: row * (BASE_H + GAP),
+      w: BASE_W,
+      h: BASE_H
+    };
   });
   const summaries = [];
   for (let i = 0; i < n; i++) {
     const {
       type,
       obj
-    } = jobs[i];
-    const adv = buildAdvForFig(i === 0 ? STATE.fig1 : STATE.fig2);
+    } = jobEntries[i].job;
+    const figState = STATE.figures[jobEntries[i].figureIndex] || createDefaultFigureState(jobEntries[i].figureIndex);
+    const adv = buildAdvForFig(figState);
     const labelCtx = { prefix: `fig${i + 1}` };
     let summaryEntry = null;
     try {
       if (type === "tri") {
-        summaryEntry = drawTriangleToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations, labelCtx);
+        summaryEntry = drawTriangleToGroup(groups[i], rects[i], obj, adv, jobEntries[i].job.decorations, labelCtx);
       } else if (type === "quad") {
-        summaryEntry = drawQuadToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations, labelCtx);
+        summaryEntry = drawQuadToGroup(groups[i], rects[i], obj, adv, jobEntries[i].job.decorations, labelCtx);
       } else if (type === "doubleTri") {
-        summaryEntry = drawDoubleTriangleToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations, labelCtx);
+        summaryEntry = drawDoubleTriangleToGroup(groups[i], rects[i], obj, adv, jobEntries[i].job.decorations, labelCtx);
       } else if (type === "circle") {
         drawCircleToGroup(groups[i], rects[i], obj, labelCtx);
       } else if (type === "polygon") {
         drawRegularPolygonToGroup(groups[i], rects[i], obj, adv, labelCtx);
       } else if (type === "polygonArc") {
-        drawPolygonWithArcToGroup(groups[i], rects[i], obj, adv, jobs[i].decorations, labelCtx);
+        drawPolygonWithArcToGroup(groups[i], rects[i], obj, adv, jobEntries[i].job.decorations, labelCtx);
       } else {
         throw new Error(`Ukjent figurtype: ${type}`);
       }
     } catch (e) {
       errorBox(groups[i], rects[i], String(e.message || e));
     }
-    if (!summaryEntry) summaryEntry = cloneJobForSummary(jobs[i]);
+    if (!summaryEntry) summaryEntry = cloneJobForSummary(jobEntries[i].job);
     if (summaryEntry) summaries.push(summaryEntry);
   }
   lastRenderSummary = {
-    layoutMode: rowLayout ? 'row' : 'col',
+    layoutMode: 'grid',
     count: n,
     jobs: summaries
   };
   syncLabelEditorAfterRender();
   maybeRefreshAltText('config');
   adjustSvgViewBoxToContent(svg);
-  svg.setAttribute("aria-label", n === 1 ? "Én figur" : `${n} figurer i samme bilde`);
+  svg.setAttribute("aria-label", n === 1 ? "Én figur" : `${n} figurer i et 2x2-rutenett`);
   scheduleResponsiveFigureSizeUpdate();
 }
 
@@ -4914,12 +4934,12 @@ if (settingsApi && typeof settingsApi.subscribe === "function") {
 function bindUI() {
   ensureStateDefaults();
   const $ = sel => document.querySelector(sel);
-  const inpSpecs = $("#inpSpecs");
-  const layoutRadios = document.querySelectorAll('input[name="layout"]');
   const textSizeRadios = document.querySelectorAll('input[name="textSize"]');
   const btnSvg = $("#btnSvg");
   const btnPng = $("#btnPng");
   const btnDraw = $("#btnDraw");
+  const addFigureBtn = $("#btnAddFigure");
+  const figureListEl = $("#figureList");
   btnToggleLabelEdit = $("#btnToggleLabelEdit");
   labelEditorSectionEl = document.querySelector('.label-editor');
   labelEditorControlsEl = $("#labelEditorControls");
@@ -4930,91 +4950,205 @@ function bindUI() {
   labelRotationNumberInput = $("#labelRotationNumber");
   btnResetLabel = $("#btnResetLabelPosition");
   btnResetAllLabels = $("#btnResetAllLabels");
-  const f1Sides = $("#f1Sides"),
-    f1Angles = $("#f1Angles");
-  const f2Sides = $("#f2Sides"),
-    f2Angles = $("#f2Angles");
-  const sideToggles = [],
-    angToggles = [];
-  function wireSide(figKey, key, selId, txtId, placeholder) {
-    var _sides$key, _sides$textKey;
-    const sel = $(selId),
-      txt = $(txtId);
-    const textKey = key + "Text";
-    const getFig = () => STATE[figKey];
-    const getSides = () => {
-      var _getFig;
-      return (_getFig = getFig()) === null || _getFig === void 0 ? void 0 : _getFig.sides;
-    };
-    const sides = getSides() || {};
-    sel.value = (_sides$key = sides[key]) !== null && _sides$key !== void 0 ? _sides$key : "inherit";
-    txt.value = (_sides$textKey = sides[textKey]) !== null && _sides$textKey !== void 0 ? _sides$textKey : placeholder;
-    function toggleTxt() {
-      var _curSides$default;
-      const curSides = getSides();
-      const fallback = (_curSides$default = curSides === null || curSides === void 0 ? void 0 : curSides.default) !== null && _curSides$default !== void 0 ? _curSides$default : "";
-      const mode = sel.value === "inherit" ? fallback : sel.value;
-      txt.disabled = !String(mode).includes("custom");
-    }
-    toggleTxt();
-    sel.addEventListener("change", () => {
-      const curSides = getSides();
-      if (curSides) curSides[key] = sel.value;
-      toggleTxt();
-      renderCombined();
+
+  const sideDefaults = [
+    { value: "value", label: "Tall" },
+    { value: "none", label: "Ingen" },
+    { value: "custom", label: "Egenvalgt" }
+  ];
+  const sideOptions = [
+    { value: "inherit", label: "Arver standard" },
+    { value: "none", label: "Ingen" },
+    { value: "value", label: "Tall" },
+    { value: "custom", label: "Egenvalgt" }
+  ];
+  const angleDefaults = [
+    { value: "custom+mark+value", label: "Egenvalgt + punkt + tall" },
+    { value: "custom+mark", label: "Egenvalgt + punkt" },
+    { value: "custom", label: "Egenvalgt" },
+    { value: "mark+value", label: "Punkt + tall" },
+    { value: "mark", label: "Punkt" },
+    { value: "none", label: "Ingen" }
+  ];
+  const angleOptions = [
+    { value: "inherit", label: "Arver standard" },
+    { value: "none", label: "Ingen" },
+    { value: "mark", label: "Punkt" },
+    { value: "mark+value", label: "Punkt + tall" },
+    { value: "custom", label: "Egenvalgt" },
+    { value: "custom+mark", label: "Egenvalgt + punkt" },
+    { value: "custom+mark+value", label: "Egenvalgt + punkt + tall" }
+  ];
+
+  function createSelect(options, value, ariaLabel) {
+    const sel = document.createElement("select");
+    if (ariaLabel) sel.setAttribute("aria-label", ariaLabel);
+    options.forEach(opt => {
+      const optionEl = document.createElement("option");
+      optionEl.value = opt.value;
+      optionEl.textContent = opt.label;
+      sel.appendChild(optionEl);
     });
-    txt.addEventListener("input", () => {
-      const curSides = getSides();
-      if (curSides) curSides[textKey] = txt.value;
-      renderCombined();
-    });
-    sideToggles.push({
-      figKey,
-      toggleTxt
-    });
-  }
-  function wireAng(figKey, key, selId, txtId, placeholder) {
-    var _angles$key, _angles$textKey;
-    const sel = $(selId),
-      txt = $(txtId);
-    const textKey = key + "Text";
-    const getFig = () => STATE[figKey];
-    const getAngles = () => {
-      var _getFig2;
-      return (_getFig2 = getFig()) === null || _getFig2 === void 0 ? void 0 : _getFig2.angles;
-    };
-    const angles = getAngles() || {};
-    sel.value = (_angles$key = angles[key]) !== null && _angles$key !== void 0 ? _angles$key : "inherit";
-    txt.value = (_angles$textKey = angles[textKey]) !== null && _angles$textKey !== void 0 ? _angles$textKey : placeholder;
-    function toggleTxt() {
-      var _curAngles$default;
-      const curAngles = getAngles();
-      const rawMode = sel.value === "inherit" ? (_curAngles$default = curAngles === null || curAngles === void 0 ? void 0 : curAngles.default) !== null && _curAngles$default !== void 0 ? _curAngles$default : "" : sel.value;
-      const normalized = String(rawMode);
-      txt.disabled = !(normalized.startsWith("custom") || normalized.startsWith("egenvalgt"));
-    }
-    toggleTxt();
-    sel.addEventListener("change", () => {
-      const curAngles = getAngles();
-      if (curAngles) curAngles[key] = sel.value;
-      toggleTxt();
-      renderCombined();
-    });
-    txt.addEventListener("input", () => {
-      const curAngles = getAngles();
-      if (curAngles) curAngles[textKey] = txt.value;
-      renderCombined();
-    });
-    angToggles.push({
-      figKey,
-      toggleTxt
-    });
+    sel.value = value;
+    return sel;
   }
 
-  // init
-  DEFAULT_SPECS = (inpSpecs === null || inpSpecs === void 0 ? void 0 : inpSpecs.value) || "";
-  STATE.specsText = DEFAULT_SPECS;
-  inpSpecs.value = STATE.specsText;
+  function renderFigureForms() {
+    if (!figureListEl) return;
+    figureListEl.innerHTML = "";
+    STATE.figures.forEach((fig, idx) => {
+      const wrapper = document.createElement("div");
+      wrapper.className = "figure-config";
+      const header = document.createElement("div");
+      header.className = "figure-config__header";
+      const legend = document.createElement("div");
+      legend.className = "legend";
+      legend.textContent = `Figur ${idx + 1}`;
+      header.appendChild(legend);
+      if (idx > 0) {
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "btn btn--ghost figure-config__remove";
+        removeBtn.textContent = "Fjern";
+        removeBtn.addEventListener("click", () => {
+          STATE.figures.splice(idx, 1);
+          syncSpecsTextFromFigures();
+          renderFigureForms();
+          renderCombined();
+        });
+        header.appendChild(removeBtn);
+      }
+      wrapper.appendChild(header);
+
+      const specLabel = document.createElement("label");
+      specLabel.textContent = "Skriv spesifikasjon eller fritekst";
+      wrapper.appendChild(specLabel);
+
+      const specRow = document.createElement("div");
+      specRow.className = "specs-row";
+      const specInput = document.createElement("textarea");
+      specInput.rows = 2;
+      specInput.spellcheck = false;
+      specInput.value = fig.specText || "";
+      specInput.addEventListener("input", () => {
+        fig.specText = specInput.value;
+        syncSpecsTextFromFigures();
+      });
+      specRow.appendChild(specInput);
+      const drawBtn = document.createElement("button");
+      drawBtn.type = "button";
+      drawBtn.className = "btn figure-config__draw";
+      drawBtn.textContent = "Tegn";
+      drawBtn.addEventListener("click", () => {
+        fig.specText = specInput.value;
+        syncSpecsTextFromFigures();
+        renderCombined();
+      });
+      specRow.appendChild(drawBtn);
+      wrapper.appendChild(specRow);
+
+      const rowDefaults = document.createElement("div");
+      rowDefaults.className = "form-row form-row--compact";
+      const sideDefaultLabel = document.createElement("label");
+      sideDefaultLabel.textContent = "Standard sider";
+      const sideDefaultSel = createSelect(sideDefaults, fig.sides.default, `Standard sider for figur ${idx + 1}`);
+      sideDefaultSel.addEventListener("change", () => {
+        fig.sides.default = sideDefaultSel.value;
+        renderFigureForms();
+        renderCombined();
+      });
+      const sideDefaultWrap = document.createElement("div");
+      sideDefaultWrap.appendChild(sideDefaultLabel);
+      sideDefaultWrap.appendChild(sideDefaultSel);
+
+      const angleDefaultLabel = document.createElement("label");
+      angleDefaultLabel.textContent = "Standard vinkler/punkter";
+      const angleDefaultSel = createSelect(angleDefaults, fig.angles.default, `Standard vinkler for figur ${idx + 1}`);
+      angleDefaultSel.addEventListener("change", () => {
+        fig.angles.default = angleDefaultSel.value;
+        renderFigureForms();
+        renderCombined();
+      });
+      const angleDefaultWrap = document.createElement("div");
+      angleDefaultWrap.appendChild(angleDefaultLabel);
+      angleDefaultWrap.appendChild(angleDefaultSel);
+      rowDefaults.appendChild(sideDefaultWrap);
+      rowDefaults.appendChild(angleDefaultWrap);
+      wrapper.appendChild(rowDefaults);
+
+      const rows = document.createElement("div");
+      rows.className = "form-row";
+      ["a", "b", "c", "d"].forEach(letter => {
+        const row = document.createElement("div");
+        row.className = "grid-3";
+        const txt = document.createElement("input");
+        txt.className = "tight";
+        txt.type = "text";
+        txt.placeholder = letter;
+        txt.value = fig.sides[`${letter}Text`] || letter;
+        const sel = createSelect(sideOptions, fig.sides[letter] || "inherit", `Standard for side ${letter.toUpperCase()}`);
+        const toggle = () => {
+          const fallback = fig.sides.default || "";
+          const mode = sel.value === "inherit" ? fallback : sel.value;
+          txt.disabled = !String(mode).includes("custom");
+        };
+        toggle();
+        sel.addEventListener("change", () => {
+          fig.sides[letter] = sel.value;
+          toggle();
+          renderCombined();
+        });
+        txt.addEventListener("input", () => {
+          fig.sides[`${letter}Text`] = txt.value;
+          renderCombined();
+        });
+        row.appendChild(txt);
+        row.appendChild(sel);
+        rows.appendChild(row);
+      });
+      wrapper.appendChild(rows);
+
+      const angleRows = document.createElement("div");
+      angleRows.className = "form-row";
+      ["A", "B", "C", "D"].forEach(letter => {
+        const row = document.createElement("div");
+        row.className = "grid-3";
+        const txt = document.createElement("input");
+        txt.className = "tight";
+        txt.type = "text";
+        txt.placeholder = letter;
+        txt.value = fig.angles[`${letter}Text`] || letter;
+        const sel = createSelect(angleOptions, fig.angles[letter] || "inherit", `Standard for punkt ${letter}`);
+        const toggle = () => {
+          const fallback = fig.angles.default || "";
+          const raw = sel.value === "inherit" ? fallback : sel.value;
+          const normalized = String(raw);
+          txt.disabled = !(normalized.startsWith("custom") || normalized.startsWith("egenvalgt"));
+        };
+        toggle();
+        sel.addEventListener("change", () => {
+          fig.angles[letter] = sel.value;
+          toggle();
+          renderCombined();
+        });
+        txt.addEventListener("input", () => {
+          fig.angles[`${letter}Text`] = txt.value;
+          renderCombined();
+        });
+        row.appendChild(txt);
+        row.appendChild(sel);
+        angleRows.appendChild(row);
+      });
+      wrapper.appendChild(angleRows);
+      figureListEl.appendChild(wrapper);
+    });
+    if (addFigureBtn) {
+      addFigureBtn.disabled = STATE.figures.length >= 4;
+    }
+  }
+
+  applyFigureSpecsToUI = renderFigureForms;
+  renderFigureForms();
   textSizeRadios.forEach(radio => {
     radio.checked = radio.value === STATE.textSize;
     radio.addEventListener('change', () => {
@@ -5025,82 +5159,23 @@ function bindUI() {
       }
     });
   });
-  f1Sides.value = STATE.fig1.sides.default;
-  f1Angles.value = STATE.fig1.angles.default;
-  f2Sides.value = STATE.fig2.sides.default;
-  f2Angles.value = STATE.fig2.angles.default;
-  layoutRadios.forEach(r => r.checked = r.value === STATE.layout);
 
-  // Oppdater lokal STATE mens bruker skriver, slik at lagring av eksempler får med uendrede endringer
-  inpSpecs.addEventListener("input", () => {
-    STATE.specsText = inpSpecs.value;
-  });
-
-  // Oppdater når bruker trykker Enter, forlater feltet eller trykker Tegn-knappen
-  inpSpecs.addEventListener("blur", () => {
-    if (STATE.specsText !== inpSpecs.value) {
-      STATE.specsText = inpSpecs.value;
-      renderCombined();
-    }
-  });
-  inpSpecs.addEventListener("keyup", e => {
-    if (e.key === "Enter") {
-      STATE.specsText = inpSpecs.value;
-      renderCombined();
-    }
-  });
-  f1Sides.addEventListener("change", () => {
-    STATE.fig1.sides.default = f1Sides.value;
-    sideToggles.filter(t => t.figKey === "fig1").forEach(t => t.toggleTxt());
-    renderCombined();
-  });
-  f1Angles.addEventListener("change", () => {
-    STATE.fig1.angles.default = f1Angles.value;
-    angToggles.filter(t => t.figKey === "fig1").forEach(t => t.toggleTxt());
-    renderCombined();
-  });
-  f2Sides.addEventListener("change", () => {
-    STATE.fig2.sides.default = f2Sides.value;
-    sideToggles.filter(t => t.figKey === "fig2").forEach(t => t.toggleTxt());
-    renderCombined();
-  });
-  f2Angles.addEventListener("change", () => {
-    STATE.fig2.angles.default = f2Angles.value;
-    angToggles.filter(t => t.figKey === "fig2").forEach(t => t.toggleTxt());
-    renderCombined();
-  });
-  if (btnDraw) {
-    btnDraw.addEventListener("click", () => {
-      STATE.specsText = inpSpecs.value;
+  if (addFigureBtn) {
+    addFigureBtn.addEventListener("click", () => {
+      if (STATE.figures.length >= 4) return;
+      const newFig = createDefaultFigureState(STATE.figures.length, "");
+      STATE.figures.push(newFig);
+      syncSpecsTextFromFigures();
+      renderFigureForms();
       renderCombined();
     });
   }
+  if (btnDraw) {
+    btnDraw.addEventListener("click", async () => {
+      await renderCombined();
+    });
+  }
 
-  // figur 1
-  wireSide("fig1", "a", "#f1SideA", "#f1SideATxt", "a");
-  wireSide("fig1", "b", "#f1SideB", "#f1SideBTxt", "b");
-  wireSide("fig1", "c", "#f1SideC", "#f1SideCTxt", "c");
-  wireSide("fig1", "d", "#f1SideD", "#f1SideDTxt", "d");
-  wireAng("fig1", "A", "#f1AngA", "#f1AngATxt", "A");
-  wireAng("fig1", "B", "#f1AngB", "#f1AngBTxt", "B");
-  wireAng("fig1", "C", "#f1AngC", "#f1AngCTxt", "C");
-  wireAng("fig1", "D", "#f1AngD", "#f1AngDTxt", "D");
-
-  // figur 2
-  wireSide("fig2", "a", "#f2SideA", "#f2SideATxt", "a");
-  wireSide("fig2", "b", "#f2SideB", "#f2SideBTxt", "b");
-  wireSide("fig2", "c", "#f2SideC", "#f2SideCTxt", "c");
-  wireSide("fig2", "d", "#f2SideD", "#f2SideDTxt", "d");
-  wireAng("fig2", "A", "#f2AngA", "#f2AngATxt", "A");
-  wireAng("fig2", "B", "#f2AngB", "#f2AngBTxt", "B");
-  wireAng("fig2", "C", "#f2AngC", "#f2AngCTxt", "C");
-  wireAng("fig2", "D", "#f2AngD", "#f2AngDTxt", "D");
-  layoutRadios.forEach(r => r.addEventListener("change", () => {
-    if (r.checked) {
-      STATE.layout = r.value;
-      renderCombined();
-    }
-  }));
   const handleAppModeChange = () => {
     syncLabelEditingAvailability();
   };
@@ -5197,63 +5272,15 @@ window.addEventListener("examples:collect", () => {
   }
 });
 function applyStateToUI() {
-  var _STATE$specsText;
-  const specInput = document.getElementById("inpSpecs");
-  if (specInput) specInput.value = (_STATE$specsText = STATE.specsText) !== null && _STATE$specsText !== void 0 ? _STATE$specsText : "";
+  ensureStateDefaults();
   const textSizeRadios = document.querySelectorAll('input[name="textSize"]');
   textSizeRadios.forEach(radio => {
     radio.checked = radio.value === STATE.textSize;
   });
   applyTextSizePreference(STATE.textSize);
-  const layout = STATE.layout || "row";
-  document.querySelectorAll('input[name="layout"]').forEach(radio => {
-    radio.checked = radio.value === layout;
-  });
-  const updateFigure = (figState, prefix, sideFallback, angFallback) => {
-    var _sides$default, _angles$default;
-    const sides = (figState === null || figState === void 0 ? void 0 : figState.sides) || {};
-    const angles = (figState === null || figState === void 0 ? void 0 : figState.angles) || {};
-    const defaultSides = (_sides$default = sides.default) !== null && _sides$default !== void 0 ? _sides$default : sideFallback;
-    const defaultAngles = (_angles$default = angles.default) !== null && _angles$default !== void 0 ? _angles$default : angFallback;
-    const sidesSel = document.getElementById(`${prefix}Sides`);
-    if (sidesSel) sidesSel.value = defaultSides;
-    const angSel = document.getElementById(`${prefix}Angles`);
-    if (angSel) angSel.value = defaultAngles;
-    const sideKeys = ["a", "b", "c", "d"];
-    sideKeys.forEach(letter => {
-      var _sides$letter;
-      const upper = letter.toUpperCase();
-      const sel = document.getElementById(`${prefix}Side${upper}`);
-      if (sel) sel.value = (_sides$letter = sides[letter]) !== null && _sides$letter !== void 0 ? _sides$letter : "inherit";
-      const txt = document.getElementById(`${prefix}Side${upper}Txt`);
-      if (txt) {
-        const val = sides[`${letter}Text`];
-        txt.value = val != null ? val : letter;
-      }
-      if (sel && txt) {
-        const mode = sel.value === "inherit" ? defaultSides !== null && defaultSides !== void 0 ? defaultSides : "" : sel.value;
-        txt.disabled = !String(mode).includes("custom");
-      }
-    });
-    const angKeys = ["A", "B", "C", "D"];
-    angKeys.forEach(letter => {
-      var _angles$letter;
-      const sel = document.getElementById(`${prefix}Ang${letter}`);
-      if (sel) sel.value = (_angles$letter = angles[letter]) !== null && _angles$letter !== void 0 ? _angles$letter : "inherit";
-      const txt = document.getElementById(`${prefix}Ang${letter}Txt`);
-      if (txt) {
-        const val = angles[`${letter}Text`];
-        txt.value = val != null ? val : letter;
-      }
-      if (sel && txt) {
-        const rawMode = sel.value === "inherit" ? defaultAngles !== null && defaultAngles !== void 0 ? defaultAngles : "" : sel.value;
-        const normalized = String(rawMode).toLowerCase();
-        txt.disabled = !(normalized.startsWith("custom") || normalized.startsWith("egenvalgt"));
-      }
-    });
-  };
-  updateFigure(STATE.fig1, "f1", "value", "custom+mark+value");
-  updateFigure(STATE.fig2, "f2", "none", "custom+mark+value");
+  if (typeof applyFigureSpecsToUI === 'function') {
+    applyFigureSpecsToUI();
+  }
   updateLabelEditorUI();
 }
 function applyExamplesConfig() {
