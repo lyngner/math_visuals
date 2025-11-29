@@ -146,6 +146,18 @@ let lastRenderSummary = {
   count: 0,
   jobs: []
 };
+let currentTextScale = 1;
+const textScaleStack = [];
+function pushTextScale(scale) {
+  const prev = currentTextScale;
+  const next = Number.isFinite(scale) && scale > 0 ? Math.min(Math.max(scale, 0.35), 3) : 1;
+  textScaleStack.push(prev);
+  currentTextScale = next;
+  return () => {
+    const restoreTo = textScaleStack.pop();
+    currentTextScale = Number.isFinite(restoreTo) && restoreTo > 0 ? restoreTo : 1;
+  };
+}
 const LABEL_EDITOR_STATE = {
   enabled: false,
   selectedKey: null,
