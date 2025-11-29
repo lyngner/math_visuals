@@ -701,6 +701,11 @@ function initAltTextManager() {
 }
 
 /* ---------- STIL ---------- */
+/* =========================================================
+   THEME & STYLE HANDLING (Refactored to match diagram.js)
+   ========================================================= */
+
+// Standardverdier (Fallback)
 const STYLE_DEFAULTS = {
   faceFill: "#f5f7fa",
   edgeStroke: "#333",
@@ -720,23 +725,165 @@ const STYLE_DEFAULTS = {
   constructionWidth: 3,
   constructionDash: "10 8"
 };
-function sanitizeThemePaletteValue(value) {
-  if (typeof value !== "string") return "";
-  const trimmed = value.trim();
-  return trimmed || "";
+
+const STYLE = { ...STYLE_DEFAULTS };
+const NKANT_GROUP_PALETTE_SIZE = 6; // Vi trenger ca 4-6 farger
+const SETTINGS_FALLBACK_PALETTE = ["#1F4DE2", "#475569", "#ef4444", "#0ea5e9", "#10b981", "#f59e0b"];
+
+// Hjelpere for å finne API-er
+function getThemeApi() {
+  return (typeof window !== "undefined" && window.MathVisualsTheme) || null;
+}
+function getPaletteApi() {
+  return (typeof window !== "undefined" && window.MathVisualsPalette) || null;
+}
+function getSettingsApi() {
+  return (typeof window !== "undefined" && window.MathVisualsSettings) || null;
+}
+
+// Hjelper for å finne aktivt prosjekt (Robust sjekk)
+function getActiveProjectName() {
+  const theme = getThemeApi();
+  if (theme && typeof theme.getActiveProfileName === 'function') {
+    try {
+      const val = theme.getActiveProfileName();
+      if (val) return val.trim().toLowerCase();
+    } catch (_) {}
+  }
+  // Fallback: Sjekk attributter satt av examples.js
+  if (typeof document !== 'undefined' && document.documentElement) {
+    const attr = document.documentElement.getAttribute('data-mv-active-project') || 
+                 document.documentElement.getAttribute('data-theme-profile');
+    if (attr) return attr.trim().toLowerCase();
+  }
+  return null;
 }
 
 function getThemeColor(token, fallback) {
   const theme = getThemeApi();
-  if (theme && typeof theme.getColor === "function") {
+  if (theme && typeof theme.getColor === 'function') {
     try {
-      const value = theme.getColor(token, fallback);
-      if (typeof value === "string" && value.trim()) {
-        return value.trim();
-      }
+      return theme.getColor(token, fallback);
     } catch (_) {}
   }
-  return typeof fallback === "string" && fallback.trim() ? fallback.trim() : undefined;
+  return fallback;
+}
+
+// Hovedfunksjonen som oppdaterer alt
+function refreshNkantTheme() {
+  // 1. Finn prosjekt
+  const project = getActiveProjectName();
+
+  // 2. Be om palett (bruker > prosjekt > default)
+  const paletteApi = getPaletteApi();
+  const theme = getThemeApi();
+  
+  const request = { 
+    count: NKANT_GROUP_PALETTE_SIZE, 
+    project: project 
+  };
+
+  let groupPalette = [];
+
+  // Prøv Palette API først
+  if (paletteApi && typeof paletteApi.getGroupPalette === 'function') {
+    try {
+      const res = paletteApi.getGroupPalette('nkant', request);
+      groupPalette = res && Array.isArray(res.colors) ? res.colors : (Array.isArray(res) ? res : []);
+    } catch (_) {}
+  }
+
+  // Fallback til Theme API
+  if ((!groupPalette || !groupPalette.length) && theme && typeof theme.getGroupPalette === 'function') {
+    try {
+      const res = theme.getGroupPalette('nkant', request);
+      groupPalette = res && Array.isArray(res.colors) ? res.colors : (Array.isArray(res) ? res : []);
+    } catch (_) {}
+  }
+
+  // Sikre at vi har nok farger
+  const finalPalette = ensurePalette(groupPalette, NKANT_GROUP_PALETTE_SIZE, SETTINGS_FALLBACK_PALETTE);
+
+  // 3. Oppdater STYLE-objektet
+  // MAPPING: 0=Linje, 1=Vinkel, 2=Fyll
+  const primaryColor = finalPalette[0] || STYLE_DEFAULTS.edgeStroke;
+  const secondaryColor = finalPalette[1] || primaryColor || STYLE_DEFAULTS.angStroke;
+  const tertiaryColor = finalPalette[2] || STYLE_DEFAULTS.faceFill;
+  
+  const textColor = getThemeColor('ui.primary', STYLE_DEFAULTS.textFill);
+  const constructionColor = getThemeColor('dots.default', STYLE_DEFAULTS.constructionStroke);
+
+  Object.assign(STYLE, STYLE_DEFAULTS, {
+    edgeStroke: primaryColor,
+    angStroke: secondaryColor,
+    radiusStroke: secondaryColor,
+    faceFill: tertiaryColor,
+    textFill: textColor,
+    constructionStroke: constructionColor,
+    angFill: withAlphaColor(secondaryColor, 0.25, 'rgba(0,0,0,0.1)')
+  });
+
+  // 4. Tegn på nytt
+  if (typeof renderCombined === 'function') {
+    renderCombined();
+  }
+}
+
+// Lyttere (Samme som diagram.js)
+const THEME_REFRESH_MIN_INTERVAL_MS = 100;
+let lastThemeRefreshTime = 0;
+
+function scheduleThemeRefresh() {
+  const now = Date.now();
+  if (now - lastThemeRefreshTime < THEME_REFRESH_MIN_INTERVAL_MS) return;
+  lastThemeRefreshTime = now;
+  if (scheduleThemeRefresh.pending) return;
+  
+  const execute = () => {
+    scheduleThemeRefresh.pending = false;
+    refreshNkantTheme();
+  };
+  
+  scheduleThemeRefresh.pending = true;
+  if (typeof document !== "undefined" && document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => Promise.resolve().then(execute), { once: true });
+  } else {
+    Promise.resolve().then(execute);
+  }
+}
+
+// Oppsett av lyttere
+if (typeof window !== "undefined") {
+  window.addEventListener("math-visuals:settings-changed", scheduleThemeRefresh);
+  window.addEventListener("math-visuals:profile-change", scheduleThemeRefresh);
+  window.addEventListener("message", (event) => {
+    const data = event && event.data;
+    const type = typeof data === "string" ? data : (data && data.type);
+    if (type === "math-visuals:profile-change") scheduleThemeRefresh();
+  });
+}
+
+if (typeof MutationObserver !== "undefined" && typeof document !== "undefined") {
+  const observer = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      if (m.type === 'attributes' && (m.attributeName === 'data-mv-active-project' || m.attributeName === 'data-theme-profile')) {
+        scheduleThemeRefresh();
+        break;
+      }
+    }
+  });
+  if (document.documentElement) {
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-mv-active-project', 'data-theme-profile'] });
+  }
+}
+
+// Start!
+scheduleThemeRefresh();
+
+function sanitizeThemePaletteValue(value) {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  return trimmed || "";
 }
 
 function ensurePalette(base, count, fallback) {
@@ -768,138 +915,6 @@ function ensurePalette(base, count, fallback) {
   return result;
 }
 
-const SETTINGS_FALLBACK_PALETTE = ["#1F4DE2", "#475569", "#ef4444", "#0ea5e9", "#10b981", "#f59e0b"];
-
-function getSettingsApi() {
-  const scopes = [
-    typeof window !== "undefined" ? window : null,
-    typeof globalThis !== "undefined" ? globalThis : null,
-    typeof global !== "undefined" ? global : null
-  ];
-  for (const scope of scopes) {
-    if (!scope || typeof scope !== "object") continue;
-    const api = scope.MathVisualsSettings;
-    if (api && typeof api === "object") {
-      return api;
-    }
-  }
-  return null;
-}
-
-function getPaletteApi() {
-  const scope = typeof window !== "undefined" ? window : typeof globalThis !== "undefined" ? globalThis : null;
-  if (!scope || typeof scope !== "object") return null;
-  const api = scope.MathVisualsPalette;
-  return api && typeof api.getGroupPalette === "function" ? api : null;
-}
-
-function getPaletteProjectResolver() {
-  const scopes = [
-    typeof window !== "undefined" ? window : null,
-    typeof globalThis !== "undefined" ? globalThis : null,
-    typeof global !== "undefined" ? global : null
-  ];
-  for (const scope of scopes) {
-    if (!scope || typeof scope !== "object") continue;
-    const resolver = scope.MathVisualsPaletteProjectResolver;
-    if (resolver && typeof resolver.resolvePaletteProject === "function") {
-      return resolver;
-    }
-  }
-  if (typeof require === "function") {
-    try {
-      const mod = require("./palette/resolve-palette-project.js");
-      if (mod && typeof mod.resolvePaletteProject === "function") {
-        return mod;
-      }
-    } catch (_) {}
-  }
-  return null;
-}
-
-function resolveProjectNameHint() {
-  const resolver = getPaletteProjectResolver();
-  const doc = typeof document !== "undefined" ? document : null;
-  const theme = getThemeApi();
-  const settings = getSettingsApi();
-  if (resolver && typeof resolver.resolvePaletteProject === "function") {
-    try {
-      const resolved = resolver.resolvePaletteProject({
-        document: doc || undefined,
-        root: doc && doc.documentElement ? doc.documentElement : undefined,
-        theme: theme || undefined,
-        settings: settings || undefined,
-        location: typeof window !== "undefined" ? window.location : undefined
-      });
-      if (typeof resolved === "string" && resolved) {
-        return resolved;
-      }
-    } catch (_) {}
-  }
-  if (doc && doc.documentElement) {
-    const root = doc.documentElement;
-    const direct =
-      (typeof root.getAttribute === "function" && root.getAttribute("data-project")) ||
-      (root.dataset && root.dataset.project);
-    if (typeof direct === "string" && direct.trim()) {
-      return direct.trim().toLowerCase();
-    }
-    const activeAttr = root.getAttribute && root.getAttribute("data-mv-active-project");
-    if (typeof activeAttr === "string" && activeAttr.trim()) {
-      return activeAttr.trim().toLowerCase();
-    }
-    const themeAttr = root.getAttribute && root.getAttribute("data-theme-profile");
-    if (typeof themeAttr === "string" && themeAttr.trim()) {
-      return themeAttr.trim().toLowerCase();
-    }
-  }
-  if (theme && typeof theme.getActiveProfileName === "function") {
-    try {
-      const profile = theme.getActiveProfileName();
-      if (typeof profile === "string" && profile.trim()) {
-        return profile.trim().toLowerCase();
-      }
-    } catch (_) {}
-  }
-  if (settings && typeof settings.getActiveProject === "function") {
-    try {
-      const value = settings.getActiveProject();
-      if (typeof value === "string" && value.trim()) {
-        return value.trim().toLowerCase();
-      }
-    } catch (_) {}
-  }
-  if (settings && typeof settings.activeProject === "string" && settings.activeProject.trim()) {
-    return settings.activeProject.trim().toLowerCase();
-  }
-  return null;
-}
-
-const STYLE = {
-  ...STYLE_DEFAULTS
-};
-
-let currentTextScale = 1;
-
-function pushTextScale(renderScale) {
-  const previousScale = currentTextScale;
-  let scale = 1;
-  if (Number.isFinite(renderScale) && renderScale > 0) {
-    scale = 1 / renderScale;
-  }
-  const MIN_TEXT_SCALE = 0.9;
-  const MAX_TEXT_SCALE = 1.6;
-  currentTextScale = clamp(scale, MIN_TEXT_SCALE, MAX_TEXT_SCALE);
-  return () => {
-    currentTextScale = previousScale;
-  };
-}
-
-function getThemeApi() {
-  const theme = typeof window !== "undefined" ? window.MathVisualsTheme : null;
-  return theme && typeof theme === "object" ? theme : null;
-}
-
 function withAlphaColor(color, alpha, fallback) {
   const normalized = typeof color === "string" ? color.trim() : "";
   if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(normalized)) {
@@ -919,69 +934,6 @@ function withAlphaColor(color, alpha, fallback) {
   }
   return fallback;
 }
-
-function applyThemeToDocument() {
-  const theme = getThemeApi();
-  if (theme && typeof theme.applyToDocument === "function" && typeof document !== "undefined") {
-    theme.applyToDocument(document);
-  }
-}
-
-function refreshNkantTheme() {
-  applyThemeToDocument();
-  const theme = getThemeApi();
-  const paletteApi = getPaletteApi();
-  const activeProfileNameRaw = theme && typeof theme.getActiveProfileName === "function"
-    ? theme.getActiveProfileName()
-    : null;
-  const normalizedProfileName = resolveProjectNameHint()
-    || (typeof activeProfileNameRaw === "string" ? activeProfileNameRaw.trim().toLowerCase() : "");
-  const paletteRequest = { count: NKANT_GROUP_PALETTE_SIZE, project: normalizedProfileName || undefined };
-  let groupPalette = [];
-  if (paletteApi) {
-    try {
-      groupPalette = paletteApi.getGroupPalette("nkant", paletteRequest) || [];
-    } catch (_) {
-      groupPalette = [];
-    }
-  }
-  if ((!Array.isArray(groupPalette) || !groupPalette.length) && theme && typeof theme.getGroupPalette === "function") {
-    try {
-      groupPalette = theme.getGroupPalette("nkant", paletteRequest) || [];
-    } catch (_) {
-      groupPalette = [];
-    }
-  }
-  const palette = ensurePalette(groupPalette, NKANT_GROUP_PALETTE_SIZE, SETTINGS_FALLBACK_PALETTE);
-  const primaryColor = palette[0] || STYLE_DEFAULTS.edgeStroke;
-  const secondaryColor = palette[1] || primaryColor || STYLE_DEFAULTS.angStroke;
-  const tertiaryColor = palette[2] || STYLE_DEFAULTS.faceFill;
-  const textColor = getThemeColor("ui.primary", STYLE_DEFAULTS.textFill) || STYLE_DEFAULTS.textFill;
-  const constructionStroke = getThemeColor("dots.default", STYLE_DEFAULTS.constructionStroke)
-    || STYLE_DEFAULTS.constructionStroke;
-  Object.assign(STYLE, STYLE_DEFAULTS, {
-    edgeStroke: primaryColor,
-    angStroke: secondaryColor,
-    radiusStroke: secondaryColor,
-    faceFill: tertiaryColor,
-    textFill: textColor,
-    angFill: withAlphaColor(
-      secondaryColor,
-      0.25,
-      withAlphaColor(STYLE_DEFAULTS.angStroke, 0.25, STYLE_DEFAULTS.angFill)
-    ),
-    constructionStroke
-  });
-  if (typeof document === "undefined") return;
-  const svg = document.getElementById("paper");
-  if (!svg) return;
-  const result = renderCombined();
-  if (result && typeof result.catch === "function") {
-    result.catch(() => {});
-  }
-}
-
-refreshNkantTheme();
 
 /* ---------- HJELPERE ---------- */
 const deg = r => r * 180 / Math.PI;
