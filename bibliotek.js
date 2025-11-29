@@ -51,6 +51,7 @@ const copyFeedbackTimers = new WeakMap();
 const CUSTOM_STORAGE_KEY = 'mathvis:figureLibrary:customEntries:v1';
 const CUSTOM_CATEGORY_STORAGE_KEY = 'mathvis:figureLibrary:customCategories:v1';
 const DEFAULT_CATEGORY_THUMBNAIL = '/images/amounts/tb10.svg';
+const LOCAL_ONLY_LIMITATION = 'Figurer lagres lokalt i denne nettleseren fordi figurbibliotekets API ikke er tilgjengelig.';
 const CATEGORY_PREVIEW_COUNT = 4;
 const FIGURE_LIBRARY_ENDPOINT = '/api/figure-library';
 const FIGURE_LIBRARY_RAW_ENDPOINT = '/api/figure-library/raw';
@@ -3574,6 +3575,21 @@ async function fetchFigureLibrary(method = 'GET', payload, requestConfig = {}) {
   return { data, response };
 }
 
+function isFigureLibraryUnavailableError(error) {
+  if (!error) return false;
+  const status = error?.response?.status;
+  if (status === 404) {
+    return true;
+  }
+  if (!status && error.name === 'TypeError') {
+    return true;
+  }
+  if (typeof error.message === 'string' && error.message.includes('HTTP 404')) {
+    return true;
+  }
+  return false;
+}
+
 function buildFigureEntryPayload(entry, options = {}) {
   if (!entry || typeof entry !== 'object') return null;
   const slug = typeof entry.slug === 'string' && entry.slug.trim()
@@ -3653,7 +3669,22 @@ async function submitFigureEntry(entry, options = {}) {
   if (!payload) {
     throw new Error('Ugyldig figurdata for opplasting.');
   }
-  const { data, response } = await fetchFigureLibrary(method, payload);
+  let data;
+  let response;
+  try {
+    const result = await fetchFigureLibrary(method, payload);
+    data = result.data;
+    response = result.response;
+  } catch (error) {
+    if (isFigureLibraryUnavailableError(error)) {
+      const fallbackMetadata = { storageMode: 'memory', persistent: false, limitation: LOCAL_ONLY_LIMITATION };
+      applyFigureLibraryMetadata(fallbackMetadata);
+      const normalizedEntry = upsertCustomEntryLocal(entry);
+      persistLocalEntriesIfNeeded();
+      return normalizedEntry || entry;
+    }
+    throw error;
+  }
   applyFigureLibraryMetadata(data, response);
   if (Array.isArray(data.categories)) {
     applyServerCategories(data.categories);
