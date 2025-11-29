@@ -1469,6 +1469,24 @@ async function handleCategoryAppsSaveClick() {
     showCategoryAppsStatus('Tilgjengelighet oppdatert.', 'success');
   } catch (error) {
     console.error('Kunne ikke oppdatere kategoriapper', error);
+    if (isFigureLibraryUnavailableError(error)) {
+      const fallbackMetadata = {
+        storageMode: 'memory',
+        persistent: false,
+        limitation: LOCAL_ONLY_LIMITATION,
+      };
+      applyFigureLibraryMetadata(fallbackMetadata);
+      applyCategoryAppUpdateLocal(categoryId, normalizedSelection);
+      saveCustomCategories();
+      categoryDialogState.categoryApps = normalizedSelection.slice();
+      refreshLibrary({ maintainFilter: true });
+      renderCategoryDialog(categoryId);
+      showCategoryAppsStatus(
+        'Tilgjengelighet ble lagret lokalt fordi figurbibliotekets API ikke er tilgjengelig.',
+        'warning'
+      );
+      return;
+    }
     const message = extractApiErrorMessage(error, 'Kunne ikke oppdatere app-tilgjengeligheten. Prøv igjen.');
     showCategoryAppsStatus(message, 'error');
     setCategoryAppSelection('category', categoryDialogState.categoryApps);
