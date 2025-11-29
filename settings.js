@@ -99,7 +99,7 @@
     : COLOR_SLOT_GROUPS.reduce((total, group) => total + group.slots.length, 0);
   const PROJECT_FALLBACK_CACHE = new Map();
   const PROJECT_FALLBACK_GROUP_CACHE = new Map();
-  const SLOTS_PER_ROW = 3;
+  const SLOTS_PER_ROW = 4;
 
   function normalizeProjectName(name) {
     if (typeof name !== 'string') return '';
@@ -757,13 +757,11 @@
     const active = project ? normalizeProjectName(project) : ensureActiveProject();
     const headingText = resolveProjectHeading(active);
     if (projectHeadingElement) {
-      const fullHeading = headingText
-        ? `Default fargeinnstillinger ${headingText}`
-        : 'Default fargeinnstillinger';
+      const fullHeading = headingText || 'Fargeinnstillinger';
       projectHeadingElement.textContent = fullHeading;
     }
     if (projectLegendElement) {
-      projectLegendElement.textContent = headingText;
+      projectLegendElement.textContent = headingText || 'Fargeinnstillinger';
     }
   }
 
