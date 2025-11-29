@@ -49,6 +49,11 @@ Flere funksjoner (for eksempel `api/diagram-alt-text.js` og `api/figurtall-alt-t
 * **Frontend:** Vanilla HTML, CSS og JavaScript supplert med JSXGraph, MathLive og skreddersydde UI-komponenter.
 * **Bygg og deling:** Rollup for pakkene i `packages/`, `npm`-skript for utvikleropplevelsen og et AWS-oppsett der statiske apper lever på S3 bak CloudFront, mens backend-endepunkter eksponeres via API Gateway og Lambda.
 * **Testing og kvalitet:** Playwright-scenarier og interne verktøy i `scripts/` sikrer at appene leverer konsistent oppførsel og at API-kontraktene opprettholdes.
+
+## Testing
+
+* Røyktestene for figur-sidene sjekker nå at SVG-er/canvas faktisk rendrer synlig innhold uten å lagre binære snapshots. Strukturelle feil dukker opp som vanlige testfeil, og kan kjøres med `npx playwright test tests/figures-visibility.spec.js`.
+* Ved behov kan man fortsatt hente fullsidig skjermbilde gjennom `attachScreenshot`-hjelperen i test-fixtures, men snapshots lagres ikke i repoet.
 ## Videre arbeid
 
 Math Visuals videreutvikles i tett dialog med lærere, elever og spesialpedagoger. Nye konsepter prototypers ofte i dedikerte mapper (`old_projects/`, `kvikkbilder`, `tallinje` m.fl.) før de flyttes inn i hovedkatalogen. Prosjektet søker å balansere eksperimentell utforskning med robuste, dokumenterte verktøy, og inviterer til samskaping gjennom issues, pull requests og deling av undervisningsopplegg.
