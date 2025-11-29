@@ -827,56 +827,6 @@ function refreshNkantTheme() {
   }
 }
 
-// Lyttere (Samme som diagram.js)
-const THEME_REFRESH_MIN_INTERVAL_MS = 100;
-let lastThemeRefreshTime = 0;
-
-function scheduleThemeRefresh() {
-  const now = Date.now();
-  if (now - lastThemeRefreshTime < THEME_REFRESH_MIN_INTERVAL_MS) return;
-  lastThemeRefreshTime = now;
-  if (scheduleThemeRefresh.pending) return;
-  
-  const execute = () => {
-    scheduleThemeRefresh.pending = false;
-    refreshNkantTheme();
-  };
-  
-  scheduleThemeRefresh.pending = true;
-  if (typeof document !== "undefined" && document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => Promise.resolve().then(execute), { once: true });
-  } else {
-    Promise.resolve().then(execute);
-  }
-}
-
-// Oppsett av lyttere
-if (typeof window !== "undefined") {
-  window.addEventListener("math-visuals:settings-changed", scheduleThemeRefresh);
-  window.addEventListener("math-visuals:profile-change", scheduleThemeRefresh);
-  window.addEventListener("message", (event) => {
-    const data = event && event.data;
-    const type = typeof data === "string" ? data : (data && data.type);
-    if (type === "math-visuals:profile-change") scheduleThemeRefresh();
-  });
-}
-
-if (typeof MutationObserver !== "undefined" && typeof document !== "undefined") {
-  const observer = new MutationObserver((mutations) => {
-    for (const m of mutations) {
-      if (m.type === 'attributes' && (m.attributeName === 'data-mv-active-project' || m.attributeName === 'data-theme-profile')) {
-        scheduleThemeRefresh();
-        break;
-      }
-    }
-  });
-  if (document.documentElement) {
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-mv-active-project', 'data-theme-profile'] });
-  }
-}
-
-// Start!
-scheduleThemeRefresh();
 
 function sanitizeThemePaletteValue(value) {
   if (typeof value !== "string") return "";
