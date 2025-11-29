@@ -2944,9 +2944,9 @@ function buildSideText(mode, valueStr, customText) {
    none | mark | mark+value | custom | custom+mark | custom+mark+value
    → { mark:bool, angleText:string|null, pointLabel:string|null } */
 function parseAnglePointMode(modeStr, valueDeg, customText, fallbackPointLetter) {
-  // tolerer "custum..." som synonym
+  // tolerer "egenvalgt..." som synonym
   let t = (modeStr !== null && modeStr !== void 0 ? modeStr : "mark+value").toString().trim();
-  t = t.replace(/^custum/, "custom");
+  t = t.replace(/^egenvalgt/i, "custom");
   if (t === "none") return {
     mark: false,
     angleText: null,
@@ -4988,7 +4988,7 @@ function bindUI() {
       const curAngles = getAngles();
       const rawMode = sel.value === "inherit" ? (_curAngles$default = curAngles === null || curAngles === void 0 ? void 0 : curAngles.default) !== null && _curAngles$default !== void 0 ? _curAngles$default : "" : sel.value;
       const normalized = String(rawMode);
-      txt.disabled = !(normalized.startsWith("custom") || normalized.startsWith("custum"));
+      txt.disabled = !(normalized.startsWith("custom") || normalized.startsWith("egenvalgt"));
     }
     toggleTxt();
     sel.addEventListener("change", () => {
@@ -5245,7 +5245,7 @@ function applyStateToUI() {
       if (sel && txt) {
         const rawMode = sel.value === "inherit" ? defaultAngles !== null && defaultAngles !== void 0 ? defaultAngles : "" : sel.value;
         const normalized = String(rawMode).toLowerCase();
-        txt.disabled = !(normalized.startsWith("custom") || normalized.startsWith("custum"));
+        txt.disabled = !(normalized.startsWith("custom") || normalized.startsWith("egenvalgt"));
       }
     });
   };
