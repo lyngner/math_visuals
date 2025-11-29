@@ -669,6 +669,10 @@ body[data-app-mode="task"] .card--examples .example-description label {
   display: none;
 }
 
+.example-description--task-mode .example-description-preview[data-placeholder="true"] {
+  display: block;
+}
+
 .card--examples .example-description.example-description--collapsed {
   gap: 0;
   padding: 10px;
@@ -739,6 +743,13 @@ body[data-app-mode="task"] .card--examples .example-description.example-descript
 }
 
 body[data-app-mode="task"] .card--examples .example-description .example-description-preview:not([data-empty="true"]) {
+  display: block;
+}
+
+body[data-app-mode="task"]
+  .card--examples
+  .example-description
+  .example-description-preview[data-placeholder="true"] {
   display: block;
 }
 

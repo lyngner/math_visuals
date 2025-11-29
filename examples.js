@@ -5667,7 +5667,7 @@
     if (preview) {
       const shouldShowPlaceholder = isTaskMode && preview.dataset.empty === 'true' && !taskModeDescriptionEditing;
       if (shouldShowPlaceholder) {
-        applyDescriptionPlaceholder(preview, 'Legg til oppgave-tekst');
+        applyDescriptionPlaceholder(preview, 'Legg til oppgavetekst');
       } else {
         clearDescriptionPlaceholder(preview);
         if (isTaskMode && !taskModeDescriptionEditing && preview.dataset.empty !== 'true') {
