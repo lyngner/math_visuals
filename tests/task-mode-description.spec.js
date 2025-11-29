@@ -85,4 +85,18 @@ test.describe('task mode description preview', () => {
     await expect(preview).toBeVisible();
     await expect(preview.locator('.math-vis-description-math .mfrac')).toHaveCount(1);
   });
+
+  test('allows editing description from task mode placeholder', async ({ page }) => {
+    await page.goto('/diagram/index.html?mode=oppgave', { waitUntil: 'load' });
+
+    const preview = page.locator('.example-description-preview');
+    await expect(preview).toBeVisible();
+    await expect(preview).toContainText('Legg til oppgavetekst');
+
+    await preview.click();
+
+    const input = page.locator('#exampleDescription');
+    await expect(input).toBeVisible();
+    await expect(input).toBeFocused();
+  });
 });
