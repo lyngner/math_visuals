@@ -78,7 +78,7 @@ function createDefaultFigureState(index = 0, specText = "") {
 /* ---------- STATE (UI) ---------- */
 const STATE = {
   specsText: "",
-  textSize: "large",
+  textSize: "normal",
   figures: [],
   layout: "grid", // 2x2 matrise
   altText: "",
@@ -168,8 +168,8 @@ function pushTextScale(scale) {
 }
 const TEXT_SIZE_SCALE = {
   large: 1,
-  normal: 0.9,
-  small: 0.8
+  normal: 0.85,
+  small: 0.65
 };
 function applyUserTextScaleToStyle() {
   STYLE.sideFS = STYLE_DEFAULTS.sideFS * userTextScale;
