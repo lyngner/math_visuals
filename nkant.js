@@ -8,8 +8,6 @@
 /* ---------- DEFAULT SPECS (leses fra HTML) ---------- */
 let DEFAULT_SPECS = "";
 
-const NKANT_GROUP_PALETTE_SIZE = 6;
-
 /* ---------- ADV (dine verdier) ---------- */
 const ADV_CONFIG = {
   angle: {
