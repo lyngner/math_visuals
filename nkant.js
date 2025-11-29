@@ -47,12 +47,17 @@ const INITIAL_SPEC_LINES = [
   "a=5, b=5, c=5, d=5, B=90",
   "Rettvinklet trekant"
 ];
-function createDefaultFigureState(index = 0, specText = "") {
-  const isFirst = index === 0;
+const DEFAULT_GLOBAL_DEFAULTS = {
+  sides: "value",
+  angles: "custom+mark+value"
+};
+function createDefaultFigureState(index = 0, specText = "", defaults = DEFAULT_GLOBAL_DEFAULTS) {
+  const defaultSideMode = defaults && defaults.sides ? defaults.sides : DEFAULT_GLOBAL_DEFAULTS.sides;
+  const defaultAngleMode = defaults && defaults.angles ? defaults.angles : DEFAULT_GLOBAL_DEFAULTS.angles;
   return {
     specText,
     sides: {
-      default: isFirst ? "value" : "none",
+      default: defaultSideMode,
       a: "inherit",
       b: "inherit",
       c: "inherit",
@@ -63,7 +68,7 @@ function createDefaultFigureState(index = 0, specText = "") {
       dText: "d"
     },
     angles: {
-      default: "custom+mark+value",
+      default: defaultAngleMode,
       A: "inherit",
       B: "inherit",
       C: "inherit",
@@ -78,6 +83,7 @@ function createDefaultFigureState(index = 0, specText = "") {
 /* ---------- STATE (UI) ---------- */
 const STATE = {
   specsText: "",
+  defaults: { ...DEFAULT_GLOBAL_DEFAULTS },
   textSize: "normal",
   figures: [],
   layout: "grid", // 2x2 matrise
@@ -86,6 +92,15 @@ const STATE = {
   labelAdjustments: {}
 };
 const DEFAULT_STATE = JSON.parse(JSON.stringify(STATE));
+
+function getGlobalDefaults() {
+  const fallback = DEFAULT_STATE && DEFAULT_STATE.defaults ? DEFAULT_STATE.defaults : DEFAULT_GLOBAL_DEFAULTS;
+  const defaults = STATE && STATE.defaults ? STATE.defaults : null;
+  return {
+    sides: defaults && typeof defaults.sides === "string" && defaults.sides ? defaults.sides : fallback.sides,
+    angles: defaults && typeof defaults.angles === "string" && defaults.angles ? defaults.angles : fallback.angles
+  };
+}
 
 const NKANT_DEFAULT_SIMPLE_STATE = {
   sides: 8,
@@ -128,11 +143,31 @@ function ensureStateDefaults() {
   const baseSpecs = typeof STATE.specsText === "string" && STATE.specsText.trim()
     ? STATE.specsText.split(/\n+/).slice(0, 4)
     : INITIAL_SPEC_LINES.slice(0, 4);
+  const fallbackDefaults = DEFAULT_STATE && DEFAULT_STATE.defaults ? DEFAULT_STATE.defaults : DEFAULT_GLOBAL_DEFAULTS;
+  const deriveDefault = (value, figKey) => {
+    if (value && typeof value === "string") return value;
+    const firstFig = existingFigures[0];
+    const figDefault = firstFig && firstFig[figKey] && typeof firstFig[figKey].default === "string"
+      ? firstFig[figKey].default
+      : "";
+    if (figDefault) return figDefault;
+    return figKey === "angles" ? fallbackDefaults.angles : fallbackDefaults.sides;
+  };
+  STATE.defaults = {
+    sides: deriveDefault(STATE.defaults && STATE.defaults.sides, "sides"),
+    angles: deriveDefault(STATE.defaults && STATE.defaults.angles, "angles")
+  };
   const figures = (existingFigures.length ? existingFigures : baseSpecs).slice(0, 4);
   STATE.figures = figures.map((fig, idx) => {
-    const base = createDefaultFigureState(idx, typeof fig === "string" ? fig : (fig && fig.specText) || baseSpecs[idx] || "");
+    const base = createDefaultFigureState(
+      idx,
+      typeof fig === "string" ? fig : (fig && fig.specText) || baseSpecs[idx] || "",
+      STATE.defaults
+    );
     const target = fig && typeof fig === "object" && !Array.isArray(fig) ? { ...fig } : { specText: typeof fig === "string" ? fig : "" };
     fill(target, base);
+    target.sides.default = STATE.defaults.sides;
+    target.angles.default = STATE.defaults.angles;
     return target;
   });
   STATE.specsText = STATE.figures.map(fig => fig && typeof fig.specText === "string" ? fig.specText : "").join("\n");
@@ -150,6 +185,7 @@ let lastRenderSummary = {
   jobs: []
 };
 let applyFigureSpecsToUI = () => {};
+let syncGlobalDefaultsToUI = () => {};
 let baseTextScale = 1;
 let currentTextScale = 1;
 const textScaleStack = [];
@@ -4707,8 +4743,9 @@ function downloadPNG(svgEl, filename, scale = 2, bg = "#fff") {
 
 /* bygg adv fra STATE (sider + vinkler/punkter) */
 function buildAdvForFig(figState) {
+  const defaults = getGlobalDefaults();
   const sidesMode = {
-    default: figState.sides.default
+    default: figState.sides.default || defaults.sides
   };
   ["a", "b", "c", "d"].forEach(k => {
     const mode = figState.sides[k];
@@ -4721,7 +4758,7 @@ function buildAdvForFig(figState) {
     d: figState.sides.dText
   };
   const angMode = {
-    default: figState.angles.default
+    default: figState.angles.default || defaults.angles
   };
   ["A", "B", "C", "D"].forEach(k => {
     const mode = figState.angles[k];
@@ -4808,7 +4845,8 @@ async function renderCombined() {
       type,
       obj
     } = jobEntries[i].job;
-    const figState = STATE.figures[jobEntries[i].figureIndex] || createDefaultFigureState(jobEntries[i].figureIndex);
+    const figState = STATE.figures[jobEntries[i].figureIndex]
+      || createDefaultFigureState(jobEntries[i].figureIndex, "", STATE.defaults);
     const adv = buildAdvForFig(figState);
     const labelCtx = { prefix: `fig${i + 1}` };
     let summaryEntry = null;
@@ -4940,6 +4978,7 @@ function bindUI() {
   const btnDraw = $("#btnDraw");
   const addFigureBtn = $("#btnAddFigure");
   const figureListEl = $("#figureList");
+  const globalDefaultsRow = $("#globalDefaultsRow");
   btnToggleLabelEdit = $("#btnToggleLabelEdit");
   labelEditorSectionEl = document.querySelector('.label-editor');
   labelEditorControlsEl = $("#labelEditorControls");
@@ -4991,6 +5030,67 @@ function bindUI() {
     });
     sel.value = value;
     return sel;
+  }
+
+  const getDefaultSidesMode = () => getGlobalDefaults().sides;
+  const getDefaultAnglesMode = () => getGlobalDefaults().angles;
+
+  let globalSideDefaultSel = null;
+  let globalAngleDefaultSel = null;
+  function renderGlobalDefaults() {
+    if (!globalDefaultsRow) return;
+    globalDefaultsRow.innerHTML = "";
+    const defaults = getGlobalDefaults();
+
+    const sideWrap = document.createElement("div");
+    const sideLabel = document.createElement("label");
+    sideLabel.setAttribute("for", "globalDefaultSides");
+    sideLabel.textContent = "Standard sider";
+    globalSideDefaultSel = createSelect(sideDefaults, defaults.sides, "Standard sider for alle figurer");
+    globalSideDefaultSel.id = "globalDefaultSides";
+    globalSideDefaultSel.addEventListener("change", () => {
+      STATE.defaults.sides = globalSideDefaultSel.value;
+      STATE.figures.forEach(fig => {
+        if (fig && fig.sides) {
+          fig.sides.default = STATE.defaults.sides;
+        }
+      });
+      renderFigureForms();
+      renderCombined();
+    });
+    sideWrap.appendChild(sideLabel);
+    sideWrap.appendChild(globalSideDefaultSel);
+
+    const angleWrap = document.createElement("div");
+    const angleLabel = document.createElement("label");
+    angleLabel.setAttribute("for", "globalDefaultAngles");
+    angleLabel.textContent = "Standard vinkler/punkter";
+    globalAngleDefaultSel = createSelect(angleDefaults, defaults.angles, "Standard vinkler/punkter for alle figurer");
+    globalAngleDefaultSel.id = "globalDefaultAngles";
+    globalAngleDefaultSel.addEventListener("change", () => {
+      STATE.defaults.angles = globalAngleDefaultSel.value;
+      STATE.figures.forEach(fig => {
+        if (fig && fig.angles) {
+          fig.angles.default = STATE.defaults.angles;
+        }
+      });
+      renderFigureForms();
+      renderCombined();
+    });
+    angleWrap.appendChild(angleLabel);
+    angleWrap.appendChild(globalAngleDefaultSel);
+
+    globalDefaultsRow.appendChild(sideWrap);
+    globalDefaultsRow.appendChild(angleWrap);
+  }
+
+  function syncGlobalDefaultsUI() {
+    if (globalSideDefaultSel) {
+      globalSideDefaultSel.value = getDefaultSidesMode();
+    }
+    if (globalAngleDefaultSel) {
+      globalAngleDefaultSel.value = getDefaultAnglesMode();
+    }
   }
 
   function renderFigureForms() {
@@ -5047,35 +5147,6 @@ function bindUI() {
       specRow.appendChild(drawBtn);
       wrapper.appendChild(specRow);
 
-      const rowDefaults = document.createElement("div");
-      rowDefaults.className = "form-row form-row--compact";
-      const sideDefaultLabel = document.createElement("label");
-      sideDefaultLabel.textContent = "Standard sider";
-      const sideDefaultSel = createSelect(sideDefaults, fig.sides.default, `Standard sider for figur ${idx + 1}`);
-      sideDefaultSel.addEventListener("change", () => {
-        fig.sides.default = sideDefaultSel.value;
-        renderFigureForms();
-        renderCombined();
-      });
-      const sideDefaultWrap = document.createElement("div");
-      sideDefaultWrap.appendChild(sideDefaultLabel);
-      sideDefaultWrap.appendChild(sideDefaultSel);
-
-      const angleDefaultLabel = document.createElement("label");
-      angleDefaultLabel.textContent = "Standard vinkler/punkter";
-      const angleDefaultSel = createSelect(angleDefaults, fig.angles.default, `Standard vinkler for figur ${idx + 1}`);
-      angleDefaultSel.addEventListener("change", () => {
-        fig.angles.default = angleDefaultSel.value;
-        renderFigureForms();
-        renderCombined();
-      });
-      const angleDefaultWrap = document.createElement("div");
-      angleDefaultWrap.appendChild(angleDefaultLabel);
-      angleDefaultWrap.appendChild(angleDefaultSel);
-      rowDefaults.appendChild(sideDefaultWrap);
-      rowDefaults.appendChild(angleDefaultWrap);
-      wrapper.appendChild(rowDefaults);
-
       const rows = document.createElement("div");
       rows.className = "form-row";
       ["a", "b", "c", "d"].forEach(letter => {
@@ -5088,7 +5159,7 @@ function bindUI() {
         txt.value = fig.sides[`${letter}Text`] || letter;
         const sel = createSelect(sideOptions, fig.sides[letter] || "inherit", `Standard for side ${letter.toUpperCase()}`);
         const toggle = () => {
-          const fallback = fig.sides.default || "";
+          const fallback = getDefaultSidesMode();
           const mode = sel.value === "inherit" ? fallback : sel.value;
           txt.disabled = !String(mode).includes("custom");
         };
@@ -5120,7 +5191,7 @@ function bindUI() {
         txt.value = fig.angles[`${letter}Text`] || letter;
         const sel = createSelect(angleOptions, fig.angles[letter] || "inherit", `Standard for punkt ${letter}`);
         const toggle = () => {
-          const fallback = fig.angles.default || "";
+          const fallback = getDefaultAnglesMode();
           const raw = sel.value === "inherit" ? fallback : sel.value;
           const normalized = String(raw);
           txt.disabled = !(normalized.startsWith("custom") || normalized.startsWith("egenvalgt"));
@@ -5147,6 +5218,9 @@ function bindUI() {
     }
   }
 
+  renderGlobalDefaults();
+  syncGlobalDefaultsUI();
+  syncGlobalDefaultsToUI = syncGlobalDefaultsUI;
   applyFigureSpecsToUI = renderFigureForms;
   renderFigureForms();
   textSizeRadios.forEach(radio => {
@@ -5163,7 +5237,7 @@ function bindUI() {
   if (addFigureBtn) {
     addFigureBtn.addEventListener("click", () => {
       if (STATE.figures.length >= 4) return;
-      const newFig = createDefaultFigureState(STATE.figures.length, "");
+      const newFig = createDefaultFigureState(STATE.figures.length, "", STATE.defaults);
       STATE.figures.push(newFig);
       syncSpecsTextFromFigures();
       renderFigureForms();
@@ -5278,6 +5352,9 @@ function applyStateToUI() {
     radio.checked = radio.value === STATE.textSize;
   });
   applyTextSizePreference(STATE.textSize);
+  if (typeof syncGlobalDefaultsToUI === 'function') {
+    syncGlobalDefaultsToUI();
+  }
   if (typeof applyFigureSpecsToUI === 'function') {
     applyFigureSpecsToUI();
   }

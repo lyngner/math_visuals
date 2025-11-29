@@ -155,6 +155,7 @@
     .label-editor__hint { margin: 0; color: #6b7280; }
     .label-draggable { cursor: grab; }
     .label-selected { filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.9)); }
+    .global-settings { display: grid; gap: 10px; }
   </style>
   <link rel="stylesheet" href="/split.css" />
 </head>
@@ -182,6 +183,21 @@
 
         <div class="card card--settings">
 
+        <div class="global-settings">
+          <div class="figure-controls__header">
+            <div class="legend">Globale innstillinger</div>
+          </div>
+          <div id="globalDefaultsRow" class="form-row form-row--compact"></div>
+          <div class="radio-row">
+            <label>Skriftstørrelse:</label>
+            <label><input type="radio" name="textSize" value="large"> Stor</label>
+            <label><input type="radio" name="textSize" value="normal" checked> Medium</label>
+            <label><input type="radio" name="textSize" value="small"> Liten</label>
+          </div>
+        </div>
+
+        <div class="sep"></div>
+
         <div class="figure-controls">
           <div class="figure-controls__header">
             <div class="legend">Figurer</div>
@@ -196,16 +212,6 @@
         </div>
 
         <div class="sep"></div>
-        <div class="sep"></div>
-
-
-        <div class="radio-row">
-          <label>Skriftstørrelse:</label>
-          <label><input type="radio" name="textSize" value="large"> Stor</label>
-          <label><input type="radio" name="textSize" value="normal" checked> Medium</label>
-          <label><input type="radio" name="textSize" value="small"> Liten</label>
-        </div>
-
         <div class="sep"></div>
         <div class="label-editor">
           <div class="legend">Etikettjustering</div>
