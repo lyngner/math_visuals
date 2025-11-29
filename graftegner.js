@@ -282,64 +282,40 @@ const DEFAULT_AXIS_COLOR = '#111827';
 
 const POINT_MARKER_SIZE = 6;
 
-function getThemeApi() {
-  const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
-  return theme && typeof theme === 'object' ? theme : null;
-}
+/* =================== THEME & STYLE HANDLING =================== */
 
-function getActiveThemeProjectName(theme = getThemeApi()) {
-  if (!theme || typeof theme.getActiveProfileName !== 'function') return null;
-  try {
-    const value = theme.getActiveProfileName();
-    if (typeof value === 'string' && value.trim()) {
-      return value.trim().toLowerCase();
-    }
-  } catch (_) {}
+function getThemeApi() {
+  return (typeof window !== 'undefined' && window.MathVisualsTheme) || null;
+}
+function getPaletteApi() {
+  return (typeof window !== 'undefined' && window.MathVisualsPalette) || null;
+}
+function getActiveProjectName() {
+  const theme = getThemeApi();
+  if (theme && typeof theme.getActiveProfileName === 'function') {
+    try {
+      const val = theme.getActiveProfileName();
+      if (val) return val.trim().toLowerCase();
+    } catch (_) {}
+  }
+  if (typeof document !== 'undefined' && document.documentElement) {
+    const attr = document.documentElement.getAttribute('data-mv-active-project') ||
+      document.documentElement.getAttribute('data-theme-profile');
+    if (attr) return attr.trim().toLowerCase();
+  }
   return null;
 }
 
-function resolveAxisStrokeColor() {
-  const project = getActiveThemeProjectName();
-  const helper = getPaletteHelper();
-  const helperAxisColor = fetchGraftegnerAxisColor(helper, project);
-  if (helperAxisColor) {
-    return helperAxisColor;
-  }
+function getThemeColor(token, fallback) {
   const theme = getThemeApi();
-  const themeAxisPaletteColor = fetchGraftegnerAxisColor(theme, project);
-  if (themeAxisPaletteColor) {
-    return themeAxisPaletteColor;
-  }
   if (theme && typeof theme.getColor === 'function') {
-    const raw = theme.getColor('graphs.axis');
-    if (typeof raw === 'string') {
-      const trimmed = raw.trim();
-      if (trimmed) {
-        return trimmed;
-      }
-    }
+    try {
+      return theme.getColor(token, fallback);
+    } catch (_) {}
   }
-  return DEFAULT_AXIS_COLOR;
+  return fallback;
 }
-function applyThemeToDocument() {
-  const theme = getThemeApi();
-  if (theme && typeof theme.applyToDocument === 'function') {
-    theme.applyToDocument(document);
-  }
-}
-function ensureColorCount(base, fallback, count) {
-  const hasBase = Array.isArray(base) && base.length;
-  const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
-  const fallbackPalette = Array.isArray(fallback) && fallback.length ? fallback : getBaseCurveColors(targetCount);
-  const effectiveCount = targetCount || (hasBase ? base.length : fallbackPalette.length);
-  const result = [];
-  for (let i = 0; i < effectiveCount; i += 1) {
-    const candidate = hasBase && typeof base[i] === 'string' && base[i] ? base[i] : null;
-    const fallbackColor = fallbackPalette[i % fallbackPalette.length] || getDefaultCurveColor(i);
-    result.push(candidate || fallbackColor);
-  }
-  return result;
-}
+
 function normalizeColorValue(value) {
   if (typeof value !== 'string') return '';
   const trimmed = value.trim();
@@ -353,6 +329,136 @@ function normalizeColorValue(value) {
   return `#${hex}`;
 }
 
+function refreshGraftegnerTheme(options = {}) {
+  const project = getActiveProjectName();
+  const paletteApi = getPaletteApi();
+  const theme = getThemeApi();
+  const requestedCount = Number.isFinite(options.count) && options.count > 0 ? Math.trunc(options.count) : null;
+  const count = requestedCount || Math.max(
+    DEFAULT_GRAFTEGNER_SIMPLE.expressions.length,
+    DEFAULT_GRAFTEGNER_TRIG_SIMPLE.expressions.length,
+    6
+  );
+
+  const request = { count, project };
+  let groupPalette = [];
+
+  if (paletteApi && typeof paletteApi.getGroupPalette === 'function') {
+    try {
+      const res = paletteApi.getGroupPalette(GRAFTEGNER_GROUP_ID, request);
+      groupPalette = res && Array.isArray(res.colors) ? res.colors : (Array.isArray(res) ? res : []);
+    } catch (_) {}
+  }
+
+  if ((!groupPalette || !groupPalette.length) && theme && typeof theme.getGroupPalette === 'function') {
+    try {
+      const res = theme.getGroupPalette(GRAFTEGNER_GROUP_ID, request);
+      groupPalette = res && Array.isArray(res.colors) ? res.colors : (Array.isArray(res) ? res : []);
+    } catch (_) {}
+  }
+
+  const finalPalette = ensureColorCount(groupPalette, GRAFTEGNER_FALLBACK_PALETTE, count);
+
+  DEFAULT_FUNCTION_COLORS.palette = finalPalette.slice();
+  DEFAULT_FUNCTION_COLORS.simple = finalPalette.slice(0, DEFAULT_GRAFTEGNER_SIMPLE.expressions.length);
+  DEFAULT_FUNCTION_COLORS.trig = finalPalette.slice(0, DEFAULT_GRAFTEGNER_TRIG_SIMPLE.expressions.length);
+
+  const primary = finalPalette[0];
+  const secondary = finalPalette[1] || primary;
+
+  DEFAULT_POINT_COLORS.line = primary;
+  DEFAULT_POINT_COLORS.markerStroke = primary;
+  DEFAULT_POINT_COLORS.domainMarker = secondary;
+
+  const axisColor = getThemeColor('graphs.axis', DEFAULT_AXIS_COLOR);
+  if (typeof ADV !== 'undefined' && ADV && ADV.axis && ADV.axis.style) {
+    ADV.axis.style.stroke = axisColor;
+  }
+  DEFAULT_POINT_COLORS.guideStroke = getThemeColor('dots.guide', '#64748b');
+
+  if (typeof updateCurveColorsFromTheme === 'function') {
+    updateCurveColorsFromTheme();
+  }
+  if (typeof updateAxisThemeStyling === 'function') {
+    updateAxisThemeStyling();
+  }
+  if (typeof refreshFunctionColorDefaults === 'function') {
+    refreshFunctionColorDefaults();
+  }
+  if (typeof requestRebuild === 'function') {
+    requestRebuild();
+  }
+}
+
+const THEME_REFRESH_MIN_INTERVAL_MS = 100;
+let lastThemeRefreshTime = 0;
+
+function scheduleThemeRefresh() {
+  const now = Date.now();
+  if (now - lastThemeRefreshTime < THEME_REFRESH_MIN_INTERVAL_MS) return;
+  lastThemeRefreshTime = now;
+
+  if (scheduleThemeRefresh.pending) return;
+  const execute = () => {
+    scheduleThemeRefresh.pending = false;
+    refreshGraftegnerTheme();
+  };
+  scheduleThemeRefresh.pending = true;
+
+  if (typeof document !== "undefined" && document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", () => Promise.resolve().then(execute), { once: true });
+  } else {
+    Promise.resolve().then(execute);
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.addEventListener("math-visuals:settings-changed", scheduleThemeRefresh);
+  window.addEventListener("math-visuals:profile-change", scheduleThemeRefresh);
+  window.addEventListener("message", (event) => {
+    const data = event && event.data;
+    const type = typeof data === "string" ? data : (data && data.type);
+    if (type === "math-visuals:profile-change") scheduleThemeRefresh();
+  });
+}
+
+if (typeof MutationObserver !== "undefined" && typeof document !== "undefined") {
+  const observer = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      if (m.type === 'attributes' && (m.attributeName === 'data-mv-active-project' || m.attributeName === 'data-theme-profile')) {
+        scheduleThemeRefresh();
+        break;
+      }
+    }
+  });
+  if (document.documentElement) {
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-mv-active-project', 'data-theme-profile'] });
+  }
+}
+
+scheduleThemeRefresh();
+
+function ensureColorCount(base, fallback, count) {
+  const hasBase = Array.isArray(base) && base.length;
+  const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
+  const fallbackPalette = Array.isArray(fallback) && fallback.length ? fallback : getBaseCurveColors(targetCount);
+  const effectiveCount = targetCount || (hasBase ? base.length : fallbackPalette.length);
+  const result = [];
+  for (let i = 0; i < effectiveCount; i += 1) {
+    const candidate = hasBase && typeof base[i] === 'string' && base[i] ? base[i] : null;
+    const fallbackColor = fallbackPalette[i % fallbackPalette.length] || getDefaultCurveColor(i);
+    result.push(candidate || fallbackColor);
+  }
+  return result;
+}
+
+function applyThemeToDocument() {
+  const theme = getThemeApi();
+  if (theme && typeof theme.applyToDocument === 'function') {
+    theme.applyToDocument(document);
+  }
+}
+
 function getPaletteHelper() {
   const scope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
   if (scope && scope.MathVisualsPalette && typeof scope.MathVisualsPalette.getGroupPalette === 'function') {
@@ -361,25 +467,12 @@ function getPaletteHelper() {
   return null;
 }
 
-function fetchGraftegnerAxisColor(provider, project) {
-  if (!provider || typeof provider.getGroupPalette !== 'function') return '';
-  const options = project ? { project, count: 2 } : { count: 2 };
-  let palette = null;
-  try {
-    palette = provider.getGroupPalette(GRAFTEGNER_GROUP_ID, options);
-  } catch (_) {}
-  if ((!Array.isArray(palette) || palette.length < 2) && provider.getGroupPalette.length >= 3) {
-    try {
-      palette = provider.getGroupPalette(
-        GRAFTEGNER_GROUP_ID,
-        2,
-        project ? { project } : undefined
-      );
-    } catch (_) {}
-  }
-  if (!Array.isArray(palette) || palette.length < 2) return '';
-  const axisColor = normalizeColorValue(palette[1]);
-  return axisColor || '';
+function resolveAxisStrokeColor() {
+  const axisStroke = typeof ADV !== 'undefined' && ADV && ADV.axis && ADV.axis.style && ADV.axis.style.stroke;
+  if (axisStroke) return axisStroke;
+  const themeAxis = getThemeColor('graphs.axis', DEFAULT_AXIS_COLOR);
+  const normalized = normalizeColorValue(themeAxis);
+  return normalized || DEFAULT_AXIS_COLOR;
 }
 
 function sanitizePaletteList(values) {
@@ -407,7 +500,7 @@ function resolvePaletteProjectName() {
       return themeAttr.trim().toLowerCase();
     }
   }
-  const themeProject = getActiveThemeProjectName();
+  const themeProject = getActiveProjectName();
   if (themeProject) return themeProject;
   const api = getSettingsApi();
   if (api && typeof api.getActiveProject === 'function') {
@@ -428,6 +521,27 @@ function tryResolveGroupPalette(resolver) {
   } catch (_) {
     return null;
   }
+}
+
+function fetchGraftegnerAxisColor(provider, project) {
+  if (!provider || typeof provider.getGroupPalette !== 'function') return '';
+  const options = project ? { project, count: 2 } : { count: 2 };
+  let palette = null;
+  try {
+    palette = provider.getGroupPalette(GRAFTEGNER_GROUP_ID, options);
+  } catch (_) {}
+  if ((!Array.isArray(palette) || palette.length < 2) && provider.getGroupPalette.length >= 3) {
+    try {
+      palette = provider.getGroupPalette(
+        GRAFTEGNER_GROUP_ID,
+        2,
+        project ? { project } : undefined
+      );
+    } catch (_) {}
+  }
+  if (!Array.isArray(palette) || palette.length < 2) return '';
+  const axisColor = normalizeColorValue(palette[1]);
+  return axisColor || '';
 }
 
 function fetchGraftegnerPalette(count) {
@@ -549,8 +663,7 @@ function applyGraftegnerDefaultsFromTheme(options = {}) {
   const desiredCount = Number.isFinite(options.count) && options.count > 0
     ? Math.trunc(options.count)
     : DEFAULT_FUNCTION_COLORS.fallback.length;
-  const palette = fetchGraftegnerPalette(desiredCount);
-  applyGraftegnerPalette(palette, { count: desiredCount });
+  refreshGraftegnerTheme({ count: desiredCount });
 }
 function resolveCurvePalette(count = undefined) {
   const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
