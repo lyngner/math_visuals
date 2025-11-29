@@ -2068,6 +2068,7 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
   const keyboardHandlers = new Map();
   let dragState = null;
   let currentAppMode = 'default';
+  let emptyStateEl = null;
   let activeInlineEditorId = null;
   let lastInlineEditorDismissId = null;
   let lastInlineEditorDismissAt = 0;
@@ -3706,7 +3707,31 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     snapToSlot();
     clearVisualMarkers();
     commitCurrentOrderToState();
+    updateEmptyState();
     notifyStatusChange('applyOrder');
+  }
+
+  function ensureEmptyStateElement() {
+    if (emptyStateEl) return emptyStateEl;
+    if (!doc) return null;
+    const message = doc.createElement('p');
+    message.className = 'sortering__empty-state';
+    message.textContent = 'Ingen elementer tilgjengelig. Bruk «+» for å legge til det første.';
+    emptyStateEl = message;
+    return message;
+  }
+
+  function updateEmptyState() {
+    if (!visualList) return;
+    const hasItems = Array.isArray(currentOrder) && currentOrder.length > 0;
+    const placeholder = ensureEmptyStateElement();
+    if (!placeholder) return;
+    placeholder.hidden = hasItems;
+    if (!hasItems && placeholder.parentNode !== visualList) {
+      visualList.appendChild(placeholder);
+    } else if (hasItems && placeholder.parentNode === visualList) {
+      visualList.removeChild(placeholder);
+    }
   }
 
   function updateLayout() {
