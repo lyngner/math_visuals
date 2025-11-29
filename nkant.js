@@ -150,6 +150,7 @@ let lastRenderSummary = {
 let baseTextScale = 1;
 let currentTextScale = 1;
 const textScaleStack = [];
+let userTextScale = 1;
 function pushTextScale(scale) {
   const prev = currentTextScale;
   const normalized = Number.isFinite(scale) && scale > 0 ? Math.min(Math.max(scale, 0.35), 3) : 1;
@@ -167,9 +168,16 @@ const TEXT_SIZE_SCALE = {
   normal: 0.9,
   small: 0.8
 };
+function applyUserTextScaleToStyle() {
+  STYLE.sideFS = STYLE_DEFAULTS.sideFS * userTextScale;
+  STYLE.ptFS = STYLE_DEFAULTS.ptFS * userTextScale;
+  STYLE.angFS = STYLE_DEFAULTS.angFS * userTextScale;
+}
 function applyTextSizePreference(size) {
   const scale = TEXT_SIZE_SCALE[size] || TEXT_SIZE_SCALE.large;
-  baseTextScale = scale;
+  userTextScale = scale;
+  applyUserTextScaleToStyle();
+  baseTextScale = 1;
   if (!textScaleStack.length) {
     currentTextScale = baseTextScale;
   }
