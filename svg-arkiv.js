@@ -2110,7 +2110,9 @@
       return trimmed;
     }
 
-    if (trimmed.startsWith('/api/svg/raw') || (svgApiBase && trimmed.startsWith(svgApiBase))) {
+    const resolvedSvgApiBase = typeof svgApiBase === 'string' && svgApiBase ? svgApiBase : null;
+
+    if (trimmed.startsWith('/api/svg/raw') || (resolvedSvgApiBase && trimmed.startsWith(resolvedSvgApiBase))) {
       return trimmed;
     }
 
@@ -2123,7 +2125,9 @@
       if (format) {
         searchParams.set('format', format);
       }
-      const apiUrl = buildSvgApiUrl(`raw?${searchParams.toString()}`);
+      const apiUrl = typeof buildSvgApiUrl === 'function'
+        ? buildSvgApiUrl(`raw?${searchParams.toString()}`)
+        : null;
       return apiUrl || `/api/svg/raw?${searchParams.toString()}`;
     }
 
@@ -2135,7 +2139,9 @@
       if (formatHint) {
         searchParams.set('format', formatHint);
       }
-      const apiUrl = buildSvgApiUrl(`raw?${searchParams.toString()}`);
+      const apiUrl = typeof buildSvgApiUrl === 'function'
+        ? buildSvgApiUrl(`raw?${searchParams.toString()}`)
+        : null;
       return apiUrl || `/api/svg/raw?${searchParams.toString()}`;
     }
 
