@@ -3088,39 +3088,54 @@ function enforceAspectStrict() {
 /* ---------- GRID (statisk) ---------- */
 function rebuildGrid() {
   if (!brd) return;
+  
+  // Fjern gamle linjer
   for (const L of gridV) {
-    try {
-      brd.removeObject(L);
-    } catch (_) {}
+    try { brd.removeObject(L); } catch (_) {}
   }
   for (const L of gridH) {
-    try {
-      brd.removeObject(L);
-    } catch (_) {}
+    try { brd.removeObject(L); } catch (_) {}
   }
   gridV = [];
   gridH = [];
+
   if (!ADV.axis.forceIntegers || !ADV.axis.grid.show) {
     return;
   }
+
   enforceAspectStrict();
+  
   const [xmin, ymax, xmax, ymin] = brd.getBoundingBox();
   const sx = +ADV.axis.grid.majorX > 1e-9 ? +ADV.axis.grid.majorX : 1;
   const sy = +ADV.axis.grid.majorY > 1e-9 ? +ADV.axis.grid.majorY : 1;
-  const x0 = Math.ceil(xmin / sx) * sx,
-    y0 = Math.ceil(ymin / sy) * sy;
+
+  // BEREGN START OG STOPP FOR HELE RUTER
+  // Vi bruker ceil for start og floor for slutt for å "krympe" rutenettet inn til nærmeste hele tall
+  const gridLeft = Math.ceil(xmin / sx) * sx;
+  const gridRight = Math.floor(xmax / sx) * sx;
+  const gridBottom = Math.ceil(ymin / sy) * sy;
+  const gridTop = Math.floor(ymax / sy) * sy;
+
   const attrs = {
     straightFirst: false,
     straightLast: false,
     strokeColor: '#e5e7eb',
     strokeWidth: 1,
     fixed: true,
-    layer: 0,
+    layer: 0, // Ligger under aksene
     highlight: false,
     cssStyle: 'pointer-events:none;'
   };
-  for (let x = x0; x <= xmax + 1e-9; x += sx) gridV.push(brd.create('line', [[x, ymin], [x, ymax]], attrs));
-  for (let y = y0; y <= ymax + 1e-9; y += sy) gridH.push(brd.create('line', [[xmin, y], [xmax, y]], attrs));
+
+  // Tegn VERTIKALE linjer (x endres, men y er låst til gridBottom/Top)
+  for (let x = gridLeft; x <= gridRight + 1e-9; x += sx) {
+    gridV.push(brd.create('line', [[x, gridBottom], [x, gridTop]], attrs));
+  }
+
+  // Tegn HORISONTALE linjer (y endres, men x er låst til gridLeft/Right)
+  for (let y = gridBottom; y <= gridTop + 1e-9; y += sy) {
+    gridH.push(brd.create('line', [[gridLeft, y], [gridRight, y]], attrs));
+  }
 }
 
 /* =================== Grafnavn-bakplate =================== */
