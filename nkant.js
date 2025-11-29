@@ -203,9 +203,9 @@ function pushTextScale(scale) {
   };
 }
 const TEXT_SIZE_SCALE = {
-  large: 1,
-  normal: 0.85,
-  small: 0.65
+  large: 1.5,
+  normal: 1,
+  small: 0.5
 };
 function applyUserTextScaleToStyle() {
   STYLE.sideFS = STYLE_DEFAULTS.sideFS * userTextScale;
@@ -813,9 +813,9 @@ const STYLE_DEFAULTS = {
   textHalo: null,
   textHaloW: 0,
   fontFamily: "system-ui, -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
-  sideFS: 32,
-  ptFS: 32,
-  angFS: 32,
+  sideFS: 16,
+  ptFS: 16,
+  angFS: 16,
   constructionStroke: "#4b5563",
   constructionWidth: 3,
   constructionDash: "10 8"
