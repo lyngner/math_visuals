@@ -223,6 +223,8 @@ const DEFAULT_GRAFTEGNER_TRIG_SIMPLE = {
 const AXIS_ARROW_PIXEL_THICKNESS = 26;
 const AXIS_ARROW_ASPECT_RATIO = 17 / 30;
 const AXIS_LABEL_OFFSET_PX = 10;
+const AXIS_LABEL_MARGIN_FRACTION = 0.005;
+const AXIS_LABEL_MARGINS = { x: AXIS_LABEL_MARGIN_FRACTION, y: AXIS_LABEL_MARGIN_FRACTION };
 
 const X_AXIS_ARROW_SVG_TEMPLATE =
   '<svg width="17" height="30" viewBox="0 0 17 30" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M16.1421 16.1421C16.9231 15.3611 16.9231 14.0948 16.1421 13.3137L3.41417 0.5858C2.63313 -0.195248 1.3668 -0.195248 0.585748 0.5858C-0.195301 1.36685 -0.195301 2.63318 0.585748 3.41423L11.8995 14.7279L0.585748 26.0416C-0.195301 26.8227 -0.195301 28.089 0.585748 28.8701C1.3668 29.6511 2.63313 29.6511 3.41417 28.8701L16.1421 16.1421ZM14.7278 14.7279V16.7279H14.7279V14.7279V12.7279H14.7278V14.7279Z" fill="{{COLOR}}"/></svg>';
@@ -3057,8 +3059,8 @@ function placeAxisNames() {
   }
   xName.moveTo(xLabelPos);
   yName.moveTo(yLabelPos);
-  clampLabelToView(xName);
-  clampLabelToView(yName);
+  clampLabelToView(xName, AXIS_LABEL_MARGINS);
+  clampLabelToView(yName, AXIS_LABEL_MARGINS);
   rememberAxisLabelPosition('x', { x: xName.X(), y: xName.Y() }, !!manualAxisLabelPosition('x'));
   rememberAxisLabelPosition('y', { x: yName.X(), y: yName.Y() }, !!manualAxisLabelPosition('y'));
   makeAxisLabelDraggable('x', xName);
@@ -3283,15 +3285,17 @@ function updatePlate(label) {
   P.p3.moveTo([R, B]);
   P.p4.moveTo([L, B]);
 }
-function clampLabelToView(label) {
+function clampLabelToView(label, marginFractions) {
   if (!label) return;
   const bb = brd.getBoundingBox();
   const xmin = bb[0],
     xmax = bb[2],
     ymin = bb[3],
     ymax = bb[1];
-  const marginX = (xmax - xmin) * (ADV.curveName.marginFracX || 0);
-  const marginY = (ymax - ymin) * (ADV.curveName.marginFracY || 0);
+  const rawMarginX = marginFractions && Number.isFinite(marginFractions.x) ? marginFractions.x : ADV.curveName.marginFracX;
+  const rawMarginY = marginFractions && Number.isFinite(marginFractions.y) ? marginFractions.y : ADV.curveName.marginFracY;
+  const marginX = (xmax - xmin) * (Number.isFinite(rawMarginX) ? rawMarginX : 0);
+  const marginY = (ymax - ymin) * (Number.isFinite(rawMarginY) ? rawMarginY : 0);
   const x = label.X(),
     y = label.Y();
   const xClamped = Math.min(xmax - marginX, Math.max(xmin + marginX, x));
@@ -3322,7 +3326,7 @@ function makeAxisLabelDraggable(axisKey, label) {
       return null;
     };
     const clampAndRemember = manual => {
-      clampLabelToView(label);
+      clampLabelToView(label, AXIS_LABEL_MARGINS);
       rememberAxisLabelPosition(axisKey, { x: label.X(), y: label.Y() }, manual);
     };
     const start = ev => {
@@ -3333,7 +3337,7 @@ function makeAxisLabelDraggable(axisKey, label) {
       ev.stopPropagation();
       dragging = true;
       rememberAxisLabelPosition(axisKey, { x: label.X(), y: label.Y() }, true);
-      clampLabelToView(label);
+      clampLabelToView(label, AXIS_LABEL_MARGINS);
       offset = [label.X() - coords[0], label.Y() - coords[1]];
       if (typeof node.setPointerCapture === 'function' && ev.pointerId != null) {
         try {
