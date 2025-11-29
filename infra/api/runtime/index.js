@@ -136,15 +136,20 @@ function registerFromDirectory(dirPath, handlers) {
 
 function registerHandlers(app) {
   const handlers = discoverHandlers();
+  const registered = [];
   handlers.sort((a, b) => a.routePath.localeCompare(b.routePath));
   for (const { routePath, filePath } of handlers) {
     const handler = require(filePath);
     const wrapped = wrapHandler(handler, routePath);
     app.all(routePath, wrapped);
+    registered.push({ path: routePath, handler: wrapped });
     if (!routePath.endsWith('/')) {
-      app.all(`${routePath}/`, wrapped);
+      const trailingSlashPath = `${routePath}/`;
+      app.all(trailingSlashPath, wrapped);
+      registered.push({ path: trailingSlashPath, handler: wrapped });
     }
   }
+  return registered;
 }
 
 function createApp() {
@@ -152,7 +157,7 @@ function createApp() {
   app.disable('x-powered-by');
   app.set('trust proxy', true);
 
-  registerHandlers(app);
+  app.handlers = registerHandlers(app);
 
   app.use((err, req, res, next) => {
     console.error(err);
