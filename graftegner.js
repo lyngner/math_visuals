@@ -385,7 +385,8 @@ function refreshGraftegnerTheme(options = {}) {
   if (typeof refreshFunctionColorDefaults === 'function') {
     refreshFunctionColorDefaults();
   }
-  if (typeof requestRebuild === 'function') {
+  const shouldRequestRebuild = typeof requestRebuild === 'function' && !IS_REBUILDING;
+  if (shouldRequestRebuild) {
     requestRebuild();
   }
 }
@@ -442,8 +443,20 @@ function getPaletteHelper() {
 }
 
 function resolveAxisStrokeColor() {
-  const axisStroke = typeof ADV !== 'undefined' && ADV && ADV.axis && ADV.axis.style && ADV.axis.style.stroke;
-  if (axisStroke) return axisStroke;
+  const advAxisStroke = (() => {
+    try {
+      const scope = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : null);
+      const advRef = scope && scope.ADV;
+      if (advRef && advRef.axis && advRef.axis.style && advRef.axis.style.stroke) {
+        return advRef.axis.style.stroke;
+      }
+    } catch (_) {
+      /* no-op */
+    }
+    return null;
+  })();
+
+  if (advAxisStroke) return advAxisStroke;
   const themeAxis = getThemeColor('graphs.axis', DEFAULT_AXIS_COLOR);
   const normalized = normalizeColorValue(themeAxis);
   return normalized || DEFAULT_AXIS_COLOR;
@@ -893,6 +906,27 @@ if (typeof window !== 'undefined') {
 }
 let altTextManager = null;
 
+let brd = null;
+let axX = null;
+let axY = null;
+let xName = null;
+let yName = null;
+const AXIS_LABEL_STATE = {
+  x: { manual: false, position: null },
+  y: { manual: false, position: null }
+};
+let axisArrowX = null;
+let axisArrowY = null;
+let customTicksX = null;
+let customTicksY = null;
+let gridV = [];
+let gridH = [];
+let graphs = [];
+let A = null;
+let B = null;
+let moving = [];
+let IS_REBUILDING = false;
+
 /* ====================== AVANSERT KONFIG ===================== */
 const INITIAL_POINT_MARKER_RAW = paramStr('marker', DEFAULT_POINT_MARKER);
 const INITIAL_POINT_MARKER_NORMALIZED = normalizePointMarkerValue(INITIAL_POINT_MARKER_RAW);
@@ -1002,8 +1036,6 @@ const ADV = {
     interTol: 1e-3
   }
 };
-
-applyGraftegnerDefaultsFromTheme();
 
 if (typeof window !== "undefined") {
   window.addEventListener("math-visuals:settings-changed", scheduleThemeRefresh);
@@ -1616,7 +1648,6 @@ function computePaletteRequestCount() {
   const manualCount = Array.isArray(SIMPLE_PARSED && SIMPLE_PARSED.extraPoints) ? SIMPLE_PARSED.extraPoints.length : 0;
   return Math.max(simpleCount, trigCount, parsedCount, manualCount, DEFAULT_FUNCTION_COLORS.fallback.length, 1);
 }
-applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
 const ALLOWED_NAMES = ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'log', 'ln', 'lg', 'sqrt', 'exp', 'abs', 'min', 'max', 'floor', 'ceil', 'round', 'pow'];
 function isExplicitRHS(rhs) {
   let s = rhs.toLowerCase();
@@ -1637,25 +1668,8 @@ let START_SCREEN = null;
 let LAST_COMPUTED_SCREEN = null;
 let LAST_SCREEN_SOURCE = 'auto';
 let SCREEN_INPUT_IS_EDITING = false;
-let brd = null;
-let axX = null;
-let axY = null;
-let xName = null;
-let yName = null;
-const AXIS_LABEL_STATE = {
-  x: { manual: false, position: null },
-  y: { manual: false, position: null }
-};
-let axisArrowX = null;
-let axisArrowY = null;
-let customTicksX = null;
-let customTicksY = null;
-let gridV = [];
-let gridH = [];
-let graphs = [];
-let A = null;
-let B = null;
-let moving = [];
+
+applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
 
 /* =============== uttrykk → funksjon ================= */
 function parseFunctionSpec(spec) {
@@ -5644,6 +5658,9 @@ function updateAfterViewChange() {
   }
 }
 function rebuildAll() {
+  if (IS_REBUILDING) return;
+  IS_REBUILDING = true;
+  try {
   syncSimpleFromWindow();
   if (typeof window !== 'undefined') {
     window.SIMPLE = SIMPLE;
@@ -5694,6 +5711,9 @@ function rebuildAll() {
   applyAltTextToBoard();
   refreshAltText('rebuild');
   LAST_RENDERED_SIMPLE = SIMPLE;
+  } finally {
+    IS_REBUILDING = false;
+  }
 }
 window.addEventListener('resize', () => {
   const jxg = getJXG();
@@ -5739,8 +5759,10 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
 }
 function requestRebuild() {
   cancelScheduledSimpleRebuild();
-  whenJXGReady(() => {
-    rebuildAll();
+  Promise.resolve().then(() => {
+    whenJXGReady(() => {
+      rebuildAll();
+    });
   });
 }
 requestRebuild();
@@ -6229,7 +6251,6 @@ function setupSettingsForm() {
     };
   };
   let refreshFunctionColorDefaultsLocal = () => {
-    applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
     functionColorControls.forEach(control => {
       if (!control || !control.row) return;
       const nextDefault = computeDefaultColorForIndex(getRowIndex(control.row));
