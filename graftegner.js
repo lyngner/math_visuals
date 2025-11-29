@@ -412,32 +412,6 @@ function scheduleThemeRefresh() {
   }
 }
 
-if (typeof window !== "undefined") {
-  window.addEventListener("math-visuals:settings-changed", scheduleThemeRefresh);
-  window.addEventListener("math-visuals:profile-change", scheduleThemeRefresh);
-  window.addEventListener("message", (event) => {
-    const data = event && event.data;
-    const type = typeof data === "string" ? data : (data && data.type);
-    if (type === "math-visuals:profile-change") scheduleThemeRefresh();
-  });
-}
-
-if (typeof MutationObserver !== "undefined" && typeof document !== "undefined") {
-  const observer = new MutationObserver((mutations) => {
-    for (const m of mutations) {
-      if (m.type === 'attributes' && (m.attributeName === 'data-mv-active-project' || m.attributeName === 'data-theme-profile')) {
-        scheduleThemeRefresh();
-        break;
-      }
-    }
-  });
-  if (document.documentElement) {
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-mv-active-project', 'data-theme-profile'] });
-  }
-}
-
-scheduleThemeRefresh();
-
 function ensureColorCount(base, fallback, count) {
   const hasBase = Array.isArray(base) && base.length;
   const targetCount = Number.isFinite(count) && count > 0 ? Math.trunc(count) : undefined;
@@ -1030,6 +1004,32 @@ const ADV = {
 };
 
 applyGraftegnerDefaultsFromTheme();
+
+if (typeof window !== "undefined") {
+  window.addEventListener("math-visuals:settings-changed", scheduleThemeRefresh);
+  window.addEventListener("math-visuals:profile-change", scheduleThemeRefresh);
+  window.addEventListener("message", (event) => {
+    const data = event && event.data;
+    const type = typeof data === "string" ? data : (data && data.type);
+    if (type === "math-visuals:profile-change") scheduleThemeRefresh();
+  });
+}
+
+if (typeof MutationObserver !== "undefined" && typeof document !== "undefined") {
+  const observer = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      if (m.type === 'attributes' && (m.attributeName === 'data-mv-active-project' || m.attributeName === 'data-theme-profile')) {
+        scheduleThemeRefresh();
+        break;
+      }
+    }
+  });
+  if (document.documentElement) {
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-mv-active-project', 'data-theme-profile'] });
+  }
+}
+
+scheduleThemeRefresh();
 
 const EXAMPLE_STATE = (() => {
   const existing = typeof window !== 'undefined' && window.STATE && typeof window.STATE === 'object'
@@ -2483,7 +2483,7 @@ function destroyBoard() {
   START_SCREEN = null;
 }
 function applyAxisStyles() {
-  if (!brd) return;
+  if (!brd || typeof ADV === 'undefined' || !ADV || !ADV.axis || !ADV.axis.style) return;
   const stroke = resolveAxisStrokeColor();
   if (stroke) {
     ADV.axis.style.stroke = stroke;
@@ -2507,6 +2507,7 @@ function applyAxisStyles() {
 }
 
 function updateAxisThemeStyling() {
+  if (typeof ADV === 'undefined' || !ADV || !ADV.axis || !ADV.axis.style) return;
   const stroke = resolveAxisStrokeColor();
   if (stroke) {
     ADV.axis.style.stroke = stroke;
