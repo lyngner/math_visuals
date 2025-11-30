@@ -31,10 +31,10 @@ Feilsøking: Bygg som ser ut til å loope
 - Sørg for at Vercel/CI kun kjører `npm run build` én gang (typisk kun i Build-steget) og at `npm ci` eller tilsvarende ikke har ekstra hooks som trigges automatisk. Hvis du ser en loop, sjekk først at Build-kommandoen ikke er konfigurert både som install- og build-steg.
 
 CloudFront/ApiGateway origin-konfigurasjon (prod)
-- `ApiGatewayOrigin` _må_ peke på `f1c9mggyqh.execute-api.eu-west-1.amazonaws.com` med `OriginPath` satt til `/prod`. CloudFormation-malen hardkoder nå disse verdiene for å unngå manuelle feil når stacken opprettes/oppdateres.
-- Bakgrunn: feil host/OriginPath kan få CloudFront til å peke mot seg selv og levere den statiske HTML-fallbacken i stedet for API-svarene.
+- `ApiGatewayOrigin` henter nå API Gateway-domenet fra parameteren `ApiGatewayDomainName` (lagt inn som GitHub-secret). `OriginPath` er fortsatt satt til `/prod` i malen.
+- Bakgrunn: det faste `/prod`-prefikset hindrer at CloudFront prøver å rute til seg selv og returnerer HTML-fallbacken i stedet for API-svarene.
 
 Etter-deploy sjekkliste (for å fange drift i scripts/maler)
 1. Åpne CloudFront-konsollet → velg produksjonsdistribusjonen → fanen «Origins» → klikk `ApiGatewayOrigin`.
-2. Bekreft at **Origin domain** er `f1c9mggyqh.execute-api.eu-west-1.amazonaws.com` og **Origin path** er `/prod`.
+2. Bekreft at **Origin domain** matcher verdien som ble gitt i `ApiGatewayDomainName` (GitHub-secret brukt av deploy-pipelinen) og at **Origin path** er `/prod`.
 3. Lagre/avbryt uten å endre noe. Hvis verdiene avviker, oppdater malen/scriptet før ny deploy for å hindre regressjon.
