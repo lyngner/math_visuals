@@ -132,6 +132,10 @@
       font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
     }
     .label-editor { display: grid; gap: 10px; }
+    .label-editor--figure {
+      width: 100%;
+      margin-top: 10px;
+    }
     .label-editor__controls {
       display: grid;
       gap: 10px;
@@ -156,6 +160,7 @@
     .label-draggable { cursor: grab; }
     .label-selected { filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.9)); }
     .global-settings { display: grid; gap: 10px; }
+    .checkbox-row { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
   </style>
   <link rel="stylesheet" href="/split.css" />
 </head>
@@ -166,6 +171,25 @@
         <h1 class="sr-only">Nkant – én SVG med flere figurer</h1>
         <div class="figure">
           <svg id="paper" viewBox="0 0 600 420" preserveAspectRatio="xMidYMid meet" aria-label=""></svg>
+        </div>
+        <div class="label-editor label-editor--figure">
+          <div id="labelEditorControls" class="label-editor__controls">
+            <div class="label-editor__row">
+              <div>
+                <div class="small">Aktiv etikett</div>
+                <div id="labelEditorActive" class="label-editor__badge">Ingen valgt</div>
+              </div>
+              <div class="label-editor__actions">
+                <button id="btnResetLabelPosition" class="btn" type="button">Tilbakestill</button>
+              </div>
+            </div>
+            <div class="label-editor__rotation" hidden>
+              <label for="labelRotation">Rotasjon</label>
+              <input id="labelRotation" type="range" min="-180" max="180" value="0" />
+              <input id="labelRotationNumber" class="tight" type="number" min="-180" max="180" value="0" />
+            </div>
+            <p class="label-editor__hint small">Dra etiketter direkte i tegningen for å flytte dem. I redigeringsmodus kan du også velge etiketter med TAB, bruke piltastene for å flytte (SHIFT for større steg, ALT/⌘ for finjustering) og [ eller - / ] eller + for å rotere.</p>
+          </div>
         </div>
       </div>
 
@@ -194,6 +218,7 @@
             <label><input type="radio" name="textSize" value="normal" checked> Medium</label>
             <label><input type="radio" name="textSize" value="small"> Liten</label>
           </div>
+          <label class="checkbox-row"><input id="toggleRotateText" type="checkbox" checked /> Roter tekst</label>
         </div>
 
         <div class="sep"></div>
@@ -212,33 +237,6 @@
         </div>
 
         <div class="sep"></div>
-        <div class="sep"></div>
-        <div class="label-editor">
-          <div class="legend">Etikettjustering</div>
-          <button id="btnToggleLabelEdit" class="btn" type="button" hidden>Rediger etiketter</button>
-          <div id="labelEditorControls" class="label-editor__controls" hidden>
-            <div class="label-editor__row">
-              <div>
-                <div class="small">Aktiv etikett</div>
-                <div id="labelEditorActive" class="label-editor__badge">Ingen valgt</div>
-              </div>
-              <div class="label-editor__actions">
-                <button id="btnResetLabelPosition" class="btn" type="button">Tilbakestill valgt</button>
-                <button id="btnResetAllLabels" class="btn" type="button">Nullstill alle</button>
-              </div>
-            </div>
-            <div class="label-editor__list">
-              <label class="small" for="labelEditorList">Velg etikett fra liste</label>
-              <select id="labelEditorList" size="4" aria-label="Liste over etiketter"></select>
-            </div>
-            <div class="label-editor__rotation" hidden>
-              <label for="labelRotation">Rotasjon</label>
-              <input id="labelRotation" type="range" min="-180" max="180" value="0" />
-              <input id="labelRotationNumber" class="tight" type="number" min="-180" max="180" value="0" />
-            </div>
-            <p class="label-editor__hint small">Dra etiketter direkte i tegningen for å flytte dem. I redigeringsmodus kan du også velge etiketter med TAB eller fra listen over, bruke piltastene for å flytte (SHIFT for større steg, ALT/⌘ for finjustering) og [ eller - / ] eller + for å rotere.</p>
-          </div>
-        </div>
       </div>
         <div class="card" id="exportCard">
           <h2>Eksporter</h2>
