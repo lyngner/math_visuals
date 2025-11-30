@@ -720,6 +720,11 @@ const FONT_LIMITS = {
   max: 72
 };
 const FONT_DEFAULT = 15;
+const FONT_SIZE_OPTIONS = {
+  large: 20,
+  normal: FONT_DEFAULT,
+  small: 12
+};
 const FONT_PARAM_KEYS = ['fontSize', 'font', 'axisFont', 'tickFont', 'curveFont'];
 const SHOW_CURVE_NAMES = params.has('showNames') ? paramBool('showNames') : true;
 const SHOW_CURVE_EXPRESSIONS = params.has('showExpr') ? paramBool('showExpr') : false;
@@ -744,6 +749,49 @@ function resolveSharedFontSize() {
     }
   }
   return FONT_DEFAULT;
+}
+const FONT_SIZE_PRESET_KEYS = Object.keys(FONT_SIZE_OPTIONS);
+function resolveFontSizeFromKey(key, fallback = FONT_DEFAULT) {
+  const normalized = typeof key === 'string' ? key.trim().toLowerCase() : '';
+  const mapped = FONT_SIZE_OPTIONS[normalized];
+  return sanitizeFontSize(mapped, fallback);
+}
+function getFontSizeKeyFromValue(value) {
+  const size = sanitizeFontSize(value, FONT_DEFAULT);
+  for (const key of FONT_SIZE_PRESET_KEYS) {
+    if (Math.abs(FONT_SIZE_OPTIONS[key] - size) < 1e-9) {
+      return key;
+    }
+  }
+  return null;
+}
+function syncFontSizeSelect(selectEl, fontSize) {
+  if (!selectEl) return;
+  const presetKey = getFontSizeKeyFromValue(fontSize);
+  const customOption = selectEl.querySelector('option[value="custom"]');
+  if (presetKey) {
+    selectEl.value = presetKey;
+    if (customOption) customOption.textContent = 'Tilpasset';
+    if (selectEl.dataset) delete selectEl.dataset.customSize;
+    return;
+  }
+  selectEl.value = 'custom';
+  if (selectEl.dataset) selectEl.dataset.customSize = String(fontSize);
+  if (customOption) customOption.textContent = `Tilpasset (${fontSize}px)`;
+}
+function readFontSizeFromSelect(selectEl, fallback) {
+  if (!selectEl) return fallback;
+  const mapped = resolveFontSizeFromKey(selectEl.value, null);
+  if (mapped != null) {
+    return mapped;
+  }
+  const custom = selectEl.dataset && typeof selectEl.dataset.customSize === 'string'
+    ? Number.parseFloat(selectEl.dataset.customSize.replace(',', '.'))
+    : NaN;
+  if (Number.isFinite(custom)) {
+    return sanitizeFontSize(custom, fallback);
+  }
+  return fallback;
 }
 const SHARED_FONT_SIZE = resolveSharedFontSize();
 let FORCE_TICKS_REQUESTED = params.has('forceTicks') ? paramBool('forceTicks') : true;
@@ -8307,7 +8355,7 @@ function setupSettingsForm() {
   }
   const fontSizeInput = g('cfgFontSize');
   if (fontSizeInput) {
-    fontSizeInput.value = String(sanitizeFontSize(ADV.axis.grid.fontSize, FONT_DEFAULT));
+    syncFontSizeSelect(fontSizeInput, sanitizeFontSize(ADV.axis.grid.fontSize, FONT_DEFAULT));
   }
   const apply = () => {
     const prevSimple = LAST_RENDERED_SIMPLE;
@@ -8548,43 +8596,19 @@ function setupSettingsForm() {
     }
     if (q1Checked) p.set('q1', '1');
     const keepFontParam = FONT_PARAM_KEYS.some(key => params.has(key)) || Math.abs(currentFontSize - FONT_DEFAULT) > 1e-9;
-    const handleFontInput = (inputId, paramName, fallback, options = {}) => {
-      const { keepWhenEqual = false } = options;
-      const input = g(inputId);
-      if (!input) return;
-      const rawStr = String(input.value != null ? input.value : '').trim();
-      if (!rawStr) {
-        input.value = String(fallback);
-        if (keepWhenEqual && Math.abs(fallback - FONT_DEFAULT) > 1e-9) {
-          p.set(paramName, String(fallback));
-        }
-        return;
-      }
-      const raw = Number.parseFloat(rawStr.replace(',', '.'));
-      if (!Number.isFinite(raw)) {
-        input.value = String(fallback);
-        if (keepWhenEqual && Math.abs(fallback - FONT_DEFAULT) > 1e-9) {
-          p.set(paramName, String(fallback));
-        }
-        return;
-      }
-      const sanitized = sanitizeFontSize(raw, fallback);
-      input.value = String(sanitized);
-      if (Math.abs(sanitized - fallback) > 1e-9 || (keepWhenEqual && Math.abs(sanitized - FONT_DEFAULT) > 1e-9)) {
-        p.set(paramName, String(sanitized));
-      }
-    };
-    handleFontInput('cfgFontSize', 'fontSize', currentFontSize, { keepWhenEqual: keepFontParam });
     const fontSizeInput = g('cfgFontSize');
+    const nextFontSize = readFontSizeFromSelect(fontSizeInput, currentFontSize);
     if (fontSizeInput) {
-      const parsedSize = Number.parseFloat(String(fontSizeInput.value).replace(',', '.'));
-      const nextFontSize = Number.isFinite(parsedSize) ? sanitizeFontSize(parsedSize, currentFontSize) : currentFontSize;
-      if (Math.abs(nextFontSize - ADV.axis.grid.fontSize) > 1e-9 || Math.abs(nextFontSize - ADV.axis.labels.fontSize) > 1e-9 || Math.abs(nextFontSize - ADV.curveName.fontSize) > 1e-9) {
-        ADV.axis.grid.fontSize = nextFontSize;
-        ADV.axis.labels.fontSize = nextFontSize;
-        ADV.curveName.fontSize = nextFontSize;
-        needsRebuild = true;
-      }
+      syncFontSizeSelect(fontSizeInput, nextFontSize);
+    }
+    if (Math.abs(nextFontSize - currentFontSize) > 1e-9 || (keepFontParam && Math.abs(nextFontSize - FONT_DEFAULT) > 1e-9)) {
+      p.set('fontSize', String(nextFontSize));
+    }
+    if (Math.abs(nextFontSize - ADV.axis.grid.fontSize) > 1e-9 || Math.abs(nextFontSize - ADV.axis.labels.fontSize) > 1e-9 || Math.abs(nextFontSize - ADV.curveName.fontSize) > 1e-9) {
+      ADV.axis.grid.fontSize = nextFontSize;
+      ADV.axis.labels.fontSize = nextFontSize;
+      ADV.curveName.fontSize = nextFontSize;
+      needsRebuild = true;
     }
     const newSearch = p.toString();
     const currentSearch = typeof window !== 'undefined' && window.location ? window.location.search : '';
