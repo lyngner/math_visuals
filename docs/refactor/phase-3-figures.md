@@ -10,7 +10,7 @@ The module lives at `packages/figures/src/index.js`. It exposes the measurement 
 
 ### Measurement data
 
-- `measurementFigureManifest` – immutable JSON manifest containing the built-in measurement figure catalog. Each category entry has the shape `{ id, label, figures }` where each figure specifies `id`, `name`, `fileName`, `dimensions`, optional `summary`, and `scaleLabel`.
+- `measurementFigureManifest` – placeholder manifest for bundled measurement figures. The built-in catalog has been removed and measurement figures are expected to come from the figure library instead.
 - `encodeMeasureImagePath(fileName, options)` – prefixes and URI-encodes a measurement figure file name. Override the base path with `options.basePath` when needed.
 - `extractRealWorldSize(helper, ...sources)` – delegates to an optional parsing helper and returns the first non-empty size extracted from the provided strings.
 - `createFigureLibrary(options)` – transforms the manifest into render-friendly entries (adds computed summaries and `realWorldSize`). Accepts `extractRealWorldSizeFromText` in `options` for legacy real-world size parsing.
@@ -31,11 +31,7 @@ The module lives at `packages/figures/src/index.js`. It exposes the measurement 
 
 ## Adding or updating measurement figures
 
-1. Update `measurementFigureManifest` in `packages/figures/src/index.js` by appending or editing entries in the relevant category. Provide the raw SVG file name, display name, and scale/dimension metadata.
-2. When adding a new category, ensure the entry contains a unique `id`, human-readable `label`, and a `figures` array following the same structure.
-3. If the measurement app requires custom parsing of real-world sizes, ensure the strings in `dimensions` or `summary` include the desired text – `extractRealWorldSize` checks these fields in order.
-4. Run `npm run build:figures` to regenerate the static manifests. The script materialises the processed measurement catalog at `images/measure/manifest.json` and refreshes the amount slug list at `images/amounts/manifest.json`, keeping both Måling and Sortering in sync.
-5. After updating the JSON, call `clearFigureManifestCache()` (exported from the figures package) without arguments to invalidate cached responses created by `fetchFigureManifest`. This ensures subsequent fetches read the freshly generated manifest.
+Measurement figures are now uploaded through the figure library and no longer bundled with the frontend. The upload flow derives dimensions and scale labels from the file name, so ensure those details are present when naming the SVG. The `npm run build:figures` task only refreshes the amount manifest at `images/amounts/manifest.json`.
 
 ## Using the helpers in other apps
 

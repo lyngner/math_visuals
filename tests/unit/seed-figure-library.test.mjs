@@ -36,25 +36,18 @@ try {
   assert.ok(ensureCategoryCalls.length > 0, 'Forventet minst ett ensureCategory-kall');
   assert.ok(setFigureCalls.length > 0, 'Forventet minst ett setFigure-kall');
 
-  const prehistoricCategory = ensureCategoryCalls.find((entry) => entry.id === 'prehistoric-animals');
-  assert.ok(prehistoricCategory, 'Fant ikke measurement-kategorien «prehistoric-animals»');
-  assert.equal(prehistoricCategory.type, 'measurement', 'Measurement-kategorier skal markeres med type=measurement');
-
   const tierbrettCategory = ensureCategoryCalls.find((entry) => entry.id === 'tierbrett');
   assert.ok(tierbrettCategory, 'Fant ikke mengdekategorien «tierbrett»');
   assert.equal(tierbrettCategory.type, 'amount', 'Mengdekategorier skal markeres med type=amount');
   assert.equal(tierbrettCategory.label, 'Tierbrett');
 
-  const allosaurusCall = setFigureCalls.find((entry) => entry.slug === 'allosaurus');
-  assert.ok(allosaurusCall, 'Forventet at figuren «allosaurus» blir skrevet');
-  assert.equal(allosaurusCall.payload.name, 'Allosaurus');
-  assert.ok(
-    allosaurusCall.payload.summary.startsWith('12 m × 4,32 m'),
-    'Sammendraget skal inkludere målangivelsen først'
-  );
-  assert.equal(allosaurusCall.payload.category.id, 'prehistoric-animals');
-  assert.equal(allosaurusCall.payload.category.label, 'Forhistoriske dyr');
-  assert.match(allosaurusCall.payload.svg, /^<svg[^>]*>/, 'SVG-markup mangler i payloaden');
+  const measurementCategories = ensureCategoryCalls.filter((entry) => entry.type === 'measurement');
+  assert.equal(measurementCategories.length, 0, 'Forventet ingen forhåndsbundne målekategorier');
+
+  const tierbrettFigureCall = setFigureCalls.find((entry) => entry.slug === 'tb1');
+  assert.ok(tierbrettFigureCall, 'Forventet at minst én tierbrett-figur blir skrevet');
+  assert.equal(tierbrettFigureCall.payload.category.id, 'tierbrett');
+  assert.match(tierbrettFigureCall.payload.svg, /^<svg[^>]*>/, 'SVG-markup mangler i payloaden');
 
   assert.equal(
     result.categories.ensured,

@@ -225,15 +225,30 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     getFigureValue: figure => (figure && figure.id != null ? String(figure.id) : ''),
     fallbackCategoryId: CUSTOM_CATEGORY_ID
   });
-  const defaultPreset = figureData.byId.get('kylling');
+  function findDefaultPreset() {
+    if (!figureData || !Array.isArray(figureData.categories)) {
+      return null;
+    }
+    for (const category of figureData.categories) {
+      if (!category || !Array.isArray(category.figures)) {
+        continue;
+      }
+      for (const figure of category.figures) {
+        if (figure && !figure.custom) {
+          return figure;
+        }
+      }
+    }
+    return null;
+  }
+
+  const defaultPreset = findDefaultPreset();
   const defaults = {
     length: 10,
     subdivisions: 10,
     unitLabel: '1cm',
     figureName: '',
-    figureImage: defaultPreset
-      ? defaultPreset.image
-      : '/images/measure/kylling%20(7cm_7cm)%201_1.svg',
+    figureImage: defaultPreset ? defaultPreset.image : '',
     measurementTarget: '',
     figureSummary: defaultPreset ? defaultPreset.summary : '',
     figureScaleLabel: defaultPreset ? defaultPreset.scaleLabel : '',
