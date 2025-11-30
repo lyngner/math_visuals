@@ -1112,8 +1112,55 @@ function addHaloText(parent, x, y, txt, fontSizePx, extraAttrs = {}) {
     );
   }
   Object.entries(extraAttrs).forEach(([k, v]) => t.setAttribute(k, String(v)));
-  t.textContent = txt;
+  applyMathTextFormatting(t, txt);
   return t;
+}
+
+const MATH_UNITS = new Set([
+  "cm", "mm", "dm", "m", "km", "mil",
+  "g", "kg", "mg", "hg",
+  "s", "ms", "min", "h",
+  "l", "dl", "cl", "ml",
+]);
+
+function isVariableToken(token) {
+  if (!token || typeof token !== "string") return false;
+  const normalized = token
+    .replace(/[₀-₉⁰-⁹]/g, "")
+    .replace(/[′’']/g, "");
+  if (!/^[A-Za-zÆØÅæøå]+$/.test(normalized)) return false;
+  if (normalized.length > 3) return false;
+  if (MATH_UNITS.has(normalized.toLowerCase())) return false;
+  return true;
+}
+
+function applyMathTextFormatting(element, text) {
+  if (!element) return;
+  element.textContent = "";
+  if (text === null || text === undefined) return;
+  const str = String(text);
+  const variableRe = /[A-Za-zÆØÅæøå][A-Za-zÆØÅæøå0-9₀-₉⁰-⁹′’']*/g;
+  let lastIndex = 0;
+  str.replace(variableRe, (match, offset) => {
+    if (offset > lastIndex) {
+      const plain = str.slice(lastIndex, offset);
+      if (plain) element.appendChild(document.createTextNode(plain));
+    }
+    const italic = isVariableToken(match);
+    if (italic) {
+      const span = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+      span.setAttribute("font-style", "italic");
+      span.textContent = match;
+      element.appendChild(span);
+    } else {
+      element.appendChild(document.createTextNode(match));
+    }
+    lastIndex = offset + match.length;
+    return match;
+  });
+  if (lastIndex < str.length) {
+    element.appendChild(document.createTextNode(str.slice(lastIndex)));
+  }
 }
 
 function labelKey(labelCtx, type, id) {
