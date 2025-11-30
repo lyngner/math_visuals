@@ -2868,8 +2868,27 @@ function updateAxisArrows() {
   }
 }
 
+function axisLabelParts(axisKey) {
+  const fallback = axisKey === 'y' ? 'y' : 'x';
+  const raw = axisKey === 'x' ? ADV.axis.labels.x : ADV.axis.labels.y;
+  const trimmed = typeof raw === 'string' ? raw.trim() : '';
+  const label = trimmed || fallback;
+  const match = label.match(/^([^()]+?)\s*\(([^)]*)\)\s*$/);
+  const candidateVar = match && match[1] ? match[1].trim() : '';
+  const candidateUnit = match && match[2] ? match[2].trim() : '';
+  if (candidateVar && candidateUnit && candidateVar.toLowerCase() === fallback) {
+    return { variable: candidateVar, unit: candidateUnit };
+  }
+  return { variable: label, unit: null };
+}
+
+function axisLabelText(axisKey) {
+  const { variable, unit } = axisLabelParts(axisKey);
+  return unit ? `${variable}, ${unit}` : variable;
+}
+
 function axisLabelChip(axisKey) {
-  const text = axisLabelText(axisKey);
+  const { variable, unit } = axisLabelParts(axisKey);
   const color = ADV.axis.style.stroke;
   const fontSizeRaw = Number.parseFloat(ADV.axis.labels.fontSize);
   const fontSize = Number.isFinite(fontSizeRaw) ? fontSizeRaw : 15;
@@ -2877,17 +2896,9 @@ function axisLabelChip(axisKey) {
     `--graf-axis-label-text:${color}`,
     `--graf-axis-label-font-size:${fontSize}px`
   ];
-  return `<span class="graf-axis-label graf-axis-label--${axisKey}" style="${styleTokens.join(';')};">${escapeHtml(text)}</span>`;
-}
-
-function axisLabelText(axisKey) {
-  const fallback = axisKey === 'y' ? 'y' : 'x';
-  const raw = axisKey === 'x' ? ADV.axis.labels.x : ADV.axis.labels.y;
-  if (!raw) {
-    return fallback;
-  }
-  const trimmed = String(raw).trim();
-  return trimmed ? trimmed : fallback;
+  const variableHtml = `<span class="graf-axis-label__var">${escapeHtml(variable)}</span>`;
+  const unitHtml = unit ? `<span class="graf-axis-label__sep">, </span><span class="graf-axis-label__unit">${escapeHtml(unit)}</span>` : '';
+  return `<span class="graf-axis-label graf-axis-label--${axisKey}" style="${styleTokens.join(';')};">${variableHtml}${unitHtml}</span>`;
 }
 
 function axisLabelState(axisKey) {
