@@ -29,3 +29,12 @@ Redis/Vercel KV for `api/examples` (prod):
 Feilsøking: Bygg som ser ut til å loope
 - En «loop» i Vercel/CI-loggene (f.eks. gjentatte linjer om `palette/palette-config.js`) skyldes vanligvis at vår build-kommando (`npm run build` i `package.json`) regenererer filer hver gang den kjøres: `scripts/build-figure-manifests.mjs` lager manifestfiler under `images/`, `npm run build --workspaces` bygger pakkene i `packages/*`, og `scripts/create-public.js` sletter og kopierer hele prosjektet inn i `public/`. Når samme build-kommando kjøres både som install/postinstall og som eksplisitt build-steg vil loggen se ut som en loop selv om den egentlig bare kjører to ganger.
 - Sørg for at Vercel/CI kun kjører `npm run build` én gang (typisk kun i Build-steget) og at `npm ci` eller tilsvarende ikke har ekstra hooks som trigges automatisk. Hvis du ser en loop, sjekk først at Build-kommandoen ikke er konfigurert både som install- og build-steg.
+
+CloudFront/ApiGateway origin-konfigurasjon (prod)
+- `ApiGatewayOrigin` _må_ peke på `f1c9mggyqh.execute-api.eu-west-1.amazonaws.com` med `OriginPath` satt til `/prod`. CloudFormation-malen hardkoder nå disse verdiene for å unngå manuelle feil når stacken opprettes/oppdateres.
+- Bakgrunn: feil host/OriginPath kan få CloudFront til å peke mot seg selv og levere den statiske HTML-fallbacken i stedet for API-svarene.
+
+Etter-deploy sjekkliste (for å fange drift i scripts/maler)
+1. Åpne CloudFront-konsollet → velg produksjonsdistribusjonen → fanen «Origins» → klikk `ApiGatewayOrigin`.
+2. Bekreft at **Origin domain** er `f1c9mggyqh.execute-api.eu-west-1.amazonaws.com` og **Origin path** er `/prod`.
+3. Lagre/avbryt uten å endre noe. Hvis verdiene avviker, oppdater malen/scriptet før ny deploy for å hindre regressjon.
