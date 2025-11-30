@@ -1912,7 +1912,76 @@
     return { entries, metadata, usedFallback: false };
   }
 
-  function openTrashExample(path, id) {
+  function buildTrashOpenEntry(item, group) {
+    if (!item || typeof item !== 'object') {
+      return null;
+    }
+
+    const metadata = item.metadata && typeof item.metadata === 'object' ? { ...item.metadata } : {};
+    const exampleState = (() => {
+      const candidates = [item.exampleState, item.example, metadata.exampleState, metadata.example];
+      for (const candidate of candidates) {
+        const parsed = parseArchiveExample(candidate);
+        if (parsed) {
+          const cloned = cloneArchiveExample(parsed);
+          if (cloned) {
+            return cloned;
+          }
+        }
+      }
+      return null;
+    })();
+
+    const resolveString = (...values) => {
+      for (const value of values) {
+        if (typeof value === 'string') {
+          const trimmed = value.trim();
+          if (trimmed) return trimmed;
+        }
+      }
+      return '';
+    };
+
+    const tool = resolveString(item.tool, metadata.tool, group && group.tool);
+    const storagePath = resolveString(
+      item.storagePath,
+      metadata.storagePath,
+      item.sourcePath,
+      metadata.path,
+      group && group.path
+    );
+    const slug = resolveString(item.slug, item.id, metadata.slug, item.baseName);
+    const summary =
+      typeof metadata.summary === 'object'
+        ? metadata.summary
+        : resolveString(metadata.summary, item.summary)
+          ? { text: resolveString(metadata.summary, item.summary) }
+          : null;
+    const title = resolveString(
+      item.displayTitle,
+      item.title,
+      metadata.displayTitle,
+      metadata.title,
+      (exampleState && exampleState.title) || '',
+      (exampleState && exampleState.description) || '',
+      slug,
+      'Figur'
+    );
+
+    return {
+      ...item,
+      slug,
+      displayTitle: title,
+      title,
+      tool,
+      storagePath,
+      exampleState,
+      summary,
+      metadata: Object.keys(metadata).length ? metadata : undefined
+    };
+  }
+
+  async function openTrashExample(path, id) {
     if (typeof path !== 'string' || !path) {
       return;
     }
@@ -1924,26 +1993,18 @@
     if (!item) {
       return;
     }
-    let href = typeof item.sourceHref === 'string' && item.sourceHref.trim() ? item.sourceHref.trim() : '';
-    if (!href) {
-      href = typeof group.path === 'string' && group.path
-        ? (group.path.endsWith('.html') ? group.path : `${group.path}.html`)
-        : '';
-    }
-    if (!href) {
+
+    const entry = buildTrashOpenEntry(item, group);
+    if (!entry) {
+      setStatus('Fant ikke figuren som hører til handlingen.', 'error');
       return;
     }
-    const index = Number.isInteger(item.removedAtIndex) ? item.removedAtIndex : 0;
+
     try {
-      const url = new URL(href, window.location && window.location.href ? window.location.href : undefined);
-      if (Number.isInteger(index)) {
-        url.searchParams.set('example', String(index + 1));
-      }
-      window.open(url.toString(), '_blank', 'noopener');
+      await performEntryAction('edit', entry);
     } catch (error) {
-      const base = href.includes('?') ? '&' : '?';
-      const suffix = Number.isInteger(index) ? `${base}example=${index + 1}` : '';
-      window.open(`${href}${suffix}`, '_blank', 'noopener');
+      console.error('Kunne ikke åpne slettet figur i verktøyet.', error);
+      setStatus('Klarte ikke å åpne verktøyet for den slettede figuren.', 'error');
     }
   }
 
