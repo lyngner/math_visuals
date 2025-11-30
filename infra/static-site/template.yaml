@@ -1,8 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
   CloudFormation template provisioning a versioned S3 bucket and CloudFront distribution
-  for the math visuals static site, routing selected paths to the pinned API Gateway origin
-  at f1c9mggyqh.execute-api.eu-west-1.amazonaws.com/prod. (force update)
+  for the math visuals static site, routing selected paths to the API Gateway origin at
+  ${ApiGatewayDomainName}/prod. (force update)
 
 Parameters:
   SiteEnvironmentName:
@@ -12,6 +12,9 @@ Parameters:
   SiteBucketName:
     Type: String
     Description: Globally-unique name for the S3 bucket hosting the static site.
+  ApiGatewayDomainName:
+    Type: String
+    Description: API Gateway domain (e.g., xxxxx.execute-api...).
   CloudFrontPriceClass:
     Type: String
     Default: PriceClass_100
@@ -239,9 +242,8 @@ Resources:
             S3OriginConfig:
               OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${SiteOriginAccessIdentity}'
           - Id: ApiGatewayOrigin
-            # Pinned API Gateway origin values (do not parameterize or wrap in
-            # conditions to avoid regressions when merging stack changes).
-            DomainName: f1c9mggyqh.execute-api.eu-west-1.amazonaws.com
+            # API Gateway origin uses the provided domain with the fixed /prod path.
+            DomainName: !Ref ApiGatewayDomainName
             OriginPath: /prod
             CustomOriginConfig:
               OriginProtocolPolicy: https-only
