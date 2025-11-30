@@ -1,7 +1,8 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
   CloudFormation template provisioning a versioned S3 bucket and CloudFront distribution
-  for the math visuals static site, routing selected paths to an API Gateway origin. (force update)
+  for the math visuals static site, routing selected paths to the pinned API Gateway origin
+  at f1c9mggyqh.execute-api.eu-west-1.amazonaws.com/prod. (force update)
 
 Parameters:
   SiteEnvironmentName:
@@ -11,19 +12,6 @@ Parameters:
   SiteBucketName:
     Type: String
     Description: Globally-unique name for the S3 bucket hosting the static site.
-  ApiGatewayDomainName:
-    Type: String
-    AllowedPattern: '^[A-Za-z0-9.-]+\.execute-api\.[A-Za-z0-9-]+\.amazonaws\.com$'
-    ConstraintDescription: Must be an API Gateway execute-api host without a scheme or path.
-    Description: >-
-      Fully-qualified domain name of the API Gateway stage (for example,
-      a1b2c3d4.execute-api.us-east-1.amazonaws.com).
-  ApiGatewayOriginPath:
-    Type: String
-    Default: "/prod"
-    AllowedPattern: '^$|^/.*$'
-    ConstraintDescription: Origin paths must be blank or start with '/'.
-    Description: Optional origin path appended to the API Gateway domain (e.g., /prod).
   CloudFrontPriceClass:
     Type: String
     Default: PriceClass_100
@@ -42,9 +30,6 @@ Parameters:
   SharedParametersStackName:
     Type: String
     Description: Name of the CloudFormation stack that exports shared parameter names.
-
-Conditions:
-  HasApiGatewayOriginPath: !Not [!Equals [!Ref ApiGatewayOriginPath, ""]]
 
 Resources:
   SiteBucket:
@@ -255,7 +240,7 @@ Resources:
               OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${SiteOriginAccessIdentity}'
           - Id: ApiGatewayOrigin
             DomainName: f1c9mggyqh.execute-api.eu-west-1.amazonaws.com
-            OriginPath: !If [HasApiGatewayOriginPath, !Ref ApiGatewayOriginPath, !Ref "AWS::NoValue"]
+            OriginPath: /prod
             CustomOriginConfig:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols:
