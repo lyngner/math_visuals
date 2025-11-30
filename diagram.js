@@ -19,6 +19,7 @@ const CFG = {
   locked: [],
   altText: '',
   altTextSource: 'auto',
+  textSize: 'normal',
   series2: 'Jenter',
   start2: [2, 3, 3, 1, 1, 1, 0],
   answer2: [2, 3, 3, 1, 1, 1, 0]
@@ -34,6 +35,21 @@ function sanitizePieLabelPosition(value) {
   if (typeof value !== 'string') return 'outside';
   const normalized = value.trim().toLowerCase();
   return PIE_LABEL_POSITIONS.includes(normalized) ? normalized : 'outside';
+}
+const TEXT_SIZE_SCALE = {
+  large: 1.5,
+  normal: 1,
+  small: 0.5
+};
+function sanitizeTextSize(value) {
+  if (typeof value !== 'string') return 'normal';
+  const normalized = value.trim().toLowerCase();
+  return TEXT_SIZE_SCALE[normalized] ? normalized : 'normal';
+}
+function applyTextSizePreference(size) {
+  const key = sanitizeTextSize(size);
+  const scale = TEXT_SIZE_SCALE[key] || TEXT_SIZE_SCALE.normal;
+  setCssVariable('--diagram-text-scale', String(scale));
 }
 function getValueDisplayMode(type = CFG.type) {
   const mode = sanitizeValueDisplay(CFG.valueDisplay);
@@ -668,6 +684,7 @@ function initFromCfg() {
   document.getElementById('chartTitle').textContent = CFG.title || '';
   const typeInput = document.getElementById('cfgType');
   const titleInput = document.getElementById('cfgTitle');
+  const textSizeSelect = document.getElementById('cfgFontSize');
   const labelsInput = document.getElementById('cfgLabels');
   const lockedInput = document.getElementById('cfgLocked');
   const yMinInput = document.getElementById('cfgYMin');
@@ -699,6 +716,8 @@ function initFromCfg() {
   if (axisYInput) axisYInput.value = CFG.axisYLabel || '';
   if (snapInput) snapInput.value = Number.isFinite(CFG.snap) ? formatNumber(CFG.snap) : '';
   if (tolInput) tolInput.value = Number.isFinite(CFG.tolerance) ? formatNumber(CFG.tolerance) : '';
+  CFG.textSize = sanitizeTextSize(CFG.textSize);
+  if (textSizeSelect) textSizeSelect.value = CFG.textSize;
   if (series1Input) series1Input.value = CFG.series1 || '';
   if (startInput) startInput.value = formatNumberList(values);
   if (answerInput) answerInput.value = formatNumberList(CFG.answer || []);
@@ -721,6 +740,7 @@ function initFromCfg() {
     CFG.altTextSource = CFG.altText ? 'manual' : 'auto';
   }
   if (altTextField) altTextField.value = CFG.altText || '';
+  applyTextSizePreference(CFG.textSize);
   applyAltTextToSvg(CFG.altText || '');
 
   // disable stacking/grouping options when only one dataserie
@@ -2533,6 +2553,9 @@ function applyCfg() {
   CFG.snap = isNaN(snapVal) ? 1 : snapVal;
   const tolVal = parseFloat(document.getElementById('cfgTolerance').value);
   CFG.tolerance = isNaN(tolVal) ? 0 : tolVal;
+  const textSizeSelect = document.getElementById('cfgFontSize');
+  CFG.textSize = sanitizeTextSize(textSizeSelect ? textSizeSelect.value : CFG.textSize);
+  applyTextSizePreference(CFG.textSize);
   const lockedField = document.getElementById('cfgLocked');
   const lockedRaw = lockedField ? lockedField.value.trim() : '';
   if (!lockedRaw) {
