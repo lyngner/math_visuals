@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
   CloudFormation template provisioning a versioned S3 bucket and CloudFront distribution
-  for the math visuals static site, routing selected paths to an API Gateway origin.
+  for the math visuals static site, routing selected paths to an API Gateway origin. (force update)
 
 Parameters:
   SiteEnvironmentName:
@@ -254,7 +254,7 @@ Resources:
             S3OriginConfig:
               OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${SiteOriginAccessIdentity}'
           - Id: ApiGatewayOrigin
-            DomainName: !Ref ApiGatewayDomainName
+            DomainName: f1c9mggyqh.execute-api.eu-west-1.amazonaws.com
             OriginPath: !If [HasApiGatewayOriginPath, !Ref ApiGatewayOriginPath, !Ref "AWS::NoValue"]
             CustomOriginConfig:
               OriginProtocolPolicy: https-only
