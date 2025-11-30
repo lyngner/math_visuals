@@ -64,6 +64,11 @@ async function buildMeasurementManifest() {
 
   const categories = createMeasurementFigureLibrary();
 
+  if (!MEASURE_IMAGE_BASE_PATH || !categories.length) {
+    console.log('Skipping measurement manifest – no bundled measurement figures.');
+    return null;
+  }
+
   const payload = {
     categories: categories.map(category => ({
       id: category.id,
@@ -110,7 +115,9 @@ async function buildAmountManifest() {
 async function main() {
   try {
     const measurementPath = await buildMeasurementManifest();
-    console.log(`Wrote measurement manifest to ${path.relative(ROOT_DIR, measurementPath)}`);
+    if (measurementPath) {
+      console.log(`Wrote measurement manifest to ${path.relative(ROOT_DIR, measurementPath)}`);
+    }
 
     const amountPath = await buildAmountManifest();
     console.log(`Wrote amount manifest to ${path.relative(ROOT_DIR, amountPath)}`);

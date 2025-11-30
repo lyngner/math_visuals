@@ -942,13 +942,17 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     if (typeof path !== 'string') {
       return '';
     }
-    return path.endsWith('/') ? path : `${path}/`;
+    const trimmed = path.trim();
+    if (!trimmed) {
+      return '';
+    }
+    return trimmed.endsWith('/') ? trimmed : `${trimmed}/`;
   }
 
   const FIGURE_LIBRARY_RELATIVE_BASE_PATH = ensureTrailingSlash(
     measurementFigureManifest && typeof measurementFigureManifest.basePath === 'string'
       ? measurementFigureManifest.basePath
-      : '/images/measure/'
+      : ''
   );
   const FIGURE_LIBRARY_RELATIVE_BASE_PATH_WITH_LEADING_SLASH = ensureTrailingSlash(
     FIGURE_LIBRARY_RELATIVE_BASE_PATH.startsWith('/')
@@ -962,6 +966,9 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
   );
 
   function resolveFigureLibraryBasePath() {
+    if (!FIGURE_LIBRARY_RELATIVE_BASE_PATH) {
+      return '';
+    }
     const relativeWithDot = `./${FIGURE_LIBRARY_RELATIVE_BASE_PATH}`;
     if (typeof import.meta !== 'undefined' && import.meta && import.meta.url) {
       try {
@@ -1281,7 +1288,7 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     figurePicker = createFigurePickerHelpers({
       doc,
       figureData: nextData,
-      fallbackCategoryId: defaultFigureCategoryId,
+      fallbackCategoryId: defaultFigureCategoryId || CUSTOM_CATEGORY_ID,
       getFigureValue: figure => {
         if (!figure || typeof figure !== 'object') {
           return '';
@@ -1814,9 +1821,10 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
         ? figure.basePath.trim()
         : measurementFigureManifest && typeof measurementFigureManifest.basePath === 'string'
           ? measurementFigureManifest.basePath
-          : '/images/measure/';
+          : '';
       const basePath = ensureTrailingSlash(baseCandidate);
-      return encodeURI(`${basePath}${fileName}`);
+      const prefix = basePath || '';
+      return prefix ? encodeURI(`${prefix}${fileName}`) : encodeURI(fileName);
     }
     return '';
   }

@@ -1,4 +1,9 @@
 const { test, expect } = require('@playwright/test');
+const {
+  clearFigureLibraryMemoryStores,
+  createFigureLibraryRouteHandler
+} = require('./helpers/figure-library-api-utils.js');
+const { ensureCategory, setFigure } = require('../api/_lib/figure-library-store.js');
 
 function getSorteringState(page) {
   return page.evaluate(() => {
@@ -9,6 +14,89 @@ function getSorteringState(page) {
     return api.getState();
   });
 }
+
+const MEASUREMENT_CATEGORY_APPS = ['maling', 'sortering'];
+const FIGURE_LIBRARY_ROUTE = '**/api/figure-library**';
+const SAMPLE_FIGURES = [
+  {
+    slug: 'stegosaurus',
+    name: 'Stegosaurus',
+    categoryId: 'prehistoric-animals',
+    categoryLabel: 'Forhistoriske dyr',
+    dimensions: '9 m × 4,5 m',
+    scaleLabel: '1:90'
+  },
+  {
+    slug: 'dame155',
+    name: 'Dame 155',
+    categoryId: 'humans',
+    categoryLabel: 'Mennesker',
+    dimensions: 'Høyde 155 cm',
+    scaleLabel: '1:25'
+  },
+  {
+    slug: 'gutt120',
+    name: 'Gutt 120',
+    categoryId: 'humans',
+    categoryLabel: 'Mennesker',
+    dimensions: 'Høyde 120 cm',
+    scaleLabel: '1:25'
+  }
+];
+
+function buildFigureSvg(slug) {
+  return [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90">',
+    '<rect x="0" y="0" width="160" height="90" fill="#f4f4f4" stroke="#111"/>',
+    `<text x="8" y="24" font-size="14">${slug}</text>`,
+    '</svg>'
+  ].join('');
+}
+
+async function seedMeasurementFigures() {
+  clearFigureLibraryMemoryStores();
+
+  const categories = new Map();
+  SAMPLE_FIGURES.forEach(figure => {
+    if (!categories.has(figure.categoryId)) {
+      categories.set(figure.categoryId, {
+        id: figure.categoryId,
+        label: figure.categoryLabel,
+        type: 'measurement',
+        apps: MEASUREMENT_CATEGORY_APPS
+      });
+    }
+  });
+
+  for (const category of categories.values()) {
+    await ensureCategory(category);
+  }
+
+  for (const figure of SAMPLE_FIGURES) {
+    await setFigure(figure.slug, {
+      name: figure.name,
+      summary: `${figure.dimensions} – målestokk ${figure.scaleLabel}`,
+      dimensions: figure.dimensions,
+      scaleLabel: figure.scaleLabel,
+      svg: buildFigureSvg(figure.slug),
+      category: {
+        id: figure.categoryId,
+        label: figure.categoryLabel,
+        apps: MEASUREMENT_CATEGORY_APPS
+      }
+    });
+  }
+}
+
+test.beforeEach(async ({ page }) => {
+  await seedMeasurementFigures();
+  await page.route(FIGURE_LIBRARY_ROUTE, createFigureLibraryRouteHandler());
+});
+
+test.afterEach(async ({ page }) => {
+  await page.unroute(FIGURE_LIBRARY_ROUTE);
+  clearFigureLibraryMemoryStores();
+});
 
 test.describe('sortering figure editor', () => {
   test('resolves slug-only figure values via manifest lookup', async ({ page }) => {
@@ -47,8 +135,7 @@ test.describe('sortering figure editor', () => {
     await expect(figureItem).toBeVisible();
 
     const figureImage = figureItem.locator('.sortering__item-image');
-    await expect(figureImage).toHaveAttribute('src', /Stegosaurus%209m_4,5m%201_90\.svg$/);
-    await expect(figureImage).not.toHaveAttribute('src', /\/images\/measure\/stegosaurus(?:\.svg)?$/i);
+    await expect(figureImage).toHaveAttribute('src', /stegosaurus\.svg/i);
 
     const state = await getSorteringState(page);
     expect(state).not.toBeNull();
@@ -110,7 +197,7 @@ test.describe('sortering figure editor', () => {
 
     const figureSelect = figureRow.locator('.sortering__item-editor-figure-select');
     await expect(figureSelect).toBeEnabled();
-    await figureSelect.selectOption('/images/measure/dame155.svg');
+    await figureSelect.selectOption('dame155');
 
     await figureItem.locator('.sortering__item-editor-update').click();
 
@@ -126,7 +213,7 @@ test.describe('sortering figure editor', () => {
     expect(figureState).toBeDefined();
     expect(figureState.type).toBe('figure');
     expect(Array.isArray(figureState.figures)).toBe(true);
-    expect(figureState.figures[0].value).toBe('/images/measure/dame155.svg');
+    expect(figureState.figures[0].value).toBe('dame155');
   });
 
   test('keeps figure mode after selecting library figure', async ({ page }) => {
@@ -142,11 +229,11 @@ test.describe('sortering figure editor', () => {
 
     const figureSelect = figureRow.locator('.sortering__item-editor-figure-select');
     await expect(figureSelect).toBeEnabled();
-    await expect(figureSelect.locator('option[value="/images/measure/gutt120.svg"]')).toHaveCount(1);
-    await figureSelect.selectOption('/images/measure/gutt120.svg');
+    await expect(figureSelect.locator('option[value="gutt120"]')).toHaveCount(1);
+    await figureSelect.selectOption('gutt120');
 
     const valueInput = figureRow.locator('input[type="text"]');
-    await expect(valueInput).toHaveValue('/images/measure/gutt120.svg');
+    await expect(valueInput).toHaveValue('gutt120');
     await expect(typeSelect).toHaveValue('figure');
 
     const state = await getSorteringState(page);
@@ -156,7 +243,7 @@ test.describe('sortering figure editor', () => {
     expect(figureState).toBeDefined();
     expect(figureState.type).toBe('figure');
     expect(Array.isArray(figureState.figures)).toBe(true);
-    expect(figureState.figures[0].value).toBe('/images/measure/gutt120.svg');
+    expect(figureState.figures[0].value).toBe('gutt120');
   });
 
   test('persists figure edits without accessibility list', async ({ page }) => {
@@ -198,9 +285,9 @@ test.describe('sortering figure editor', () => {
 
     const figureSelect = figureRow.locator('.sortering__item-editor-figure-select');
     await expect(figureSelect).toBeEnabled();
-    await expect(figureSelect.locator('option[value="/images/measure/dame155.svg"]')).toHaveCount(1);
-    await figureSelect.selectOption('/images/measure/dame155.svg');
-    await expect(figureSelect).toHaveValue('/images/measure/dame155.svg');
+    await expect(figureSelect.locator('option[value="dame155"]')).toHaveCount(1);
+    await figureSelect.selectOption('dame155');
+    await expect(figureSelect).toHaveValue('dame155');
 
     await firstItem.locator('.sortering__item-editor-update').click();
 
@@ -213,7 +300,7 @@ test.describe('sortering figure editor', () => {
     expect(targetItem).toBeDefined();
     expect(targetItem.type).toBe('figure');
     expect(Array.isArray(targetItem.figures)).toBe(true);
-    expect(targetItem.figures[0].value).toBe('/images/measure/dame155.svg');
+    expect(targetItem.figures[0].value).toBe('dame155');
 
     await page.evaluate(() => {
       const api = window.mathVisSortering;
@@ -230,7 +317,7 @@ test.describe('sortering figure editor', () => {
     expect(afterApplyItem).toBeDefined();
     expect(afterApplyItem.type).toBe('figure');
     expect(Array.isArray(afterApplyItem.figures)).toBe(true);
-    expect(afterApplyItem.figures[0].value).toBe('/images/measure/dame155.svg');
+    expect(afterApplyItem.figures[0].value).toBe('dame155');
   });
 
   test('keeps manual figure selection for new items without figures', async ({ page }) => {
