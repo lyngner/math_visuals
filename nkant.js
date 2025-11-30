@@ -1478,9 +1478,21 @@ function handleRotationHandlePointerUp(evt) {
 }
 
 function handleLabelPointerDown(evt) {
-  if (!LABEL_EDITOR_STATE.enabled) return;
+  const isRotationHandle = evt.target && evt.target.closest ? evt.target.closest('.label-rotation-handle') : null;
+  if (isRotationHandle) return;
+  if (!LABEL_EDITOR_STATE.enabled) {
+    if (LABEL_EDITOR_STATE.selectedKey) {
+      selectLabel(null);
+    }
+    return;
+  }
   const target = evt.target && evt.target.closest ? evt.target.closest('[data-label-key]') : null;
-  if (!target) return;
+  if (!target) {
+    if (LABEL_EDITOR_STATE.selectedKey) {
+      selectLabel(null);
+    }
+    return;
+  }
   const key = target.dataset.labelKey;
   const entry = getRenderedLabelEntry(key);
   if (!entry) return;
@@ -1499,6 +1511,14 @@ function handleLabelPointerDown(evt) {
   if (target.setPointerCapture) {
     target.setPointerCapture(evt.pointerId);
   }
+}
+
+function handleGlobalPointerDown(evt) {
+  if (!LABEL_EDITOR_STATE.selectedKey) return;
+  const target = evt.target;
+  const closest = target && target.closest ? target.closest('.label-rotation-handle, [data-label-key], .label-editor') : null;
+  if (closest) return;
+  selectLabel(null);
 }
 
 function handleLabelPointerMove(evt) {
@@ -1569,6 +1589,7 @@ function initLabelEditorInteractions() {
   window.addEventListener('pointerup', handleLabelPointerUp);
   window.addEventListener('pointermove', handleRotationHandlePointerMove);
   window.addEventListener('pointerup', handleRotationHandlePointerUp);
+  document.addEventListener('pointerdown', handleGlobalPointerDown, true);
   initLabelEditorInteractions.bound = true;
 }
 
@@ -4737,6 +4758,11 @@ function svgToString(svgEl) {
   const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
   const clone = helper && typeof helper.cloneSvgForExport === 'function' ? helper.cloneSvgForExport(svgEl) : svgEl.cloneNode(true);
   if (!clone) return '';
+  const removeSelector = '[data-ignore-export="true"], .label-rotation-handle';
+  const removable = clone.querySelectorAll(removeSelector);
+  removable.forEach(el => el.remove());
+  const selectedLabels = clone.querySelectorAll('.label-selected');
+  selectedLabels.forEach(el => el.classList.remove('label-selected'));
   const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
   const style = document.createElement('style');
   style.textContent = css;
