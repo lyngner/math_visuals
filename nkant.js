@@ -85,6 +85,7 @@ const STATE = {
   specsText: "",
   defaults: { ...DEFAULT_GLOBAL_DEFAULTS },
   textSize: "normal",
+  rotateText: true,
   figures: [],
   layout: "grid", // 2x2 matrise
   altText: "",
@@ -100,6 +101,10 @@ function getGlobalDefaults() {
     sides: defaults && typeof defaults.sides === "string" && defaults.sides ? defaults.sides : fallback.sides,
     angles: defaults && typeof defaults.angles === "string" && defaults.angles ? defaults.angles : fallback.angles
   };
+}
+
+function shouldRotateText() {
+  return STATE.rotateText !== false;
 }
 
 const NKANT_DEFAULT_SIMPLE_STATE = {
@@ -258,6 +263,7 @@ let labelRotationNumberInput = null;
 let btnResetLabel = null;
 let btnResetAllLabels = null;
 let labelEditorSyncingRotation = false;
+let rotateTextToggle = null;
 const nkantNumberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 2
@@ -3312,13 +3318,14 @@ function drawTriangleToGroup(g, rect, spec, adv, decorations, labelCtx) {
     // sider
     const m = adv.sides.mode,
       st = adv.sides.text;
-    sideLabelText(g, B, C, buildSideText((_m$a = m.a) !== null && _m$a !== void 0 ? _m$a : m.default, fmt(sol.a), st.a), true, ctr, 14, labelKey(labelCtx, 'side', 'a'));
-    sideLabelText(g, C, A, buildSideText((_m$b = m.b) !== null && _m$b !== void 0 ? _m$b : m.default, fmt(sol.b), st.b), true, ctr, 14, labelKey(labelCtx, 'side', 'b'));
-    sideLabelText(g, A, B, buildSideText((_m$c = m.c) !== null && _m$c !== void 0 ? _m$c : m.default, fmt(sol.c), st.c), true, ctr, 14, labelKey(labelCtx, 'side', 'c'));
+    const rotateText = shouldRotateText();
+    sideLabelText(g, B, C, buildSideText((_m$a = m.a) !== null && _m$a !== void 0 ? _m$a : m.default, fmt(sol.a), st.a), rotateText, ctr, 14, labelKey(labelCtx, 'side', 'a'));
+    sideLabelText(g, C, A, buildSideText((_m$b = m.b) !== null && _m$b !== void 0 ? _m$b : m.default, fmt(sol.b), st.b), rotateText, ctr, 14, labelKey(labelCtx, 'side', 'b'));
+    sideLabelText(g, A, B, buildSideText((_m$c = m.c) !== null && _m$c !== void 0 ? _m$c : m.default, fmt(sol.c), st.c), rotateText, ctr, 14, labelKey(labelCtx, 'side', 'c'));
     if (activeHeight && heightLength !== null) {
       const heightText = buildSideText((_m$d = m.d) !== null && _m$d !== void 0 ? _m$d : m.default, fmt(heightLength), st.d);
       if (heightText) {
-        sideLabelText(g, activeHeight.vertex, heightPoint, heightText, true, ctr, 12, labelKey(labelCtx, 'side', 'd'));
+        sideLabelText(g, activeHeight.vertex, heightPoint, heightText, rotateText, ctr, 12, labelKey(labelCtx, 'side', 'd'));
       }
     }
 
@@ -3635,8 +3642,9 @@ function drawDoubleTriangleToGroup(g, rect, spec, adv, decorations, labelCtx) {
     const baseCustom = advSides.text && typeof advSides.text.c === 'string' && advSides.text.c.trim() ? advSides.text.c : (sharedLabel || 'c');
     const baseValueStr = fmt(firstSol.c);
     const baseText = buildSideText(baseMode, baseValueStr, baseCustom);
+    const rotateText = shouldRotateText();
     if (baseText) {
-      sideLabelText(g, A, B, baseText, true, centroidTop, 24, sharedSideKey('c'));
+      sideLabelText(g, A, B, baseText, rotateText, centroidTop, 24, sharedSideKey('c'));
     }
     const sideMode = key => advSides.mode && advSides.mode[key] ? advSides.mode[key] : advSides.mode && advSides.mode.default;
     const sideText = (key, fallback) => {
@@ -3647,15 +3655,15 @@ function drawDoubleTriangleToGroup(g, rect, spec, adv, decorations, labelCtx) {
     const topAVal = fmt(firstSol.a);
     const topBVal = fmt(firstSol.b);
     const topAText = buildSideText(sideMode('a'), topAVal, sideText('a', 'a'));
-    if (topAText) sideLabelText(g, B, C, topAText, true, centroidTop, 14, topSideKey('a'));
+    if (topAText) sideLabelText(g, B, C, topAText, rotateText, centroidTop, 14, topSideKey('a'));
     const topBText = buildSideText(sideMode('b'), topBVal, sideText('b', 'b'));
-    if (topBText) sideLabelText(g, A, C, topBText, true, centroidTop, 14, topSideKey('b'));
+    if (topBText) sideLabelText(g, A, C, topBText, rotateText, centroidTop, 14, topSideKey('b'));
     const bottomAVal = fmt(secondSol.a);
     const bottomBVal = fmt(secondSol.b);
     const bottomAText = buildSideText(sideMode('d'), bottomAVal, sideText('d', 'a₂'));
-    if (bottomAText) sideLabelText(g, B, D, bottomAText, true, centroidBottom, 14, bottomSideKey('a'));
+    if (bottomAText) sideLabelText(g, B, D, bottomAText, rotateText, centroidBottom, 14, bottomSideKey('a'));
     const bottomBText = buildSideText(sideMode('e'), bottomBVal, sideText('e', 'b₂'));
-    if (bottomBText) sideLabelText(g, A, D, bottomBText, true, centroidBottom, 14, bottomSideKey('b'));
+    if (bottomBText) sideLabelText(g, A, D, bottomBText, rotateText, centroidBottom, 14, bottomSideKey('b'));
     const angleMode = key => advAngles.mode && advAngles.mode[key] ? advAngles.mode[key] : advAngles.mode && advAngles.mode.default;
     const angleText = key => advAngles.text && advAngles.text[key];
     const AresTop = parseAnglePointMode(angleMode('A'), firstSol.A, angleText('A'), 'A');
@@ -3913,10 +3921,11 @@ function drawQuadToGroup(g, rect, spec, adv, decorations, labelCtx) {
     // sider
     const m = adv.sides.mode,
       st = adv.sides.text;
-    sideLabelText(g, A, B, buildSideText((_m$a2 = m.a) !== null && _m$a2 !== void 0 ? _m$a2 : m.default, fmt(a), st.a), true, ctr, 14, labelKey(labelCtx, 'quad-side', 'a'));
-    sideLabelText(g, B, C, buildSideText((_m$b2 = m.b) !== null && _m$b2 !== void 0 ? _m$b2 : m.default, fmt(b), st.b), true, ctr, 14, labelKey(labelCtx, 'quad-side', 'b'));
-    sideLabelText(g, C, D, buildSideText((_m$c2 = m.c) !== null && _m$c2 !== void 0 ? _m$c2 : m.default, fmt(c), st.c), true, ctr, 14, labelKey(labelCtx, 'quad-side', 'c'));
-    sideLabelText(g, D, A, buildSideText((_m$d = m.d) !== null && _m$d !== void 0 ? _m$d : m.default, fmt(d), st.d), true, ctr, 14, labelKey(labelCtx, 'quad-side', 'd'));
+    const rotateText = shouldRotateText();
+    sideLabelText(g, A, B, buildSideText((_m$a2 = m.a) !== null && _m$a2 !== void 0 ? _m$a2 : m.default, fmt(a), st.a), rotateText, ctr, 14, labelKey(labelCtx, 'quad-side', 'a'));
+    sideLabelText(g, B, C, buildSideText((_m$b2 = m.b) !== null && _m$b2 !== void 0 ? _m$b2 : m.default, fmt(b), st.b), rotateText, ctr, 14, labelKey(labelCtx, 'quad-side', 'b'));
+    sideLabelText(g, C, D, buildSideText((_m$c2 = m.c) !== null && _m$c2 !== void 0 ? _m$c2 : m.default, fmt(c), st.c), rotateText, ctr, 14, labelKey(labelCtx, 'quad-side', 'c'));
+    sideLabelText(g, D, A, buildSideText((_m$d = m.d) !== null && _m$d !== void 0 ? _m$d : m.default, fmt(d), st.d), rotateText, ctr, 14, labelKey(labelCtx, 'quad-side', 'd'));
 
     // vinkler/punkter
     const am = adv.angles.mode,
@@ -4177,6 +4186,8 @@ function drawRegularPolygonToGroup(g, rect, spec, adv, labelCtx) {
   const advAngles = adv && adv.angles ? adv.angles : { mode: {}, text: {} };
   const sideValueStr = spec && spec.side && Number.isFinite(spec.side.value) ? fmt(spec.side.value) : '';
   const baseSideLabel = normalizedDimensionText(spec && spec.side, 'a');
+  const rotateText = shouldRotateText();
+  const rotateText = shouldRotateText();
   for (let i = 0; i < count; i++) {
     const P = pts[i];
     const Q = pts[(i + 1) % count];
@@ -4188,7 +4199,7 @@ function drawRegularPolygonToGroup(g, rect, spec, adv, labelCtx) {
       label = customText;
     }
     if (label) {
-      sideLabelText(g, P, Q, label, true, ctr, 18, labelKey(labelCtx, 'polygon-side', sideKey));
+      sideLabelText(g, P, Q, label, rotateText, ctr, 18, labelKey(labelCtx, 'polygon-side', sideKey));
     }
   }
   for (let i = 0; i < count; i++) {
@@ -4257,7 +4268,7 @@ function drawPolygonWithArcToGroup(g, rect, spec, adv, decorations, labelCtx) {
       label = customText;
     }
     if (label) {
-      sideLabelText(g, P, Q, label, true, ctr, 18, labelKey(labelCtx, 'polygon-side', sideKey));
+      sideLabelText(g, P, Q, label, rotateText, ctr, 18, labelKey(labelCtx, 'polygon-side', sideKey));
     }
   }
   for (let i = 0; i < count; i++) {
@@ -4895,6 +4906,7 @@ function bindUI() {
   const addFigureBtn = $("#btnAddFigure");
   const figureListEl = $("#figureList");
   const globalDefaultsRow = $("#globalDefaultsRow");
+  rotateTextToggle = $("#toggleRotateText");
   btnToggleLabelEdit = $("#btnToggleLabelEdit");
   labelEditorSectionEl = document.querySelector('.label-editor');
   labelEditorControlsEl = $("#labelEditorControls");
@@ -5150,6 +5162,14 @@ function bindUI() {
     });
   });
 
+  if (rotateTextToggle) {
+    rotateTextToggle.checked = STATE.rotateText !== false;
+    rotateTextToggle.addEventListener('change', () => {
+      STATE.rotateText = rotateTextToggle.checked;
+      renderCombined();
+    });
+  }
+
   if (addFigureBtn) {
     addFigureBtn.addEventListener("click", () => {
       if (STATE.figures.length >= 4) return;
@@ -5268,6 +5288,9 @@ function applyStateToUI() {
     radio.checked = radio.value === STATE.textSize;
   });
   applyTextSizePreference(STATE.textSize);
+  if (rotateTextToggle) {
+    rotateTextToggle.checked = STATE.rotateText !== false;
+  }
   if (typeof syncGlobalDefaultsToUI === 'function') {
     syncGlobalDefaultsToUI();
   }
