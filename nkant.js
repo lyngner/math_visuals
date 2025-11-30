@@ -4187,7 +4187,6 @@ function drawRegularPolygonToGroup(g, rect, spec, adv, labelCtx) {
   const sideValueStr = spec && spec.side && Number.isFinite(spec.side.value) ? fmt(spec.side.value) : '';
   const baseSideLabel = normalizedDimensionText(spec && spec.side, 'a');
   const rotateText = shouldRotateText();
-  const rotateText = shouldRotateText();
   for (let i = 0; i < count; i++) {
     const P = pts[i];
     const Q = pts[(i + 1) % count];
