@@ -239,6 +239,8 @@ Resources:
             S3OriginConfig:
               OriginAccessIdentity: !Sub 'origin-access-identity/cloudfront/${SiteOriginAccessIdentity}'
           - Id: ApiGatewayOrigin
+            # Pinned API Gateway origin values (do not parameterize or wrap in
+            # conditions to avoid regressions when merging stack changes).
             DomainName: f1c9mggyqh.execute-api.eu-west-1.amazonaws.com
             OriginPath: /prod
             CustomOriginConfig:
