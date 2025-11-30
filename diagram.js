@@ -325,6 +325,10 @@ const gVals = add('g');
 const gLabels = add('g');
 const gLegend = add('g');
 
+const labelAdjustments = {};
+let currentLabelKeys = new Set();
+let isCollectingLabelKeys = false;
+
 function positionHandleIcon(handle, cx, cy, size) {
   if (!handle) return;
   let resolvedSize = Number.isFinite(size) ? size : undefined;
@@ -360,6 +364,43 @@ function createDragHandle(group, cx, cy, dataset = {}) {
     handle.addEventListener('pointerdown', onDragStart);
   }
   return handle;
+}
+
+function beginLabelCollection() {
+  currentLabelKeys = new Set();
+  isCollectingLabelKeys = true;
+}
+
+function finishLabelCollection() {
+  if (!isCollectingLabelKeys) return;
+  Object.keys(labelAdjustments).forEach(key => {
+    if (!currentLabelKeys.has(key)) delete labelAdjustments[key];
+  });
+  isCollectingLabelKeys = false;
+}
+
+function applyLabelTransform(element, key) {
+  if (!element || !key) return;
+  const adj = labelAdjustments[key];
+  const dx = adj && Number.isFinite(adj.dx) ? adj.dx : 0;
+  const dy = adj && Number.isFinite(adj.dy) ? adj.dy : 0;
+  if (dx || dy) {
+    element.setAttribute('transform', `translate(${dx} ${dy})`);
+  } else {
+    element.removeAttribute('transform');
+  }
+}
+
+function registerDraggableLabel(element, key) {
+  if (!element || !key) return;
+  currentLabelKeys.add(key);
+  element.dataset.labelKey = key;
+  element.classList.add('label-draggable');
+  if (!element.__labelDragBound) {
+    element.addEventListener('pointerdown', onLabelDragStart);
+    element.__labelDragBound = true;
+  }
+  applyLabelTransform(element, key);
 }
 
 let values = [];
@@ -719,8 +760,10 @@ function initFromCfg() {
     }
   }
   updateSettingsVisibilityForType(CFG.type);
+  beginLabelCollection();
   drawAxesAndGrid();
   drawData();
+  finishLabelCollection();
   let statusMessage = '';
   if ((CFG.type === 'bar' || CFG.type === 'line') && !hasTwo) {
     statusMessage = 'Dra i søylene/punktene – eller bruk tastaturet.';
@@ -862,12 +905,14 @@ function drawAxesAndGrid() {
   // x-etiketter
   const xTickLabelY = axisY + 18;
   CFG.labels.forEach((lab, i) => {
-    addTo(gLabels, 'text', {
+    const tickLabel = addTo(gLabels, 'text', {
       x: xPos(i),
       y: xTickLabelY,
       class: 'xLabel',
       'dominant-baseline': 'hanging'
-    }).textContent = lab;
+    });
+    tickLabel.textContent = lab;
+    registerDraggableLabel(tickLabel, `axis-x-${i}`);
   });
 }
 function drawData() {
@@ -1057,7 +1102,8 @@ function drawLines(displayMode) {
           baseY,
           series: idx,
           xOffset: offsetX,
-          share
+          share,
+          labelKey: `value-line-${idx}-${i}`
         });
       }
     });
@@ -1126,6 +1172,7 @@ function drawPie(displayMode) {
       'dominant-baseline': baseline
     });
     textEl.textContent = label;
+    registerDraggableLabel(textEl, `pie-${i}`);
     const valueLineText = formatPieValueText(value, share, displayMode);
     if (valueLineText) {
       const valueLine = document.createElementNS(svg.namespaceURI, 'tspan');
@@ -1227,7 +1274,8 @@ function drawGroupedBars(displayMode) {
       placeValueLabel(x0 + barSingle / 2, y1, v1, displayMode, {
         baseY,
         series: 0,
-        share: share1
+        share: share1,
+        labelKey: `value-grouped-0-${i}`
       });
     }
 
@@ -1283,7 +1331,8 @@ function drawGroupedBars(displayMode) {
         placeValueLabel(x1 + barSingle / 2, y2, v2, displayMode, {
           baseY,
           series: 1,
-          share: share2
+          share: share2,
+          labelKey: `value-grouped-1-${i}`
         });
       }
     }
@@ -1395,6 +1444,7 @@ function drawStackedBars() {
 function placeValueLabel(x, y, value, mode, options = {}) {
   const display = formatValueLabel(value, mode, options.share);
   if (!display || !display.text) return;
+  const labelKey = typeof options.labelKey === 'string' ? options.labelKey : '';
   const baseY = typeof options.baseY === 'number' ? options.baseY : y;
   const offset = Number.isFinite(options.offset) ? options.offset : 12;
   const xOffset = Number.isFinite(options.xOffset) ? options.xOffset : 0;
@@ -1434,6 +1484,7 @@ function placeValueLabel(x, y, value, mode, options = {}) {
       span.textContent = display.text;
     }
     foreignObject.appendChild(container);
+    registerDraggableLabel(foreignObject, labelKey);
     return;
   }
   const attrs = {
@@ -1452,6 +1503,7 @@ function placeValueLabel(x, y, value, mode, options = {}) {
   }
   const label = addTo(gVals, 'text', attrs);
   label.textContent = display.text;
+  registerDraggableLabel(label, labelKey);
 }
 function formatValueLabel(value, mode, share) {
   const normalized = sanitizeValueDisplay(mode);
@@ -1737,7 +1789,8 @@ function drawBars(displayMode) {
       placeValueLabel(cx, y, v, displayMode, {
         baseY,
         series: 0,
-        share
+        share,
+        labelKey: `value-bar-${i}`
       });
     }
   });
@@ -1746,6 +1799,55 @@ function drawBars(displayMode) {
 /* =========================================================
    DRAGGING (mus/berøring)
    ========================================================= */
+function onLabelDragStart(evt) {
+  const target = evt.currentTarget;
+  const key = target && target.dataset ? target.dataset.labelKey : null;
+  if (!key) return;
+  evt.preventDefault();
+  const start = clientToSvg(evt.clientX, evt.clientY);
+  const existing = labelAdjustments[key] || {};
+  const baseDx = Number.isFinite(existing.dx) ? existing.dx : 0;
+  const baseDy = Number.isFinite(existing.dy) ? existing.dy : 0;
+  let latest = { dx: baseDx, dy: baseDy };
+  target.classList.add('is-dragging');
+  if (typeof target.setPointerCapture === 'function' && evt.pointerId !== undefined) {
+    try {
+      target.setPointerCapture(evt.pointerId);
+    } catch (_) {}
+  }
+  const move = e => {
+    e.preventDefault();
+    const pos = clientToSvg(e.clientX, e.clientY);
+    latest = {
+      dx: pos.x - start.x + baseDx,
+      dy: pos.y - start.y + baseDy
+    };
+    labelAdjustments[key] = latest;
+    applyLabelTransform(target, key);
+  };
+  const end = e => {
+    e.preventDefault();
+    if (typeof target.releasePointerCapture === 'function' && evt.pointerId !== undefined) {
+      try {
+        target.releasePointerCapture(evt.pointerId);
+      } catch (_) {}
+    }
+    target.classList.remove('is-dragging');
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', end);
+    window.removeEventListener('pointercancel', end);
+    const dx = Number.isFinite(latest.dx) ? latest.dx : 0;
+    const dy = Number.isFinite(latest.dy) ? latest.dy : 0;
+    if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) {
+      delete labelAdjustments[key];
+    }
+    applyLabelTransform(target, key);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', end);
+  window.addEventListener('pointercancel', end);
+}
+
 function onDragStart(e) {
   e.preventDefault();
   const target = e.currentTarget;
