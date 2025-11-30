@@ -143,6 +143,8 @@
 .value-fo{overflow:visible;pointer-events:none}
 .value.value--html{color:var(--diagram-value-color);font-size:16px;justify-content:center;text-align:center;text-shadow:0 0 6px var(--diagram-value-stroke),0 0 2px var(--diagram-value-stroke);font-weight:500;}
 .value.value--html .katex{pointer-events:none}
+.label-draggable{pointer-events:auto;cursor:grab;touch-action:none;user-select:none}
+.label-draggable.is-dragging{cursor:grabbing}
 
 /* Låsing */
 .bar.locked{cursor:not-allowed}
