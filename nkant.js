@@ -1335,6 +1335,25 @@ function resetAllLabelAdjustments() {
   selectLabel(null);
 }
 
+function resetAllLabelRotations() {
+  if (!STATE.labelAdjustments) return;
+  const nextAdjustments = {};
+  Object.entries(STATE.labelAdjustments).forEach(([key, adjustment]) => {
+    if (!adjustment || typeof adjustment !== 'object') return;
+    const dx = Number.isFinite(adjustment.dx) ? adjustment.dx : undefined;
+    const dy = Number.isFinite(adjustment.dy) ? adjustment.dy : undefined;
+    if (dx !== undefined || dy !== undefined) {
+      nextAdjustments[key] = {
+        ...(dx !== undefined ? { dx } : {}),
+        ...(dy !== undefined ? { dy } : {})
+      };
+    }
+  });
+  STATE.labelAdjustments = nextAdjustments;
+  renderedLabelMap.forEach((_, key) => applyLabelAdjustment(key));
+  selectLabel(null);
+}
+
 function pointerEventToSvgPoint(evt) {
   const svg = document.getElementById('paper');
   if (!svg || typeof svg.createSVGPoint !== 'function') return null;
@@ -5304,6 +5323,7 @@ function bindUI() {
   }
   if (btnDraw) {
     btnDraw.addEventListener("click", async () => {
+      resetAllLabelRotations();
       await renderCombined();
     });
   }
