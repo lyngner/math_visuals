@@ -1336,9 +1336,10 @@ function resetAllLabelAdjustments() {
 }
 
 function resetAllLabelRotations() {
-  if (!STATE.labelAdjustments) return;
+  rotationHandleDrag = null;
+  const adjustments = STATE.labelAdjustments || {};
   const nextAdjustments = {};
-  Object.entries(STATE.labelAdjustments).forEach(([key, adjustment]) => {
+  Object.entries(adjustments).forEach(([key, adjustment]) => {
     if (!adjustment || typeof adjustment !== 'object') return;
     const dx = Number.isFinite(adjustment.dx) ? adjustment.dx : undefined;
     const dy = Number.isFinite(adjustment.dy) ? adjustment.dy : undefined;
@@ -1402,6 +1403,9 @@ function updateRotationHandle() {
   const handle = ensureRotationHandle(svg);
   if (!handle) return;
   const { group, line, knob, hit } = handle;
+  if (group.parentNode && group.parentNode.lastChild !== group) {
+    group.parentNode.appendChild(group);
+  }
   const canShow = LABEL_EDITOR_STATE.enabled && LABEL_EDITOR_STATE.selectedKey;
   if (!canShow) {
     group.setAttribute('display', 'none');
