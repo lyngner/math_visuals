@@ -258,12 +258,13 @@ let labelEditorControlsEl = null;
 let labelEditorActiveEl = null;
 let labelEditorListEl = null;
 let labelEditorRotationRowEl = null;
-let labelRotationInput = null;
 let labelRotationNumberInput = null;
 let btnResetLabel = null;
 let btnResetAllLabels = null;
 let labelEditorSyncingRotation = false;
 let rotateTextToggle = null;
+let rotationHandleElements = null;
+let rotationHandleDrag = null;
 const nkantNumberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO', {
   minimumFractionDigits: 0,
   maximumFractionDigits: 2
@@ -1126,6 +1127,7 @@ function labelKey(labelCtx, type, id) {
 function resetRenderedLabelMap() {
   renderedLabelMap = new Map();
   LABEL_EDITOR_STATE.drag = null;
+  rotationHandleDrag = null;
 }
 
 function getLabelAdjustment(key) {
@@ -1138,6 +1140,18 @@ function getLabelAdjustment(key) {
     dy: parse(stored.dy),
     rotation: parse(stored.rotation)
   };
+}
+
+function getLabelFinalState(key) {
+  if (!key) return null;
+  const entry = renderedLabelMap.get(key);
+  if (!entry) return null;
+  const { baseX, baseY, baseRotation } = entry;
+  const adjustment = getLabelAdjustment(key);
+  const finalX = baseX + adjustment.dx;
+  const finalY = baseY + adjustment.dy;
+  const finalRotation = (baseRotation || 0) + adjustment.rotation;
+  return { entry, adjustment, finalX, finalY, finalRotation };
 }
 
 function setLabelAdjustment(key, adjustment) {
@@ -1166,13 +1180,10 @@ function clearLabelAdjustment(key) {
 
 function applyLabelAdjustment(key) {
   if (!key) return;
-  const entry = renderedLabelMap.get(key);
-  if (!entry) return;
-  const { element, baseX, baseY, baseRotation } = entry;
-  const adjustment = getLabelAdjustment(key);
-  const finalX = baseX + adjustment.dx;
-  const finalY = baseY + adjustment.dy;
-  const finalRotation = (baseRotation || 0) + adjustment.rotation;
+  const finalState = getLabelFinalState(key);
+  if (!finalState) return;
+  const { entry, adjustment, finalX, finalY, finalRotation } = finalState;
+  const { element } = entry;
   element.setAttribute('x', finalX);
   element.setAttribute('y', finalY);
   if (finalRotation) {
@@ -1190,6 +1201,7 @@ function applyLabelAdjustment(key) {
     element.removeAttribute('tabindex');
     element.removeAttribute('role');
   }
+  updateRotationHandle();
 }
 
 function registerRenderedLabel(key, element, baseX, baseY, baseRotation = 0) {
@@ -1240,9 +1252,6 @@ function updateLabelHighlights() {
 
 function syncRotationInputs(value) {
   labelEditorSyncingRotation = true;
-  if (labelRotationInput) {
-    labelRotationInput.value = String(Number.isFinite(value) ? value : 0);
-  }
   if (labelRotationNumberInput) {
     labelRotationNumberInput.value = String(Math.round(Number.isFinite(value) ? value : 0));
   }
@@ -1270,7 +1279,6 @@ function updateLabelEditorUI() {
   if (labelEditorRotationRowEl) {
     labelEditorRotationRowEl.hidden = !canEditSelected;
   }
-  if (labelRotationInput) labelRotationInput.disabled = !canEditSelected;
   if (labelRotationNumberInput) labelRotationNumberInput.disabled = !canEditSelected;
   if (labelEditorListEl) {
     labelEditorListEl.innerHTML = '';
@@ -1285,12 +1293,14 @@ function updateLabelEditorUI() {
   }
   syncRotationInputs(rotation);
   updateLabelHighlights();
+  updateRotationHandle();
 }
 
 function setLabelEditingEnabled(enabled) {
   const allowed = isLabelEditingAllowed();
   LABEL_EDITOR_STATE.enabled = Boolean(enabled) && allowed;
   LABEL_EDITOR_STATE.drag = null;
+  rotationHandleDrag = null;
   renderedLabelMap.forEach((_, key) => applyLabelAdjustment(key));
   updateLabelEditorUI();
 }
@@ -1335,6 +1345,117 @@ function pointerEventToSvgPoint(evt) {
   if (!ctm || typeof ctm.inverse !== 'function') return null;
   const res = pt.matrixTransform(ctm.inverse());
   return { x: res.x, y: res.y };
+}
+
+function ensureRotationHandle(svg) {
+  if (rotationHandleElements && rotationHandleElements.group && rotationHandleElements.group.ownerSVGElement) {
+    return rotationHandleElements;
+  }
+  if (!svg) return null;
+  const group = add(svg, 'g', { class: 'label-rotation-handle', 'data-ignore-export': 'true' });
+  group.setAttribute('display', 'none');
+  const line = add(group, 'line', {
+    class: 'label-rotation-handle__line',
+    x1: 0,
+    y1: 0,
+    x2: 0,
+    y2: 0
+  });
+  const knob = add(group, 'circle', {
+    class: 'label-rotation-handle__knob',
+    r: 7,
+    cx: 0,
+    cy: 0
+  });
+  const hit = add(group, 'circle', {
+    class: 'label-rotation-handle__hit',
+    r: 16,
+    cx: 0,
+    cy: 0
+  });
+  hit.addEventListener('pointerdown', handleRotationHandlePointerDown);
+  rotationHandleElements = { group, line, knob, hit };
+  return rotationHandleElements;
+}
+
+function updateRotationHandle() {
+  const svg = document.getElementById('paper');
+  const handle = ensureRotationHandle(svg);
+  if (!handle) return;
+  const { group, line, knob, hit } = handle;
+  const canShow = LABEL_EDITOR_STATE.enabled && LABEL_EDITOR_STATE.selectedKey;
+  if (!canShow) {
+    group.setAttribute('display', 'none');
+    return;
+  }
+  const finalState = getLabelFinalState(LABEL_EDITOR_STATE.selectedKey);
+  if (!finalState || !finalState.entry || !finalState.entry.element) {
+    group.setAttribute('display', 'none');
+    return;
+  }
+  const { entry, finalX, finalY, finalRotation } = finalState;
+  const bbox = typeof entry.element.getBBox === 'function' ? entry.element.getBBox() : { width: 0, height: 0 };
+  const gap = Math.max(bbox.height * 0.6, 18);
+  const length = Math.max(bbox.height * 0.8, 22);
+  const angleRad = (finalRotation - 90) * (Math.PI / 180);
+  const startX = finalX + Math.cos(angleRad) * gap;
+  const startY = finalY + Math.sin(angleRad) * gap;
+  const endX = finalX + Math.cos(angleRad) * (gap + length);
+  const endY = finalY + Math.sin(angleRad) * (gap + length);
+  line.setAttribute('x1', startX);
+  line.setAttribute('y1', startY);
+  line.setAttribute('x2', endX);
+  line.setAttribute('y2', endY);
+  knob.setAttribute('cx', endX);
+  knob.setAttribute('cy', endY);
+  hit.setAttribute('cx', endX);
+  hit.setAttribute('cy', endY);
+  group.removeAttribute('display');
+}
+
+function handleRotationHandlePointerDown(evt) {
+  if (!LABEL_EDITOR_STATE.enabled || !LABEL_EDITOR_STATE.selectedKey) return;
+  const finalState = getLabelFinalState(LABEL_EDITOR_STATE.selectedKey);
+  const pos = pointerEventToSvgPoint(evt);
+  if (!finalState || !pos) return;
+  const startAngle = Math.atan2(pos.y - finalState.finalY, pos.x - finalState.finalX) * (180 / Math.PI);
+  rotationHandleDrag = {
+    key: LABEL_EDITOR_STATE.selectedKey,
+    pointerId: evt.pointerId,
+    startAngle,
+    startRotation: finalState.adjustment.rotation
+  };
+  selectLabel(LABEL_EDITOR_STATE.selectedKey);
+  evt.preventDefault();
+  if (evt.target && typeof evt.target.setPointerCapture === 'function') {
+    evt.target.setPointerCapture(evt.pointerId);
+  }
+}
+
+function handleRotationHandlePointerMove(evt) {
+  const drag = rotationHandleDrag;
+  if (!drag || drag.pointerId !== evt.pointerId) return;
+  const finalState = getLabelFinalState(drag.key);
+  const pos = pointerEventToSvgPoint(evt);
+  if (!finalState || !pos) return;
+  const angle = Math.atan2(pos.y - finalState.finalY, pos.x - finalState.finalX) * (180 / Math.PI);
+  const delta = angle - drag.startAngle;
+  const nextRotation = drag.startRotation + delta;
+  setLabelAdjustment(drag.key, { rotation: nextRotation });
+  syncRotationInputs(nextRotation);
+}
+
+function handleRotationHandlePointerUp(evt) {
+  if (rotationHandleDrag && rotationHandleDrag.pointerId === evt.pointerId) {
+    rotationHandleDrag = null;
+  }
+  if (evt.target && typeof evt.target.releasePointerCapture === 'function') {
+    try {
+      evt.target.releasePointerCapture(evt.pointerId);
+    } catch (_) {
+      /* ignore */
+    }
+  }
 }
 
 function handleLabelPointerDown(evt) {
@@ -1423,9 +1544,12 @@ function handleLabelKeyDown(evt, key) {
 function initLabelEditorInteractions() {
   const svg = document.getElementById('paper');
   if (!svg || initLabelEditorInteractions.bound) return;
+  ensureRotationHandle(svg);
   svg.addEventListener('pointerdown', handleLabelPointerDown);
   window.addEventListener('pointermove', handleLabelPointerMove);
   window.addEventListener('pointerup', handleLabelPointerUp);
+  window.addEventListener('pointermove', handleRotationHandlePointerMove);
+  window.addEventListener('pointerup', handleRotationHandlePointerUp);
   initLabelEditorInteractions.bound = true;
 }
 
@@ -4912,7 +5036,6 @@ function bindUI() {
   labelEditorActiveEl = $("#labelEditorActive");
   labelEditorListEl = $("#labelEditorList");
   labelEditorRotationRowEl = document.querySelector('.label-editor__rotation');
-  labelRotationInput = $("#labelRotation");
   labelRotationNumberInput = $("#labelRotationNumber");
   btnResetLabel = $("#btnResetLabelPosition");
   btnResetAllLabels = $("#btnResetAllLabels");
@@ -5237,9 +5360,6 @@ function bindUI() {
         evt.preventDefault();
       }
     });
-  }
-  if (labelRotationInput) {
-    labelRotationInput.addEventListener("input", () => handleRotationChange(labelRotationInput.value));
   }
   if (labelRotationNumberInput) {
     labelRotationNumberInput.addEventListener("input", () => handleRotationChange(labelRotationNumberInput.value));

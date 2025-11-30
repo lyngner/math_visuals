@@ -155,9 +155,38 @@
       font-weight: 600;
       min-width: 140px;
     }
-    .label-editor__rotation { display: grid; grid-template-columns: 70px 1fr 70px; gap: 8px; align-items: center; }
+    .label-editor__rotation {
+      display: grid;
+      grid-template-columns: auto 80px;
+      gap: 8px;
+      align-items: center;
+    }
     .label-editor__rotation[hidden] { display: none !important; }
+    .label-editor__rotation-hint {
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.5;
+    }
     .label-editor__hint { margin: 0; color: #6b7280; }
+    .label-rotation-handle {
+      pointer-events: none;
+    }
+    .label-rotation-handle__line {
+      stroke: #6b7280;
+      stroke-width: 2;
+      stroke-linecap: round;
+    }
+    .label-rotation-handle__knob {
+      fill: white;
+      stroke: #4b5563;
+      stroke-width: 2;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.25));
+    }
+    .label-rotation-handle__hit {
+      fill: transparent;
+      cursor: grab;
+      pointer-events: all;
+    }
     .label-draggable { cursor: grab; }
     .label-selected { filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.9)); }
     .global-settings { display: grid; gap: 10px; }
@@ -185,9 +214,18 @@
               </div>
             </div>
             <div class="label-editor__rotation" hidden>
-              <label for="labelRotation">Rotasjon</label>
-              <input id="labelRotation" type="range" min="-180" max="180" value="0" />
-              <input id="labelRotationNumber" class="tight" type="number" min="-180" max="180" value="0" />
+              <div class="label-editor__rotation-hint">
+                Dra rotasjonshåndtaket ("lollipop") på etiketten for å rotere teksten.
+              </div>
+              <input
+                id="labelRotationNumber"
+                class="tight"
+                aria-label="Rotasjon i grader"
+                type="number"
+                min="-180"
+                max="180"
+                value="0"
+              />
             </div>
             <p class="label-editor__hint small">Dra etiketter direkte i tegningen for å flytte dem. I redigeringsmodus kan du også velge etiketter med TAB, bruke piltastene for å flytte (SHIFT for større steg, ALT/⌘ for finjustering) og [ eller - / ] eller + for å rotere.</p>
           </div>
