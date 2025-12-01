@@ -61,7 +61,6 @@ const GROUP_SLOT_COUNTS = COLOR_GROUP_IDS.reduce((acc, groupId) => {
   return acc;
 }, {});
 const PROJECT_FALLBACKS = paletteConfig.PROJECT_FALLBACKS;
-const GRAFTEGNER_AXIS_DEFAULTS = paletteConfig.GRAFTEGNER_AXIS_DEFAULTS || {};
 const DEFAULT_PROJECT_ORDER = Array.isArray(paletteConfig.DEFAULT_PROJECT_ORDER)
   ? paletteConfig.DEFAULT_PROJECT_ORDER.slice()
   : ['campus', 'kikora', 'annet'];
@@ -87,12 +86,6 @@ const GRAFTEGNER_GROUP_ID = (() => {
   for (const group of COLOR_SLOT_GROUPS) {
     if (!group || !group.groupId) continue;
     if (group.groupId === DEFAULT_GRAFTEGNER_GROUP_ID) {
-      return group.groupId;
-    }
-    const hasAxisSlot = Array.isArray(group.slots)
-      ? group.slots.some(slot => Number.isInteger(slot && slot.index) && slot.index === 19)
-      : false;
-    if (hasAxisSlot) {
       return group.groupId;
     }
   }
@@ -190,20 +183,6 @@ function getSanitizedFallbackBase(project) {
   return sanitized.slice();
 }
 
-function resolveGraftegnerAxisFallback(project) {
-  const key = normalizeProjectKey(project) || 'default';
-  const fallback =
-    (GRAFTEGNER_AXIS_DEFAULTS && typeof GRAFTEGNER_AXIS_DEFAULTS[key] === 'string'
-      ? GRAFTEGNER_AXIS_DEFAULTS[key]
-      : null) || GRAFTEGNER_AXIS_DEFAULTS.default;
-  const sanitized = sanitizeColor(fallback);
-  if (sanitized) {
-    return sanitized;
-  }
-  const base = getSanitizedFallbackBase(key);
-  return base[0] || '#1F4DE2';
-}
-
 function buildFallbackGroupsFromBase(baseColors, project) {
   const sanitizedBase = Array.isArray(baseColors) ? sanitizeColorList(baseColors) : [];
   const fallbackColors = sanitizedBase.length ? sanitizedBase : getSanitizedFallbackBase('default');
@@ -231,9 +210,6 @@ function buildFallbackGroupsFromBase(baseColors, project) {
         for (let index = 0; index < limit; index += 1) {
           colors.push(fallbackColors[index % fallbackColors.length]);
         }
-      }
-      if (group.groupId === GRAFTEGNER_GROUP_ID && colors.length > 1) {
-        colors[1] = resolveGraftegnerAxisFallback(project);
       }
     }
     groups[group.groupId] = colors;

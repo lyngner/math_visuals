@@ -280,7 +280,7 @@ function updateAxisArrowImage(image, dataUrl, width, height) {
   }
 }
 
-const DEFAULT_AXIS_COLOR = '#111827';
+const DEFAULT_AXIS_COLOR = '#000000';
 
 const POINT_MARKER_SIZE = 6;
 
@@ -372,7 +372,7 @@ function refreshGraftegnerTheme(options = {}) {
   DEFAULT_POINT_COLORS.markerStroke = primary;
   DEFAULT_POINT_COLORS.domainMarker = secondary;
 
-  const axisColor = getThemeColor('graphs.axis', DEFAULT_AXIS_COLOR);
+  const axisColor = DEFAULT_AXIS_COLOR;
   if (typeof ADV !== 'undefined' && ADV && ADV.axis && ADV.axis.style) {
     ADV.axis.style.stroke = axisColor;
   }
@@ -445,23 +445,7 @@ function getPaletteHelper() {
 }
 
 function resolveAxisStrokeColor() {
-  const advAxisStroke = (() => {
-    try {
-      const scope = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : null);
-      const advRef = scope && scope.ADV;
-      if (advRef && advRef.axis && advRef.axis.style && advRef.axis.style.stroke) {
-        return advRef.axis.style.stroke;
-      }
-    } catch (_) {
-      /* no-op */
-    }
-    return null;
-  })();
-
-  if (advAxisStroke) return advAxisStroke;
-  const themeAxis = getThemeColor('graphs.axis', DEFAULT_AXIS_COLOR);
-  const normalized = normalizeColorValue(themeAxis);
-  return normalized || DEFAULT_AXIS_COLOR;
+  return DEFAULT_AXIS_COLOR;
 }
 
 function sanitizePaletteList(values) {

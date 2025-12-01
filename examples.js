@@ -306,8 +306,6 @@
     '#F87171'
   ];
   const PROJECT_FALLBACKS = paletteConfig.PROJECT_FALLBACKS;
-  const GRAFTEGNER_AXIS_DEFAULTS =
-    (paletteConfig && paletteConfig.GRAFTEGNER_AXIS_DEFAULTS) || {};
   const COLOR_SLOT_GROUPS = paletteConfig.COLOR_SLOT_GROUPS.map(group => ({
     groupId: group.groupId,
     slots: group.slots.map(slot => ({
@@ -321,12 +319,6 @@
     for (const group of COLOR_SLOT_GROUPS) {
       if (!group || !group.groupId) continue;
       if (group.groupId === DEFAULT_GRAFTEGNER_GROUP_ID) {
-        return group.groupId;
-      }
-      const hasAxisSlot = Array.isArray(group.slots)
-        ? group.slots.some(slot => Number.isInteger(slot && slot.index) && slot.index === 19)
-        : false;
-      if (hasAxisSlot) {
         return group.groupId;
       }
     }
@@ -422,15 +414,6 @@
     return sanitized.slice();
   }
 
-  function resolveGraftegnerAxisFallback(project) {
-    const key = normalizeProjectName(project) || 'default';
-    const fallback =
-      (GRAFTEGNER_AXIS_DEFAULTS && typeof GRAFTEGNER_AXIS_DEFAULTS[key] === 'string'
-        ? GRAFTEGNER_AXIS_DEFAULTS[key]
-        : null) || GRAFTEGNER_AXIS_DEFAULTS.default;
-    return sanitizeColor(fallback) || FALLBACK_COLORS[0];
-  }
-
   function buildFallbackGroupsFromBase(baseColors, project) {
     const sanitizedBase = Array.isArray(baseColors) ? sanitizeColorList(baseColors) : [];
     const fallbackColors = sanitizedBase.length ? sanitizedBase : getSanitizedFallbackBase('default');
@@ -458,9 +441,6 @@
           for (let index = 0; index < limit; index += 1) {
             colors.push(fallbackColors[index % fallbackColors.length]);
           }
-        }
-        if (group.groupId === GRAFTEGNER_GROUP_ID && colors.length > 1) {
-          colors[1] = resolveGraftegnerAxisFallback(project);
         }
       }
       groups[group.groupId] = colors;
