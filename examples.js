@@ -7412,7 +7412,9 @@
       }, '*');
     } catch (_) {}
   }
-  function loadExample(index) {
+  function loadExample(index, options) {
+    const opts = options && typeof options === 'object' ? options : {};
+    const skipReloadIfActive = opts.skipBindingsIfActive === true && currentExampleIndex === index;
     const scheduleOverlayHide = immediate => {
       if (immediate) {
         hideLoadingOverlay({ immediate: true });
@@ -7445,25 +7447,29 @@
     }
     const cfg = ex.config;
     let applied = false;
-    for (const name of BINDING_NAMES) {
-      if (cfg[name] != null) {
-        applyBinding(name, cfg[name]);
-        applied = true;
+    if (!skipReloadIfActive) {
+      for (const name of BINDING_NAMES) {
+        if (cfg[name] != null) {
+          applyBinding(name, cfg[name]);
+          applied = true;
+        }
       }
     }
-    if (applied) {
+    if (applied || skipReloadIfActive) {
       currentExampleIndex = index;
       pendingRequestedIndex = null;
       initialLoadPerformed = true;
       updateTabSelection();
-      triggerRefresh(index);
+      if (!skipReloadIfActive) {
+        triggerRefresh(index);
+      }
       notifyParentExampleChange(index);
       maybeAnnounceTemporaryExample(index, ex);
       scheduleOverlayHide(false);
     } else {
       scheduleOverlayHide(true);
     }
-    return applied;
+    return applied || skipReloadIfActive;
   }
   function updateTabSelection() {
     if (!tabsContainer || !Array.isArray(tabButtons)) return;
@@ -8034,7 +8040,7 @@
         currentExampleIndex = total > 0 ? total - 1 : null;
         renderOptions();
         if (currentExampleIndex != null && total > 0) {
-          loadExample(currentExampleIndex);
+          loadExample(currentExampleIndex, { skipBindingsIfActive: true });
         }
       } catch (error) {
         console.error('[examples] failed to save example', error);
@@ -8107,7 +8113,7 @@
         currentExampleIndex = boundedIndex;
         renderOptions();
         if (boundedIndex != null) {
-          loadExample(boundedIndex);
+          loadExample(boundedIndex, { skipBindingsIfActive: true });
         }
       } catch (error) {
         console.error('[examples] failed to update example', error);
@@ -8175,7 +8181,7 @@
         }
         renderOptions();
         if (currentExampleIndex != null && currentExampleIndex >= 0 && finalExamples.length > 0) {
-          loadExample(currentExampleIndex);
+          loadExample(currentExampleIndex, { skipBindingsIfActive: true });
         }
       } catch (error) {
         console.error('[examples] failed to delete example', error);
