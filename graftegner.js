@@ -5700,12 +5700,22 @@ function updateAfterViewChange() {
   if (brd && typeof brd.getBoundingBox === 'function') {
     const bb = brd.getBoundingBox();
     let screen = fromBoundingBox(bb);
+
+    // Avoid propagating absurd or invalid bounding boxes that can appear during
+    // initialization glitches.
+    const MAX_VAL = 10000000;
+    if (!screen || screen.some((v) => !Number.isFinite(v) || Math.abs(v) > MAX_VAL)) {
+      return;
+    }
     if (ADV.firstQuadrant) {
       const clamped = clampScreenToFirstQuadrant(screen);
       if (!screensEqual(screen, clamped)) {
         screen = clamped;
-        if (brd && typeof brd.setBoundingBox === 'function') {
-          brd.setBoundingBox(toBB(screen), true);
+        const currentBB = fromBoundingBox(brd.getBoundingBox());
+        if (!screensEqual(currentBB, screen)) {
+          if (brd && typeof brd.setBoundingBox === 'function') {
+            brd.setBoundingBox(toBB(screen), true);
+          }
         }
       }
     }
@@ -5713,11 +5723,16 @@ function updateAfterViewChange() {
       const screenInput = document.getElementById('cfgScreen');
       const autoScreenRequested = screenInput && screenInput.dataset && screenInput.dataset.autoscreen === '1';
       const treatAsAuto = LAST_SCREEN_SOURCE === 'auto' && autoScreenRequested;
-      ADV.screen = screen;
-      rememberScreenState(screen, treatAsAuto ? 'auto' : 'manual');
+      if (!screensEqual(ADV.screen, screen)) {
+        ADV.screen = screen;
+        rememberScreenState(screen, treatAsAuto ? 'auto' : 'manual');
+      }
       const input = document.getElementById('cfgScreen');
       if (input && document.activeElement !== input) {
-        input.value = formatScreenForInput(screen);
+        const newValue = formatScreenForInput(screen);
+        if (input.value !== newValue) {
+          input.value = newValue;
+        }
         if (treatAsAuto) {
           input.classList.add('is-auto');
           if (input.dataset) input.dataset.autoscreen = '1';
