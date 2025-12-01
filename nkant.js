@@ -5393,29 +5393,69 @@ function bindUI() {
       renderCombined();
     });
   }
-  if (btnDraw) {
-    btnDraw.addEventListener("click", async () => {
-      resetAllLabelRotations();
-      await renderCombined();
-    });
-  }
+    if (btnDraw) {
+      btnDraw.addEventListener("click", async () => {
+        resetAllLabelRotations();
+        await renderCombined();
+      });
+    }
 
-  const handleAppModeChange = () => {
-    syncLabelEditingAvailability();
-  };
-  window.addEventListener('math-visuals:app-mode-changed', handleAppModeChange);
-  if (btnSvg) {
-    btnSvg.addEventListener("click", () => {
-      const svg = document.getElementById("paper");
-      downloadSVG(svg, "nkant.svg");
-    });
-  }
-  if (btnPng) {
-    btnPng.addEventListener("click", () => {
-      const svg = document.getElementById("paper");
-      downloadPNG(svg, "nkant.png", 2); // 2× oppløsning
-    });
-  }
+    function getFilenameSanitizer(defaultName = 'figur') {
+      const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+      if (helper && typeof helper.sanitizeFilename === 'function') {
+        return value => helper.sanitizeFilename(value || defaultName);
+      }
+
+      return value => {
+        if (!value) return defaultName;
+        const sanitized = String(value)
+          .trim()
+          .replace(/[\/\\:*?"<>|]/g, '_')
+          .replace(/\s+/g, '_')
+          .replace(/\^/g, '')
+          .slice(0, 50);
+
+        return sanitized || defaultName;
+      };
+    }
+
+    function getSuggestedFilename() {
+      const sanitize = getFilenameSanitizer('Geometri');
+      const specs = typeof STATE.specsText === 'string' ? STATE.specsText : '';
+      const lines = specs.split('\n').filter(l => l.trim());
+
+      if (lines.length > 0) {
+        const firstLine = lines[0];
+        const typeMatch = firstLine.match(/([a-zA-ZæøåÆØÅ]+)/);
+        const type = typeMatch ? typeMatch[1] : 'Figur';
+        const numbers = firstLine.match(/(\d+)/g);
+        const nums = numbers ? numbers.slice(0, 3).join('-') : '';
+        const base = nums ? `${type}_${nums}` : type;
+
+        return sanitize(base);
+      }
+
+      return sanitize('Geometri');
+    }
+
+    const handleAppModeChange = () => {
+      syncLabelEditingAvailability();
+    };
+    window.addEventListener('math-visuals:app-mode-changed', handleAppModeChange);
+    if (btnSvg) {
+      btnSvg.addEventListener("click", () => {
+        const svg = document.getElementById("paper");
+        const filename = `${getSuggestedFilename()}.svg`;
+        downloadSVG(svg, filename);
+      });
+    }
+    if (btnPng) {
+      btnPng.addEventListener("click", () => {
+        const svg = document.getElementById("paper");
+        const filename = `${getSuggestedFilename()}.png`;
+        downloadPNG(svg, filename, 2); // 2× oppløsning
+      });
+    }
   const handleRotationChange = value => {
     if (labelEditorSyncingRotation) return;
     if (!LABEL_EDITOR_STATE.enabled || !LABEL_EDITOR_STATE.selectedKey) return;

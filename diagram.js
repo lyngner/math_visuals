@@ -46,6 +46,38 @@ function sanitizeTextSize(value) {
   const normalized = value.trim().toLowerCase();
   return TEXT_SIZE_SCALE[normalized] ? normalized : 'normal';
 }
+
+function getFilenameSanitizer(defaultName = 'figur') {
+  const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+  if (helper && typeof helper.sanitizeFilename === 'function') {
+    return value => helper.sanitizeFilename(value || defaultName);
+  }
+
+  return value => {
+    if (!value) return defaultName;
+    const sanitized = String(value)
+      .trim()
+      .replace(/[\/\\:*?"<>|]/g, '_')
+      .replace(/\s+/g, '_')
+      .replace(/\^/g, '')
+      .slice(0, 50);
+
+    return sanitized || defaultName;
+  };
+}
+
+function getSuggestedFilename() {
+  const sanitize = getFilenameSanitizer('Diagram');
+  const typeMap = {
+    bar: 'Stolpediagram',
+    pie: 'Sektordiagram',
+    line: 'Linjediagram'
+  };
+  const typeName = typeMap[CFG.type] || 'Diagram';
+  const title = CFG.title ? CFG.title : 'uten_navn';
+
+  return sanitize(`${typeName}_${title}`);
+}
 function applyTextSizePreference(size) {
   const key = sanitizeTextSize(size);
   const scale = TEXT_SIZE_SCALE[key] || TEXT_SIZE_SCALE.normal;
@@ -451,8 +483,14 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
 }
 const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
-btnSvg === null || btnSvg === void 0 || btnSvg.addEventListener('click', () => downloadSVG(svg, 'diagram.svg'));
-btnPng === null || btnPng === void 0 || btnPng.addEventListener('click', () => downloadPNG(svg, 'diagram.png', 2));
+btnSvg === null || btnSvg === void 0 || btnSvg.addEventListener('click', () => {
+  const filename = `${getSuggestedFilename()}.svg`;
+  downloadSVG(svg, filename);
+});
+btnPng === null || btnPng === void 0 || btnPng.addEventListener('click', () => {
+  const filename = `${getSuggestedFilename()}.png`;
+  downloadPNG(svg, filename, 2);
+});
 const altTextField = document.getElementById('altText');
 const altTextStatus = document.getElementById('altTextStatus');
 const regenerateAltTextBtn = document.getElementById('btnRegenerateAltText');

@@ -113,6 +113,21 @@
     return noExt || fallback;
   }
 
+  function sanitizeFilename(str) {
+    if (typeof str !== 'string') {
+      str = str == null ? '' : String(str);
+    }
+
+    const sanitized = str
+      .trim()
+      .replace(/[\/\\:*?"<>|]/g, '_')
+      .replace(/\s+/g, '_')
+      .replace(/\^/g, '')
+      .slice(0, 50);
+
+    return sanitized || 'figur';
+  }
+
   function slugify(input, fallback = 'export') {
     if (typeof input !== 'string') input = '';
     const normalized = input
@@ -877,6 +892,7 @@
   helper.MINIMUM_PNG_DIMENSION = MINIMUM_PNG_DIMENSION;
   helper.renderSvgToPng = renderSvgToPng;
   helper.ensureSvgNamespaces = ensureSvgNamespaces;
+  helper.sanitizeFilename = sanitizeFilename;
 
   global.MathVisSvgExport = helper;
 })(typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : this);
