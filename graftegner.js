@@ -5722,6 +5722,18 @@ function updateAfterViewChange() {
     if (!screen || screen.some((v) => !Number.isFinite(v) || Math.abs(v) > MAX_VAL)) {
       return;
     }
+
+    // If JSXGraph reports a bounding box that suddenly explodes compared to the
+    // last valid one (often happens on first paint when sizes are being
+    // measured), ignore it and wait for the next valid update.
+    if (Array.isArray(LAST_COMPUTED_SCREEN) && LAST_COMPUTED_SCREEN.length === 4) {
+      const span = (scr) => Math.max(1e-9, Math.abs(scr[1] - scr[0]), Math.abs(scr[3] - scr[2]));
+      const prevSpan = span(LAST_COMPUTED_SCREEN);
+      const nextSpan = span(screen);
+      if (nextSpan / prevSpan > 250) {
+        return;
+      }
+    }
     if (ADV.firstQuadrant) {
       const clamped = clampScreenToFirstQuadrant(screen);
       if (!screensEqual(screen, clamped)) {
