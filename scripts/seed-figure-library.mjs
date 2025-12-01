@@ -133,6 +133,29 @@ async function loadPngDataUrl(imagePath) {
   }
 }
 
+function buildPlaceholderSvg(name, categoryLabel) {
+  const title = name || 'Figur';
+  const categoryText = categoryLabel ? ` (${categoryLabel})` : '';
+  const label = `${title}${categoryText}`;
+  return `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 160" role="img" aria-label="${label}">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#f4f6f8" />
+      <stop offset="100%" stop-color="#e8ebee" />
+    </linearGradient>
+  </defs>
+  <rect x="1" y="1" width="258" height="158" rx="10" ry="10" fill="url(#bg)" stroke="#c5ccd3" stroke-width="2" />
+  <path d="M20 120 Q 130 40 240 120" fill="none" stroke="#d1d8df" stroke-width="3" stroke-linecap="round" />
+  <circle cx="60" cy="90" r="8" fill="#7fb1e3" />
+  <circle cx="140" cy="70" r="8" fill="#7fb1e3" />
+  <circle cx="210" cy="100" r="8" fill="#7fb1e3" />
+  <text x="130" y="128" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#4a5560">${title}</text>
+  ${categoryLabel ? `<text x="130" y="148" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">${categoryLabel}</text>` : ''}
+</svg>
+`.trim();
+}
+
 async function seedFigures({ dryRun }) {
   const measurementIndex = buildMeasurementCategoryIndex();
   const data = buildFigureData();
@@ -166,7 +189,7 @@ async function seedFigures({ dryRun }) {
 
     const figures = Array.isArray(category.figures) ? category.figures : [];
     for (const figure of figures) {
-      if (!figure || figure.custom) {
+      if (!figure) {
         continue;
       }
       const slug = figure.slug || figure.id;
@@ -175,21 +198,25 @@ async function seedFigures({ dryRun }) {
         figureSkipped += 1;
         continue;
       }
+      const isCustomFigure = !!figure.custom || payload.id === 'custom';
+      const categoryLabel = payload.label || category.label || category.id;
       const svgMarkup = await loadSvgMarkup(figure.image || figure.fileName);
-      if (!svgMarkup) {
-        console.warn(`⚠️  Hopper over ${slug} – fant ikke SVG-data.`);
-        figureSkipped += 1;
-        continue;
+      let resolvedSvgMarkup = svgMarkup;
+      if (!resolvedSvgMarkup && isCustomFigure) {
+        resolvedSvgMarkup = buildPlaceholderSvg(figure.name || slug || 'Egendefinert figur', categoryLabel);
+      }
+      if (!resolvedSvgMarkup) {
+        console.warn(`⚠️  Fant ikke SVG-data for ${slug} – bruker plassholder.`);
+        resolvedSvgMarkup = buildPlaceholderSvg(figure.name || slug, categoryLabel);
       }
       const pngData = await loadPngDataUrl(figure.image || figure.fileName);
       const summary = figure.summary || figure.dimensions || '';
-      const categoryLabel = payload.label || category.label || category.id;
       const figurePayload = {
         slug,
         name: figure.name || slug,
         title: figure.name || slug,
         summary,
-        svg: svgMarkup,
+        svg: resolvedSvgMarkup,
         category: {
           id: payload.id,
           label: categoryLabel,

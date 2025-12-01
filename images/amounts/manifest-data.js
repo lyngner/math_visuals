@@ -2,5 +2,7 @@
 // Do not edit manually; update manifest.json instead and regenerate if necessary.
 export default {
   "files": [],
-  "slugs": []
+  "slugs": [
+    "tb1"
+  ]
 };
