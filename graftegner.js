@@ -5710,13 +5710,21 @@ function updateAfterViewChange() {
       }
     }
     if (screen) {
+      const screenInput = document.getElementById('cfgScreen');
+      const autoScreenRequested = screenInput && screenInput.dataset && screenInput.dataset.autoscreen === '1';
+      const treatAsAuto = LAST_SCREEN_SOURCE === 'auto' && autoScreenRequested;
       ADV.screen = screen;
-      rememberScreenState(screen, 'manual');
+      rememberScreenState(screen, treatAsAuto ? 'auto' : 'manual');
       const input = document.getElementById('cfgScreen');
       if (input && document.activeElement !== input) {
         input.value = formatScreenForInput(screen);
-        input.classList.remove('is-auto');
-        if (input.dataset) delete input.dataset.autoscreen;
+        if (treatAsAuto) {
+          input.classList.add('is-auto');
+          if (input.dataset) input.dataset.autoscreen = '1';
+        } else {
+          input.classList.remove('is-auto');
+          if (input.dataset) delete input.dataset.autoscreen;
+        }
       }
     }
   }
