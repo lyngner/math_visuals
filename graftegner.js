@@ -2446,6 +2446,21 @@ function clampScreenToFirstQuadrant(screen) {
     const fallback = Math.max(Math.abs(ymax - ymin), 1);
     ymax = ymin + fallback;
   }
+
+  const FIRST_QUADRANT_PAD_RATIO = 0.04;
+  const FIRST_QUADRANT_PAD_CAP_RATIO = 0.25;
+  const spanX = xmax - xmin;
+  const spanY = ymax - ymin;
+  const padLeft = Math.min(
+    Math.max(spanX * FIRST_QUADRANT_PAD_RATIO, 0.5),
+    Math.max(spanX * FIRST_QUADRANT_PAD_CAP_RATIO, 0)
+  );
+  const padBottom = Math.min(
+    Math.max(spanY * FIRST_QUADRANT_PAD_RATIO, 0.5),
+    Math.max(spanY * FIRST_QUADRANT_PAD_CAP_RATIO, 0)
+  );
+  xmin -= padLeft;
+  ymin -= padBottom;
   return [xmin, xmax, ymin, ymax];
 }
 
