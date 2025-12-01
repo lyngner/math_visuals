@@ -18,7 +18,6 @@ export interface PaletteConfig {
   MAX_COLORS: number;
   DEFAULT_PROJECT: string;
   PROJECT_FALLBACKS: Readonly<Record<string, readonly string[]>>;
-  GRAFTEGNER_AXIS_DEFAULTS: Readonly<Record<string, string>>;
   COLOR_SLOT_GROUPS: readonly PaletteGroup[];
   COLOR_GROUP_IDS: readonly string[];
   GROUP_SLOT_INDICES: Readonly<Record<string, readonly number[]>>;
@@ -113,7 +112,6 @@ export interface PaletteService {
 }
 
 export declare const PROJECT_FALLBACKS: Readonly<Record<string, readonly string[]>>;
-export declare const GRAFTEGNER_AXIS_DEFAULTS: Readonly<Record<string, string>>;
 export declare const COLOR_SLOT_GROUPS: readonly PaletteGroup[];
 export declare const COLOR_GROUP_IDS: readonly string[];
 export declare const GROUP_SLOT_INDICES: Readonly<Record<string, readonly number[]>>;

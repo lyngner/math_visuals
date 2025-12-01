@@ -54,7 +54,6 @@
     annet: 'Annet'
   };
   const PROJECT_FALLBACKS = paletteConfig.PROJECT_FALLBACKS;
-  const GRAFTEGNER_AXIS_DEFAULTS = paletteConfig.GRAFTEGNER_AXIS_DEFAULTS || {};
   const COLOR_SLOT_GROUPS = paletteConfig.COLOR_SLOT_GROUPS.map(group => ({
     groupId: group.groupId,
     title: group.title,
@@ -555,16 +554,6 @@
     return sanitized.slice();
   }
 
-  function resolveGraftegnerAxisFallback(project) {
-    const key = normalizeProjectName(project) || 'default';
-    const value =
-      (GRAFTEGNER_AXIS_DEFAULTS && typeof GRAFTEGNER_AXIS_DEFAULTS[key] === 'string'
-        ? GRAFTEGNER_AXIS_DEFAULTS[key]
-        : null) || GRAFTEGNER_AXIS_DEFAULTS.default;
-    const sanitized = sanitizeColor(value);
-    return sanitized || '#1F4DE2';
-  }
-
   function buildFallbackGroupsFromBase(baseColors, project) {
     const sanitizedBase = Array.isArray(baseColors)
       ? sanitizeColorList(baseColors, MAX_COLORS)
@@ -593,9 +582,6 @@
           for (let index = 0; index < limit; index += 1) {
             colors.push(fallbackColors[index % fallbackColors.length]);
           }
-        }
-        if (group.groupId === GRAFTEGNER_GROUP_ID && colors.length > 1) {
-          colors[1] = resolveGraftegnerAxisFallback(project);
         }
       }
       groups[group.groupId] = colors;
