@@ -18,7 +18,6 @@ function resolveApiRoot() {
   return path.join(__dirname, 'api');
 }
 
-const API_ROOT = resolveApiRoot();
 const IGNORED_ROUTE_SEGMENTS = new Set(['_lib', '__tests__', '__mocks__']);
 const FIGURE_LIBRARY_ASSET_PATTERN = /\.(?:svg|png|jpg|jpeg|gif|webp|avif|json|zip|csv)$/i;
 const FRIENDLY_ROUTE_RULES = [
@@ -63,8 +62,8 @@ function wrapHandler(handler, routePath) {
   };
 }
 
-function normalizeRoutePath(filePath) {
-  const relative = path.relative(API_ROOT, filePath).replace(/\\/g, '/');
+function normalizeRoutePath(filePath, apiRoot) {
+  const relative = path.relative(apiRoot, filePath).replace(/\\/g, '/');
   if (relative.startsWith('..')) {
     // Ignore anything outside the bundled api/ folder.
     return null;
@@ -87,22 +86,22 @@ function normalizeRoutePath(filePath) {
   return path.posix.join('/api', routePath);
 }
 
-function discoverHandlers() {
+function discoverHandlers(apiRoot = resolveApiRoot()) {
   const handlers = [];
-  if (!fs.existsSync(API_ROOT)) {
+  if (!fs.existsSync(apiRoot)) {
     return handlers;
   }
-  const rootStats = fs.statSync(API_ROOT);
+  const rootStats = fs.statSync(apiRoot);
   if (!rootStats.isDirectory()) {
     return handlers;
   }
-  const entries = fs.readdirSync(API_ROOT, { withFileTypes: true });
+  const entries = fs.readdirSync(apiRoot, { withFileTypes: true });
   for (const entry of entries) {
-    const entryPath = path.join(API_ROOT, entry.name);
+    const entryPath = path.join(apiRoot, entry.name);
     if (entry.isDirectory()) {
-      registerFromDirectory(entryPath, handlers);
+      registerFromDirectory(entryPath, handlers, apiRoot);
     } else if (entry.isFile()) {
-      const routePath = normalizeRoutePath(entryPath);
+      const routePath = normalizeRoutePath(entryPath, apiRoot);
       if (routePath) {
         handlers.push({ routePath, filePath: entryPath });
       }
@@ -111,19 +110,19 @@ function discoverHandlers() {
   return handlers;
 }
 
-function registerFromDirectory(dirPath, handlers) {
+function registerFromDirectory(dirPath, handlers, apiRoot) {
   const stack = [dirPath];
   while (stack.length > 0) {
     const current = stack.pop();
     const stats = fs.statSync(current);
     if (!stats.isDirectory()) {
-      const maybeRoute = normalizeRoutePath(current);
+      const maybeRoute = normalizeRoutePath(current, apiRoot);
       if (maybeRoute) {
         handlers.push({ routePath: maybeRoute, filePath: current });
       }
       continue;
     }
-    const rel = path.relative(API_ROOT, current).replace(/\\/g, '/');
+    const rel = path.relative(apiRoot, current).replace(/\\/g, '/');
     if (shouldIgnore(rel)) {
       continue;
     }
@@ -134,8 +133,8 @@ function registerFromDirectory(dirPath, handlers) {
   }
 }
 
-function registerHandlers(app) {
-  const handlers = discoverHandlers();
+function registerHandlers(app, apiRoot = resolveApiRoot()) {
+  const handlers = discoverHandlers(apiRoot);
   const registered = [];
   handlers.sort((a, b) => a.routePath.localeCompare(b.routePath));
   for (const { routePath, filePath } of handlers) {
@@ -152,12 +151,12 @@ function registerHandlers(app) {
   return registered;
 }
 
-function createApp() {
+function createApp({ apiRoot = resolveApiRoot() } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', true);
 
-  app.handlers = registerHandlers(app);
+  app.handlers = registerHandlers(app, apiRoot);
 
   app.use((err, req, res, next) => {
     console.error(err);
