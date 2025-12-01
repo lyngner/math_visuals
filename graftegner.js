@@ -998,7 +998,7 @@ const ADV = {
   firstQuadrant: paramBool('q1'),
   interactions: {
     pan: {
-      enabled: paramBool('pan'),
+      enabled: false, // TVING DENNE TIL FALSE
       needShift: false
     },
     zoom: {
@@ -2429,67 +2429,35 @@ function clampScreenToFirstQuadrant(screen) {
     return Array.isArray(screen) ? screen.slice(0, 4) : screen;
   }
   let [xmin, xmax, ymin, ymax] = screen;
+
+  // Sjekk gyldighet
   if (![xmin, xmax, ymin, ymax].every(Number.isFinite)) {
     return screen.slice(0, 4);
   }
+
+  // Hvis 1. kvadrant ikke er aktivert globalt, returner uendret (sikkerhetsnett)
   if (!ADV || !ADV.firstQuadrant) {
     return screen.slice(0, 4);
   }
-  const EPS = 1e-9;
-  if (xmin < 0) {
-    const shift = -xmin;
-    xmin += shift;
-    xmax += shift;
-  }
-  if (xmin > 0 && xmin < EPS) {
-    xmax -= xmin;
-    xmin = 0;
-  }
-  if (ymin < 0) {
-    const shift = -ymin;
-    ymin += shift;
-    ymax += shift;
-  }
-  if (ymin > 0 && ymin < EPS) {
-    ymax -= ymin;
-    ymin = 0;
-  }
-  if (xmin < 0 && xmin > -EPS) {
-    const shift = -xmin;
-    xmin += shift;
-    xmax += shift;
-  }
-  if (ymin < 0 && ymin > -EPS) {
-    const shift = -ymin;
-    ymin += shift;
-    ymax += shift;
-  }
-  xmin = Math.max(0, xmin);
-  ymin = Math.max(0, ymin);
-  const MIN_SPAN = 1e-6;
-  if (!(xmax > xmin + MIN_SPAN)) {
-    const fallback = Math.max(Math.abs(xmax - xmin), 1);
-    xmax = xmin + fallback;
-  }
-  if (!(ymax > ymin + MIN_SPAN)) {
-    const fallback = Math.max(Math.abs(ymax - ymin), 1);
-    ymax = ymin + fallback;
+
+  // BEREGN BREDDE OG HØYDE
+  const width = xmax - xmin;
+  const height = ymax - ymin;
+
+  // TVING VESTRE OG NEDRE KANT TIL 0 (eller bittelitt minus for penere akser)
+  // Vi bruker -0.5 for at selve aksestreken ikke skal ligge helt klistret inntil kanten
+  const HARD_MIN = -0.5;
+
+  if (xmin < HARD_MIN) {
+    xmin = HARD_MIN;
+    xmax = xmin + width; // Behold bredden, skyv mot høyre
   }
 
-  const FIRST_QUADRANT_PAD_RATIO = 0.04;
-  const FIRST_QUADRANT_PAD_CAP_RATIO = 0.25;
-  const spanX = xmax - xmin;
-  const spanY = ymax - ymin;
-  const padLeft = Math.min(
-    Math.max(spanX * FIRST_QUADRANT_PAD_RATIO, 0.5),
-    Math.max(spanX * FIRST_QUADRANT_PAD_CAP_RATIO, 0)
-  );
-  const padBottom = Math.min(
-    Math.max(spanY * FIRST_QUADRANT_PAD_RATIO, 0.5),
-    Math.max(spanY * FIRST_QUADRANT_PAD_CAP_RATIO, 0)
-  );
-  xmin -= padLeft;
-  ymin -= padBottom;
+  if (ymin < HARD_MIN) {
+    ymin = HARD_MIN;
+    ymax = ymin + height; // Behold høyden, skyv oppover
+  }
+
   return [xmin, xmax, ymin, ymax];
 }
 
@@ -2776,7 +2744,7 @@ function initBoard() {
     showNavigation: false,
     showCopyright: false,
     pan: {
-      enabled: ADV.interactions.pan.enabled,
+      enabled: false, // TVINGES AV HER
       needShift: false
     },
     zoom: {
@@ -8595,12 +8563,7 @@ function setupSettingsForm() {
       ADV.interactions.zoom.enabled = zoomChecked;
       needsRebuild = true;
     }
-    const panInput = g('cfgPan');
-    const panChecked = !!(panInput && panInput.checked);
-    if (ADV.interactions.pan.enabled !== panChecked) {
-      ADV.interactions.pan.enabled = panChecked;
-      needsRebuild = true;
-    }
+    ADV.interactions.pan.enabled = false;
     if (q1Changed) {
       ADV.firstQuadrant = q1Checked;
       needsRebuild = true;
