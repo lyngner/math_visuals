@@ -357,6 +357,7 @@ const betaFeatureItems = nav ? Array.from(nav.querySelectorAll('[data-beta-featu
 const profileFilteredItems = nav ? Array.from(nav.querySelectorAll('[data-profile-filter]')) : [];
 const PROFILE_FILTER_ATTR = 'data-profile-filter';
 const SETTINGS_ENABLED_PROFILES = new Set(['annet', 'kikora', 'campus']);
+const CAMPUS_VISIBLE_LABELS = new Set(['Graftegner', 'nKant', 'Diagram', 'Settings']);
 function setBetaFeatureVisibility(isEnabled) {
   betaFeatureItems.forEach(item => {
     if (item instanceof HTMLElement) {
@@ -379,6 +380,18 @@ function setProfileFilteredVisibility(profile) {
       return;
     }
     item.hidden = !allowedProfiles.includes(normalized);
+  });
+  if (!navList) return;
+  const navItems = Array.from(navList.children).filter(item => item instanceof HTMLElement);
+  navItems.forEach(item => {
+    const link = item.querySelector('a[data-label]');
+    const label = typeof link?.getAttribute === 'function' ? link.getAttribute('data-label')?.trim() : '';
+    if (normalized === 'campus') {
+      const isAllowedForCampus = label ? CAMPUS_VISIBLE_LABELS.has(label) : false;
+      item.hidden = item.hidden || !isAllowedForCampus;
+    } else if (!item.hasAttribute(PROFILE_FILTER_ATTR)) {
+      item.hidden = false;
+    }
   });
 }
 const examplesApiBase = resolveExamplesApiBase();
