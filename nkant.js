@@ -842,21 +842,89 @@ function getPaletteApi() {
 function getSettingsApi() {
   return (typeof window !== "undefined" && window.MathVisualsSettings) || null;
 }
+function getPaletteProjectResolver() {
+  const scopes = [
+    typeof window !== "undefined" ? window : null,
+    typeof globalThis !== "undefined" ? globalThis : null,
+    typeof global !== "undefined" ? global : null
+  ];
+  for (const scope of scopes) {
+    if (!scope || typeof scope !== "object") continue;
+    const resolver = scope.MathVisualsPaletteProjectResolver;
+    if (resolver && typeof resolver.resolvePaletteProject === "function") {
+      return resolver;
+    }
+  }
+  if (typeof require === "function") {
+    try {
+      const mod = require("./palette/resolve-palette-project.js");
+      if (mod && typeof mod.resolvePaletteProject === "function") {
+        return mod;
+      }
+    } catch (_) {}
+  }
+  return null;
+}
 
 // Hjelper for å finne aktivt prosjekt (Robust sjekk)
 function getActiveProjectName() {
+  const doc = typeof document !== "undefined" ? document : null;
   const theme = getThemeApi();
-  if (theme && typeof theme.getActiveProfileName === 'function') {
+  const settings = getSettingsApi();
+  const resolver = getPaletteProjectResolver();
+
+  if (resolver && typeof resolver.resolvePaletteProject === "function") {
+    try {
+      const resolved = resolver.resolvePaletteProject({
+        document: doc || undefined,
+        root: doc && doc.documentElement ? doc.documentElement : undefined,
+        theme: theme || undefined,
+        settings: settings || undefined,
+        location: typeof window !== "undefined" ? window.location : undefined
+      });
+      if (typeof resolved === "string" && resolved.trim()) {
+        return resolved.trim().toLowerCase();
+      }
+    } catch (_) {}
+  }
+
+  if (doc && doc.documentElement) {
+    const root = doc.documentElement;
+    const direct =
+      (typeof root.getAttribute === "function" && root.getAttribute("data-project")) ||
+      (root.dataset && root.dataset.project);
+    if (typeof direct === "string" && direct.trim()) {
+      return direct.trim().toLowerCase();
+    }
+    const activeAttr =
+      (typeof root.getAttribute === "function" && root.getAttribute("data-mv-active-project")) ||
+      (root.dataset && root.dataset.mvActiveProject);
+    if (typeof activeAttr === "string" && activeAttr.trim()) {
+      return activeAttr.trim().toLowerCase();
+    }
+    const themeAttr =
+      (typeof root.getAttribute === "function" && root.getAttribute("data-theme-profile")) ||
+      (root.dataset && root.dataset.themeProfile);
+    if (typeof themeAttr === "string" && themeAttr.trim()) {
+      return themeAttr.trim().toLowerCase();
+    }
+  }
+
+  if (theme && typeof theme.getActiveProfileName === "function") {
     try {
       const val = theme.getActiveProfileName();
       if (val) return val.trim().toLowerCase();
     } catch (_) {}
   }
-  // Fallback: Sjekk attributter satt av examples.js
-  if (typeof document !== 'undefined' && document.documentElement) {
-    const attr = document.documentElement.getAttribute('data-mv-active-project') || 
-                 document.documentElement.getAttribute('data-theme-profile');
-    if (attr) return attr.trim().toLowerCase();
+
+  if (settings && typeof settings.getActiveProject === "function") {
+    try {
+      const val = settings.getActiveProject();
+      if (val) return val.trim().toLowerCase();
+    } catch (_) {}
+  }
+  if (settings && typeof settings.activeProject === "string" && settings.activeProject.trim()) {
+    return settings.activeProject.trim().toLowerCase();
   }
   return null;
 }
