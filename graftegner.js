@@ -2444,18 +2444,22 @@ function clampScreenToFirstQuadrant(screen) {
   const width = xmax - xmin;
   const height = ymax - ymin;
 
-  // TVING VESTRE OG NEDRE KANT TIL 0 (eller bittelitt minus for penere akser)
-  // Vi bruker -0.5 for at selve aksestreken ikke skal ligge helt klistret inntil kanten
-  const HARD_MIN = -0.5;
+  // Litt ekstra luft når vi begrenser oss til 1. kvadrant
+  const pad = Math.max(0.75, 0.08 * Math.max(Math.abs(width), Math.abs(height), 1));
+  const HARD_MIN = -pad;
 
+  // TVING VESTRE OG NEDRE KANT TIL 0 (eller bittelitt minus for penere akser)
+  // Vi legger på litt luft (minst ~0.75) så aksen ikke ligger helt klistret inntil kanten
   if (xmin < HARD_MIN) {
+    const delta = HARD_MIN - xmin;
     xmin = HARD_MIN;
-    xmax = xmin + width; // Behold bredden, skyv mot høyre
+    xmax += delta; // Behold bredden, skyv mot høyre
   }
 
   if (ymin < HARD_MIN) {
+    const delta = HARD_MIN - ymin;
     ymin = HARD_MIN;
-    ymax = ymin + height; // Behold høyden, skyv oppover
+    ymax += delta; // Behold høyden, skyv oppover
   }
 
   return [xmin, xmax, ymin, ymax];
@@ -2491,8 +2495,6 @@ function initialScreen() {
   }
   if (ADV.firstQuadrant) {
     scr = clampScreenToFirstQuadrant(scr);
-    if (scr[0] < 0) scr[0] = 0;
-    if (scr[2] < 0) scr[2] = 0;
   }
   rememberScreenState(scr, hasManualScreen ? 'manual' : 'auto');
   return scr;
