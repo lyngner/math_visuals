@@ -2495,6 +2495,8 @@ function initialScreen() {
   }
   if (ADV.firstQuadrant) {
     scr = clampScreenToFirstQuadrant(scr);
+    if (scr[0] < 0) scr[0] = 0;
+    if (scr[2] < 0) scr[2] = 0;
   }
   rememberScreenState(scr, hasManualScreen ? 'manual' : 'auto');
   return scr;
@@ -5713,10 +5715,25 @@ function updateAfterViewChange() {
   }
   if (brd && typeof brd.getBoundingBox === 'function') {
     const bb = brd.getBoundingBox();
-    const screen = fromBoundingBox(bb);
+    let screen = fromBoundingBox(bb);
+    if (ADV.firstQuadrant) {
+      const clamped = clampScreenToFirstQuadrant(screen);
+      if (!screensEqual(screen, clamped)) {
+        screen = clamped;
+        if (brd && typeof brd.setBoundingBox === 'function') {
+          brd.setBoundingBox(toBB(screen), true);
+        }
+      }
+    }
     if (screen) {
-      const manualActive = Array.isArray(ADV.screen) && ADV.screen.length === 4;
-      rememberScreenState(screen, manualActive ? 'manual' : 'auto');
+      ADV.screen = screen;
+      rememberScreenState(screen, 'manual');
+      const input = document.getElementById('cfgScreen');
+      if (input && document.activeElement !== input) {
+        input.value = formatScreenForInput(screen);
+        input.classList.remove('is-auto');
+        if (input.dataset) delete input.dataset.autoscreen;
+      }
     }
   }
 }
@@ -8451,18 +8468,41 @@ function setupSettingsForm() {
       }
     }
     if (nextScreen && q1Input && q1Checked && !screenSupportsFirstQuadrant(nextScreen)) {
-      q1Input.checked = false;
-      q1Checked = false;
-      q1Changed = ADV.firstQuadrant !== q1Checked;
+      const clamped = clampScreenToFirstQuadrant(nextScreen);
+      if (Array.isArray(clamped) && clamped.length === 4) {
+        nextScreen = clamped;
+        screenRaw = formatScreenForInput(clamped);
+        if (screenInput) {
+          screenInput.value = screenRaw;
+          if (screenInput.dataset) delete screenInput.dataset.autoscreen;
+          screenInput.classList.remove('is-auto');
+        }
+      } else {
+        q1Input.checked = false;
+        q1Checked = false;
+        q1Changed = ADV.firstQuadrant !== q1Checked;
+      }
     }
     if (q1Changed && q1Checked) {
-      shouldAutoScreen = true;
-      screenRaw = '';
-      nextScreen = null;
-      if (screenInput) {
-        screenInput.value = '';
-        if (screenInput.dataset) screenInput.dataset.autoscreen = '1';
-        screenInput.classList.add('is-auto');
+      const current = nextScreen || ADV.screen || LAST_COMPUTED_SCREEN;
+      const clamped = clampScreenToFirstQuadrant(current);
+      if (Array.isArray(clamped) && clamped.length === 4) {
+        nextScreen = clamped;
+        screenRaw = formatScreenForInput(clamped);
+        if (screenInput) {
+          screenInput.value = screenRaw;
+          if (screenInput.dataset) delete screenInput.dataset.autoscreen;
+          screenInput.classList.remove('is-auto');
+        }
+      } else {
+        shouldAutoScreen = true;
+        screenRaw = '';
+        nextScreen = null;
+        if (screenInput) {
+          screenInput.value = '';
+          if (screenInput.dataset) screenInput.dataset.autoscreen = '1';
+          screenInput.classList.add('is-auto');
+        }
       }
     }
     if (!screensEqual(nextScreen, ADV.screen)) {
