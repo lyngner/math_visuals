@@ -6050,25 +6050,58 @@ function serializeBoardSvg(clone) {
   if (!clone || !clone.node) return '';
   return new XMLSerializer().serializeToString(clone.node).replace(/\swidth="[^"]*"\s(?=.*width=")/, ' ').replace(/\sheight="[^"]*"\s(?=.*height=")/, ' ');
 }
-function buildBoardSvgExport() {
-  applyAltTextToBoard();
-  const clone = cloneBoardSvgRoot();
-  if (!clone) return null;
-  return {
-    markup: serializeBoardSvg(clone),
-    width: clone.width,
-    height: clone.height,
-    node: clone.node,
-    altText: getCurrentAltText()
-  };
-}
+  function buildBoardSvgExport() {
+    applyAltTextToBoard();
+    const clone = cloneBoardSvgRoot();
+    if (!clone) return null;
+    return {
+      markup: serializeBoardSvg(clone),
+      width: clone.width,
+      height: clone.height,
+      node: clone.node,
+      altText: getCurrentAltText()
+    };
+  }
+
+  function getFilenameSanitizer(defaultName = 'figur') {
+    const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
+    if (helper && typeof helper.sanitizeFilename === 'function') {
+      return value => helper.sanitizeFilename(value || defaultName);
+    }
+
+    return value => {
+      if (!value) return defaultName;
+      const sanitized = String(value)
+        .trim()
+        .replace(/[\/\\:*?"<>|]/g, '_')
+        .replace(/\s+/g, '_')
+        .replace(/\^/g, '')
+        .slice(0, 50);
+
+      return sanitized || defaultName;
+    };
+  }
+
+  function getSuggestedFilename() {
+    const sanitize = getFilenameSanitizer('Koordinatsystem');
+
+    if (SIMPLE_PARSED && Array.isArray(SIMPLE_PARSED.funcs) && SIMPLE_PARSED.funcs.length > 0) {
+      const f = SIMPLE_PARSED.funcs[0];
+      const name = f && typeof f.name === 'string' && f.name.trim() ? f.name : 'f';
+      const rhs = f && typeof f.rhs === 'string' ? f.rhs : f && f.rhs != null ? String(f.rhs) : '';
+
+      return sanitize(`Graf_${name}=${rhs}`);
+    }
+
+    return sanitize('Koordinatsystem');
+  }
 const btnSvg = document.getElementById('btnSvg');
 if (btnSvg) {
   btnSvg.addEventListener('click', () => {
     const svgExport = buildBoardSvgExport();
     if (!svgExport || !svgExport.markup) return;
     const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
-    const suggestedName = 'graf.svg';
+    const suggestedName = `${getSuggestedFilename()}.svg`;
     if (helper && typeof helper.exportSvgWithArchive === 'function') {
       helper.exportSvgWithArchive(svgExport.node, suggestedName, 'graftegner', {
         svgString: svgExport.markup,
@@ -6119,7 +6152,7 @@ if (btnPng) {
       canvas.toBlob(blob => {
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = 'graf.png';
+        a.download = `${getSuggestedFilename()}.png`;
         a.click();
         URL.revokeObjectURL(a.href);
       });
