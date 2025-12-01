@@ -87,6 +87,8 @@ const SETTINGS_STORAGE_KEY = 'mathVisuals:settings';
 const GRAFTEGNER_GROUP_ID = 'graftegner';
 const GRAFTEGNER_FALLBACK_PALETTE = ['#2563eb', '#f97316', '#0ea5e9', '#10b981', '#ef4444', '#f59e0b'];
 const DEFAULT_LINE_THICKNESS = 3;
+const AUTO_SPAN_SAFETY_MULTIPLIER = 200;
+const AUTO_SPAN_RECENTER_FACTOR = 1.25;
 const DEFAULT_FUNCTION_COLORS = {
   fallback: GRAFTEGNER_FALLBACK_PALETTE.slice(),
   palette: GRAFTEGNER_FALLBACK_PALETTE.slice(),
@@ -2192,7 +2194,9 @@ function computeAutoScreenFunctions() {
   let domMin = Infinity,
     domMax = -Infinity,
     trimmedXMin = Infinity,
-    trimmedXMax = -Infinity;
+    trimmedXMax = -Infinity,
+    coreYMin = Infinity,
+    coreYMax = -Infinity;
   const domainSpan = SIMPLE_PARSED.funcs.length > 1 ? MULTI_FUNCTION_UNBOUNDED_DOMAIN_SPAN : DEFAULT_UNBOUNDED_DOMAIN_SPAN;
   for (const f of SIMPLE_PARSED.funcs) {
     const fn = parseFunctionSpec(`${f.name}(x)=${f.rhs}`);
@@ -2216,6 +2220,8 @@ function computeAutoScreenFunctions() {
       } else if (Number.isFinite(featureData.xFiniteMax)) {
         trimmedXMax = Math.max(trimmedXMax, featureData.xFiniteMax);
       }
+      coreYMin = Math.min(coreYMin, featureData.ymin);
+      coreYMax = Math.max(coreYMax, featureData.ymax);
       feats.push({
         hasDom: true,
         fn,
@@ -2237,6 +2243,8 @@ function computeAutoScreenFunctions() {
       } else if (Number.isFinite(featureData.xFiniteMax)) {
         trimmedXMax = Math.max(trimmedXMax, featureData.xFiniteMax);
       }
+      coreYMin = Math.min(coreYMin, featureData.ymin);
+      coreYMax = Math.max(coreYMax, featureData.ymax);
       feats.push({
         hasDom: false,
         fn,
@@ -2325,6 +2333,27 @@ function computeAutoScreenFunctions() {
         ymax = Math.max(ymax, F.ha);
       }
     }
+  }
+
+  // Vern mot run-away-span: dersom vi har en tryggere kjerneutstrekning og
+  // gjeldende span er ekstremt mye større, fokuser på kjernen i stedet.
+  const safeXMin = Number.isFinite(trimmedXMin) ? trimmedXMin : xmin;
+  const safeXMax = Number.isFinite(trimmedXMax) ? trimmedXMax : xmax;
+  const safeXSpan = Number.isFinite(safeXMin) && Number.isFinite(safeXMax) && safeXMax > safeXMin ? safeXMax - safeXMin : null;
+  const safeYSpan = Number.isFinite(coreYMin) && Number.isFinite(coreYMax) && coreYMax > coreYMin ? coreYMax - coreYMin : null;
+  const spanX = xmax - xmin;
+  const spanY = ymax - ymin;
+  if (safeXSpan && spanX > AUTO_SPAN_SAFETY_MULTIPLIER * safeXSpan) {
+    const cx = (safeXMin + safeXMax) / 2;
+    const half = Math.max(safeXSpan / 2, 1) * AUTO_SPAN_RECENTER_FACTOR;
+    xmin = cx - half;
+    xmax = cx + half;
+  }
+  if (safeYSpan && spanY > AUTO_SPAN_SAFETY_MULTIPLIER * safeYSpan) {
+    const cy = (coreYMin + coreYMax) / 2;
+    const half = Math.max(safeYSpan / 2, 1) * AUTO_SPAN_RECENTER_FACTOR;
+    ymin = cy - half;
+    ymax = cy + half;
   }
 
   // Aksene alltid med
