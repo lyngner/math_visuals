@@ -191,6 +191,17 @@
     .label-draggable { cursor: grab; }
     .label-selected { filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.9)); }
     .global-settings { display: grid; gap: 10px; }
+    .global-settings__grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .global-settings__grid > div { display: grid; gap: 6px; }
+    @media (max-width: 600px) {
+      .global-settings__grid {
+        grid-template-columns: 1fr;
+      }
+    }
     .checkbox-row { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
   </style>
   <link rel="stylesheet" href="/split.css" />
@@ -251,14 +262,25 @@
           <div class="figure-controls__header">
             <div class="legend">Globale innstillinger</div>
           </div>
-          <div id="globalDefaultsRow" class="form-row form-row--compact"></div>
-          <div class="radio-row">
-            <label>Skriftstørrelse:</label>
-            <label><input type="radio" name="textSize" value="large"> Stor</label>
-            <label><input type="radio" name="textSize" value="normal" checked> Medium</label>
-            <label><input type="radio" name="textSize" value="small"> Liten</label>
+          <div id="globalSettingsGrid" class="global-settings__grid">
+            <div id="globalDefaultSidesWrap"></div>
+            <div id="globalDefaultAnglesWrap"></div>
+            <div>
+              <label for="textSizeSelect">Skriftstørrelse</label>
+              <select id="textSizeSelect">
+                <option value="large">Stor</option>
+                <option value="normal" selected>Medium</option>
+                <option value="small">Liten</option>
+              </select>
+            </div>
+            <div>
+              <label for="rotateTextSelect">Rotasjon</label>
+              <select id="rotateTextSelect">
+                <option value="rotate">Roter tekst</option>
+                <option value="no-rotate">Ikke roter tekst</option>
+              </select>
+            </div>
           </div>
-          <label class="checkbox-row"><input id="toggleRotateText" type="checkbox" checked /> Roter tekst</label>
         </div>
 
         <div class="sep"></div>

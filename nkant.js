@@ -262,7 +262,7 @@ let labelRotationNumberInput = null;
 let btnResetLabel = null;
 let btnResetAllLabels = null;
 let labelEditorSyncingRotation = false;
-let rotateTextToggle = null;
+let rotateTextSelect = null;
 let rotationHandleElements = null;
 let rotationHandleDrag = null;
 const nkantNumberFormatter = typeof Intl !== 'undefined' ? new Intl.NumberFormat('nb-NO', {
@@ -5118,14 +5118,15 @@ async function renderCombined() {
 function bindUI() {
   ensureStateDefaults();
   const $ = sel => document.querySelector(sel);
-  const textSizeRadios = document.querySelectorAll('input[name="textSize"]');
+  const textSizeSelect = $("#textSizeSelect");
   const btnSvg = $("#btnSvg");
   const btnPng = $("#btnPng");
   const btnDraw = $("#btnDraw");
   const addFigureBtn = $("#btnAddFigure");
   const figureListEl = $("#figureList");
-  const globalDefaultsRow = $("#globalDefaultsRow");
-  rotateTextToggle = $("#toggleRotateText");
+  const globalDefaultSidesWrap = $("#globalDefaultSidesWrap");
+  const globalDefaultAnglesWrap = $("#globalDefaultAnglesWrap");
+  rotateTextSelect = $("#rotateTextSelect");
   btnToggleLabelEdit = $("#btnToggleLabelEdit");
   labelEditorSectionEl = document.querySelector('.label-editor');
   labelEditorControlsEl = $("#labelEditorControls");
@@ -5184,11 +5185,11 @@ function bindUI() {
   let globalSideDefaultSel = null;
   let globalAngleDefaultSel = null;
   function renderGlobalDefaults() {
-    if (!globalDefaultsRow) return;
-    globalDefaultsRow.innerHTML = "";
+    if (!globalDefaultSidesWrap || !globalDefaultAnglesWrap) return;
+    globalDefaultSidesWrap.innerHTML = "";
+    globalDefaultAnglesWrap.innerHTML = "";
     const defaults = getGlobalDefaults();
 
-    const sideWrap = document.createElement("div");
     const sideLabel = document.createElement("label");
     sideLabel.setAttribute("for", "globalDefaultSides");
     sideLabel.textContent = "Standard sider";
@@ -5204,10 +5205,9 @@ function bindUI() {
       renderFigureForms();
       renderCombined();
     });
-    sideWrap.appendChild(sideLabel);
-    sideWrap.appendChild(globalSideDefaultSel);
+    globalDefaultSidesWrap.appendChild(sideLabel);
+    globalDefaultSidesWrap.appendChild(globalSideDefaultSel);
 
-    const angleWrap = document.createElement("div");
     const angleLabel = document.createElement("label");
     angleLabel.setAttribute("for", "globalDefaultAngles");
     angleLabel.textContent = "Standard vinkler/punkter";
@@ -5223,11 +5223,8 @@ function bindUI() {
       renderFigureForms();
       renderCombined();
     });
-    angleWrap.appendChild(angleLabel);
-    angleWrap.appendChild(globalAngleDefaultSel);
-
-    globalDefaultsRow.appendChild(sideWrap);
-    globalDefaultsRow.appendChild(angleWrap);
+    globalDefaultAnglesWrap.appendChild(angleLabel);
+    globalDefaultAnglesWrap.appendChild(globalAngleDefaultSel);
   }
 
   function syncGlobalDefaultsUI() {
@@ -5369,21 +5366,19 @@ function bindUI() {
   syncGlobalDefaultsToUI = syncGlobalDefaultsUI;
   applyFigureSpecsToUI = renderFigureForms;
   renderFigureForms();
-  textSizeRadios.forEach(radio => {
-    radio.checked = radio.value === STATE.textSize;
-    radio.addEventListener('change', () => {
-      if (radio.checked) {
-        STATE.textSize = radio.value;
-        applyTextSizePreference(STATE.textSize);
-        renderCombined();
-      }
+  if (textSizeSelect) {
+    textSizeSelect.value = STATE.textSize;
+    textSizeSelect.addEventListener('change', () => {
+      STATE.textSize = textSizeSelect.value;
+      applyTextSizePreference(STATE.textSize);
+      renderCombined();
     });
-  });
+  }
 
-  if (rotateTextToggle) {
-    rotateTextToggle.checked = STATE.rotateText !== false;
-    rotateTextToggle.addEventListener('change', () => {
-      STATE.rotateText = rotateTextToggle.checked;
+  if (rotateTextSelect) {
+    rotateTextSelect.value = STATE.rotateText === false ? 'no-rotate' : 'rotate';
+    rotateTextSelect.addEventListener('change', () => {
+      STATE.rotateText = rotateTextSelect.value === 'rotate';
       renderCombined();
     });
   }
@@ -5499,13 +5494,13 @@ window.addEventListener("examples:collect", () => {
 });
 function applyStateToUI() {
   ensureStateDefaults();
-  const textSizeRadios = document.querySelectorAll('input[name="textSize"]');
-  textSizeRadios.forEach(radio => {
-    radio.checked = radio.value === STATE.textSize;
-  });
+  const textSizeSelect = document.querySelector('#textSizeSelect');
+  if (textSizeSelect) {
+    textSizeSelect.value = STATE.textSize;
+  }
   applyTextSizePreference(STATE.textSize);
-  if (rotateTextToggle) {
-    rotateTextToggle.checked = STATE.rotateText !== false;
+  if (rotateTextSelect) {
+    rotateTextSelect.value = STATE.rotateText === false ? 'no-rotate' : 'rotate';
   }
   if (typeof syncGlobalDefaultsToUI === 'function') {
     syncGlobalDefaultsToUI();
