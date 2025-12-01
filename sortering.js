@@ -2024,13 +2024,7 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     { id: 'item-1', type: 'text', text: '\\frac{1}{2}', label: '1/2', alt: 'En halv' },
     { id: 'item-2', type: 'text', text: '\\sqrt{16}', label: '√16', alt: 'Kvadratroten av seksten' },
     { id: 'item-3', type: 'text', text: '7', label: '7', alt: 'Sju' },
-    {
-      id: 'item-4',
-      type: 'figure',
-      label: 'Terning 6',
-      alt: 'Terning som viser seks',
-      figures: [{ id: 'item-4-figure-1', categoryId: 'terninger', value: 'images/amounts/d6.svg' }]
-    }
+    { id: 'item-4', type: 'text', text: '🎲', label: 'Terning', alt: 'Terningillustrasjon' }
   ];
 
   const DEFAULT_ITEMS = buildItems(DEFAULT_RAW_ITEMS);
