@@ -50,7 +50,8 @@ const copyFeedbackTimers = new WeakMap();
 
 const CUSTOM_STORAGE_KEY = 'mathvis:figureLibrary:customEntries:v1';
 const CUSTOM_CATEGORY_STORAGE_KEY = 'mathvis:figureLibrary:customCategories:v1';
-const DEFAULT_CATEGORY_THUMBNAIL = '/images/amounts/tb10.svg';
+const DEFAULT_CATEGORY_THUMBNAIL =
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" fill="none"><rect width="160" height="120" rx="12" fill="%23F3F4F6"/><path d="M48 44h64v12H48zM48 66h64v12H48z" fill="%23CBD2D9"/></svg>';
 const LOCAL_ONLY_LIMITATION = 'Figurer lagres lokalt i denne nettleseren fordi figurbibliotekets API ikke er tilgjengelig.';
 const CATEGORY_PREVIEW_COUNT = 4;
 const FIGURE_LIBRARY_ENDPOINT = '/api/figure-library';
@@ -940,9 +941,7 @@ function normalizeCategoryMeta(category) {
     : '';
   const sampleImage = typeof category.sampleImage === 'string' && category.sampleImage.trim()
     ? category.sampleImage.trim()
-    : category.sampleSlug
-      ? `/images/amounts/${category.sampleSlug}.svg`
-      : DEFAULT_CATEGORY_THUMBNAIL;
+    : DEFAULT_CATEGORY_THUMBNAIL;
   const sampleAlt = category.sampleAlt || `Eksempel på ${name}`;
   const apps = getCategoryApps(category);
   const normalizedApps = Array.isArray(apps) ? apps.slice() : [];
@@ -3288,8 +3287,6 @@ function normalizeServerCategory(category) {
   const description = typeof category.description === 'string' ? category.description.trim() : '';
   const sampleImage = typeof category.sampleImage === 'string' && category.sampleImage.trim()
     ? category.sampleImage.trim()
-    : typeof category.sampleSlug === 'string' && category.sampleSlug.trim()
-    ? `/images/amounts/${category.sampleSlug.trim()}.svg`
     : DEFAULT_CATEGORY_THUMBNAIL;
   const sampleAlt = typeof category.sampleAlt === 'string' && category.sampleAlt.trim()
     ? category.sampleAlt.trim()
@@ -4356,9 +4353,6 @@ async function copyToClipboard(text) {
 function resolveCategorySamplePath(category) {
   if (category.type === 'measure' && category.sampleImage) {
     return category.sampleImage;
-  }
-  if (category.type === 'amount' && category.sampleSlug) {
-    return `/images/amounts/${category.sampleSlug}.svg`;
   }
   if (category.sampleImage) {
     return category.sampleImage;
