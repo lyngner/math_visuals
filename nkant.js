@@ -4606,7 +4606,7 @@ function drawPolygonWithArcToGroup(g, rect, spec, adv, decorations, labelCtx) {
 const BASE_W = 600,
   BASE_H = 420,
   GAP = 60,
-  TIGHT_VIEWBOX_MARGIN = 10;
+  TIGHT_VIEWBOX_MARGIN = 24;
 async function collectJobsFromSpecs(specInput) {
   const lines = Array.isArray(specInput)
     ? specInput.map(line => (line == null ? "" : String(line)))
