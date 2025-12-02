@@ -11,7 +11,7 @@ const {
   KvConfigurationError,
   isKvConfigured
 } = require('./figure-asset-store');
-const { loadKvClient: loadRedisKvClient } = require('./kv-client');
+const { loadKvClient: loadBaseKvClient } = require('./kv-client');
 
 const FIGURE_LIBRARY_UPLOAD_TOOL_ID = 'bibliotek-upload';
 
@@ -302,7 +302,7 @@ async function loadKvClient() {
       'Figure library storage KV is not configured. Set REDIS_ENDPOINT (or REDIS_HOST), REDIS_PORT and REDIS_PASSWORD to enable persistent storage.'
     );
   }
-  return loadRedisKvClient();
+  return loadBaseKvClient();
 }
 
 function getStoreMode() {
