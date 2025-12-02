@@ -1746,6 +1746,7 @@ let SCREEN_INPUT_IS_EDITING = false;
 const VIEW_CHANGE_DEBOUNCE_MS = 80;
 let PENDING_VIEW_CHANGE_HANDLE = null;
 let LAST_FUNCTION_VIEW_SCREEN = null;
+let IS_SETTING_BOUNDING_BOX = false;
 
 applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
 
@@ -5835,6 +5836,7 @@ function queueFunctionViewUpdate(screen) {
 
 /* ================= Oppdater / resize ================= */
   function updateAfterViewChange() {
+    if (IS_SETTING_BOUNDING_BOX) return;
     if (!brd) return;
     enforceAspectStrict();
     applyTickSettings();
@@ -5888,7 +5890,12 @@ function queueFunctionViewUpdate(screen) {
         if (brd && typeof brd.setBoundingBox === 'function') {
           // False her betyr "ikke tving keepAspectRatio" (fordi vi har beregnet det selv)
           // Men JSXGraph kan være sta, så noen ganger må man bruke true hvis forholdet er riktig.
-          brd.setBoundingBox(toBB(screen), false);
+          IS_SETTING_BOUNDING_BOX = true;
+          try {
+            brd.setBoundingBox(toBB(screen), false);
+          } finally {
+            IS_SETTING_BOUNDING_BOX = false;
+          }
         }
       }
 
