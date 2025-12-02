@@ -107,6 +107,7 @@ const DEFAULT_POINT_COLORS = {
   guideStroke: '#64748b'
 };
 const DEFAULT_FUNCTION_EXPRESSION = 'f(x)=x^2-2';
+const DEFAULT_SCREEN_BOUNDS = [-5, 5, -5, 5];
 
 function getSettingsApi() {
   if (typeof window === 'undefined') return null;
@@ -993,7 +994,7 @@ const ADV = {
     },
     forceIntegers: FORCE_TICKS_REQUESTED
   },
-  screen: parseScreen(paramStr('screen', '')),
+  screen: parseScreen(paramStr('screen', DEFAULT_SCREEN_BOUNDS.join(','))) || DEFAULT_SCREEN_BOUNDS.slice(),
   lockAspect: params.has('lock') ? paramBool('lock') : true,
   firstQuadrant: paramBool('q1'),
   interactions: {
