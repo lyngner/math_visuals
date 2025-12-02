@@ -2420,14 +2420,14 @@ function computeAutoScreenFunctions() {
   if (!Number.isFinite(ymin)) ymin = -5;
   if (!Number.isFinite(ymax)) ymax = 5;
 
-  const spanX = xmax - xmin;
-  const spanY = ymax - ymin;
+  const spanXPad = xmax - xmin;
+  const spanYPad = ymax - ymin;
   const padFactor = 0.1;
 
-  xmin -= spanX * padFactor;
-  xmax += spanX * padFactor;
-  ymin -= spanY * padFactor;
-  ymax += spanY * padFactor;
+  xmin -= spanXPad * padFactor;
+  xmax += spanXPad * padFactor;
+  ymin -= spanYPad * padFactor;
+  ymax += spanYPad * padFactor;
 
   if (ADV.firstQuadrant) {
     xmin = Math.max(0, xmin);
