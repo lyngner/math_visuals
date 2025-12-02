@@ -2437,9 +2437,16 @@ function computeAutoScreenFunctions() {
   }
 
   // Aksene alltid med (snapping)
-  if (xmin > 0) xmin = -0.5;
+  // Hvis vi skal være i 1. kvadrant, ikke legg til negativ marg.
+  if (!ADV.firstQuadrant) {
+    if (xmin > 0) xmin = -0.5;
+    if (ymin > 0) ymin = -0.5;
+  } else {
+    xmin = Math.max(0, xmin);
+    ymin = Math.max(0, ymin);
+  }
+
   if (xmax < 0) xmax = 0.5;
-  if (ymin > 0) ymin = -0.5;
   if (ymax < 0) ymax = 0.5;
 
   const screen = [xmin, xmax, ymin, ymax];
@@ -2517,7 +2524,7 @@ function clampScreenToFirstQuadrant(screen) {
   const height = ymax - ymin;
 
   // Hold oss i (eller rett ved) 1. kvadrant ved å skyve hele utsnittet opp og til høyre
-  const HARD_MIN = -0.5;
+  const HARD_MIN = 0;
 
   if (xmin < HARD_MIN) {
     const delta = HARD_MIN - xmin;
@@ -3210,12 +3217,34 @@ function enforceAspectStrict() {
   if (!brd || !shouldLockAspect() || enforcing) return;
   enforcing = true;
   try {
-    const [xmin, ymax, xmax, ymin] = brd.getBoundingBox();
+    let [xmin, ymax, xmax, ymin] = brd.getBoundingBox();
+    const pixAR = brd.canvasWidth / brd.canvasHeight;
     const W = xmax - xmin,
       H = ymax - ymin;
-    const pixAR = brd.canvasWidth / brd.canvasHeight;
+
+    if (!(W > 0 && H > 0) || !Number.isFinite(pixAR)) return;
+
     const worldAR = W / H;
     if (Math.abs(worldAR - pixAR) < 1e-9) return;
+
+    const HARD_MIN_Q1 = -0.5;
+    if (ADV && ADV.firstQuadrant) {
+      xmin = Math.max(xmin, HARD_MIN_Q1);
+      ymin = Math.max(ymin, HARD_MIN_Q1);
+      const width = Math.max(xmax - xmin, 1e-9);
+      const height = Math.max(ymax - ymin, 1e-9);
+      let newW = width,
+        newH = height;
+      const anchoredAR = width / height;
+      if (anchoredAR > pixAR) {
+        newH = width / pixAR;
+      } else {
+        newW = height * pixAR;
+      }
+      brd.setBoundingBox([xmin, ymin + newH, xmin + newW, ymin], false);
+      return;
+    }
+
     let newW = W,
       newH = H;
     if (worldAR > pixAR) {
@@ -5772,84 +5801,89 @@ function hideCheckControls() {
     if (!brd) return;
     enforceAspectStrict();
     applyTickSettings();
+    if (ADV.axis.forceIntegers) {
+      rebuildGrid();
+    }
     placeAxisNames();
     updateAxisArrows();
     if (MODE === 'functions') {
       rebuildAllFunctionSegments();
       updateAllBrackets();
-  }
-  if (brd && typeof brd.getBoundingBox === 'function') {
-    const bb = brd.getBoundingBox();
-    let screen = fromBoundingBox(bb);
-
-    // Avoid propagating absurd or invalid bounding boxes that can appear during
-    // initialization glitches.
-    const MAX_VAL = 10000000;
-    if (!screen || screen.some((v) => !Number.isFinite(v) || Math.abs(v) > MAX_VAL)) {
-      return;
     }
+    if (brd && typeof brd.getBoundingBox === 'function') {
+      const bb = brd.getBoundingBox();
+      let screen = fromBoundingBox(bb);
 
-    // If JSXGraph reports a bounding box that suddenly explodes compared to the
-    // last valid one (often happens on first paint when sizes are being
-    // measured), ignore it and wait for the next valid update.
-    if (Array.isArray(LAST_COMPUTED_SCREEN) && LAST_COMPUTED_SCREEN.length === 4) {
-      const span = (scr) => Math.max(1e-9, Math.abs(scr[1] - scr[0]), Math.abs(scr[3] - scr[2]));
-      const prevSpan = span(LAST_COMPUTED_SCREEN);
-      const nextSpan = span(screen);
-      if (nextSpan / prevSpan > 250) {
+      // Avoid propagating absurd or invalid bounding boxes that can appear during
+      // initialization glitches.
+      const MAX_VAL = 10000000;
+      if (!screen || screen.some((v) => !Number.isFinite(v) || Math.abs(v) > MAX_VAL)) {
         return;
       }
-    }
-    if (ADV.firstQuadrant) {
-      const clamped = clampScreenToFirstQuadrant(screen);
-      if (!screensEqual(screen, clamped)) {
-        screen = clamped;
-        const currentBB = fromBoundingBox(brd.getBoundingBox());
-        if (!screensEqual(currentBB, screen)) {
-          if (brd && typeof brd.setBoundingBox === 'function') {
-            brd.setBoundingBox(toBB(screen), true);
+
+      // If JSXGraph reports a bounding box that suddenly explodes compared to the
+      // last valid one (often happens on first paint when sizes are being
+      // measured), ignore it and wait for the next valid update.
+      if (Array.isArray(LAST_COMPUTED_SCREEN) && LAST_COMPUTED_SCREEN.length === 4) {
+        const span = (scr) => Math.max(1e-9, Math.abs(scr[1] - scr[0]), Math.abs(scr[3] - scr[2]));
+        const prevSpan = span(LAST_COMPUTED_SCREEN);
+        const nextSpan = span(screen);
+        if (nextSpan / prevSpan > 250) {
+          return;
+        }
+      }
+
+      // 1. Først Grid Snap (hvis aktivert)
+      if (ADV.axis.forceIntegers && ADV.axis.grid && ADV.axis.grid.show) {
+        const clampedGrid = clampScreenToWholeGrid(screen);
+        if (!screensEqual(screen, clampedGrid)) {
+          screen = clampedGrid;
+        }
+      }
+
+      // 2. Deretter 1. Kvadrant (hvis aktivert) - Denne får siste ordet!
+      if (ADV.firstQuadrant) {
+        const clamped = clampScreenToFirstQuadrant(screen);
+        if (!screensEqual(screen, clamped)) {
+          screen = clamped;
+        }
+      }
+
+      // 3. Sjekk om vi må oppdatere brettet eller state
+      const currentBB = fromBoundingBox(brd.getBoundingBox());
+      if (!screensEqual(currentBB, screen)) {
+        if (brd && typeof brd.setBoundingBox === 'function') {
+          // False her betyr "ikke tving keepAspectRatio" (fordi vi har beregnet det selv)
+          // Men JSXGraph kan være sta, så noen ganger må man bruke true hvis forholdet er riktig.
+          brd.setBoundingBox(toBB(screen), false);
+        }
+      }
+
+      if (screen) {
+        const screenInput = document.getElementById('cfgScreen');
+        const autoScreenRequested = screenInput && screenInput.dataset && screenInput.dataset.autoscreen === '1';
+        const treatAsAuto = LAST_SCREEN_SOURCE === 'auto' && autoScreenRequested;
+        if (!screensEqual(ADV.screen, screen)) {
+          ADV.screen = screen;
+          rememberScreenState(screen, treatAsAuto ? 'auto' : 'manual');
+        }
+        const input = document.getElementById('cfgScreen');
+        if (input && document.activeElement !== input) {
+          const newValue = formatScreenForInput(screen);
+          if (input.value !== newValue) {
+            input.value = newValue;
+          }
+          if (treatAsAuto) {
+            input.classList.add('is-auto');
+            if (input.dataset) input.dataset.autoscreen = '1';
+          } else {
+            input.classList.remove('is-auto');
+            if (input.dataset) delete input.dataset.autoscreen;
           }
         }
       }
     }
-    if (ADV.axis.forceIntegers && ADV.axis.grid && ADV.axis.grid.show) {
-      const clampedGrid = clampScreenToWholeGrid(screen);
-      if (!screensEqual(screen, clampedGrid)) {
-        screen = clampedGrid;
-        const currentBB = fromBoundingBox(brd.getBoundingBox());
-        if (!screensEqual(currentBB, screen) && typeof brd.setBoundingBox === 'function') {
-          brd.setBoundingBox(toBB(screen), true);
-        }
-      }
-    }
-    if (screen) {
-      const screenInput = document.getElementById('cfgScreen');
-      const autoScreenRequested = screenInput && screenInput.dataset && screenInput.dataset.autoscreen === '1';
-      const treatAsAuto = LAST_SCREEN_SOURCE === 'auto' && autoScreenRequested;
-      if (!screensEqual(ADV.screen, screen)) {
-        ADV.screen = screen;
-        rememberScreenState(screen, treatAsAuto ? 'auto' : 'manual');
-      }
-      const input = document.getElementById('cfgScreen');
-      if (input && document.activeElement !== input) {
-        const newValue = formatScreenForInput(screen);
-        if (input.value !== newValue) {
-          input.value = newValue;
-        }
-        if (treatAsAuto) {
-          input.classList.add('is-auto');
-          if (input.dataset) input.dataset.autoscreen = '1';
-        } else {
-          input.classList.remove('is-auto');
-          if (input.dataset) delete input.dataset.autoscreen;
-        }
-      }
-    }
-    if (ADV.axis.forceIntegers) {
-      rebuildGrid();
-    }
   }
-}
 function rebuildAll() {
   if (IS_REBUILDING) return;
   IS_REBUILDING = true;
