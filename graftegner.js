@@ -241,6 +241,15 @@ function axisArrowSvgData(axis, color) {
   return `data:image/svg+xml;utf8,${encodeURIComponent(template.replace(/{{COLOR}}/g, tint))}`;
 }
 
+function tagAxisArrowNode(image, axisKey) {
+  if (!image) return;
+  const node = image.rendNodeImage || image.rendNode || null;
+  if (!node || typeof node.setAttribute !== 'function') return;
+  const key = axisKey === 'y' ? 'y' : 'x';
+  node.setAttribute('data-axis-arrow', key);
+  node.setAttribute('preserveAspectRatio', 'none');
+}
+
 function updateAxisArrowImage(image, dataUrl, width, height) {
   if (!image) return;
   if (typeof dataUrl === 'string' && dataUrl) {
@@ -2933,6 +2942,7 @@ function ensureAxisArrowShapes() {
       ],
       baseOptions
     );
+    tagAxisArrowNode(appState.axes.arrows.x, 'x');
   }
   if (!appState.axes.arrows.y) {
     appState.axes.arrows.y = appState.board.create(
@@ -2950,6 +2960,7 @@ function ensureAxisArrowShapes() {
       ],
       baseOptions
     );
+    tagAxisArrowNode(appState.axes.arrows.y, 'y');
   }
 }
 
@@ -2959,9 +2970,11 @@ function updateAxisArrows() {
   const axisColor = ADV.axis.style.stroke;
   if (appState.axes.arrows.x) {
     updateAxisArrowImage(appState.axes.arrows.x, axisArrowSvgData('x', axisColor), axisArrowLengthX(), axisArrowHalfHeight() * 2);
+    tagAxisArrowNode(appState.axes.arrows.x, 'x');
   }
   if (appState.axes.arrows.y) {
     updateAxisArrowImage(appState.axes.arrows.y, axisArrowSvgData('y', axisColor), axisArrowHalfWidth() * 2, axisArrowLengthY());
+    tagAxisArrowNode(appState.axes.arrows.y, 'y');
   }
 }
 
@@ -6269,6 +6282,66 @@ function sanitizeSvgForeignObjects(svgNode) {
   });
 }
 
+function cloneAxisArrowNode(axisKey, doc) {
+  const axis = axisKey === 'y' ? 'y' : 'x';
+  const source = axis === 'y' ? appState.axes.arrows.y : appState.axes.arrows.x;
+  const sourceNode = source && (source.rendNodeImage || source.rendNode || null);
+  const node = sourceNode && typeof sourceNode.cloneNode === 'function'
+    ? sourceNode.cloneNode(true)
+    : (doc && typeof doc.createElementNS === 'function'
+      ? doc.createElementNS('http://www.w3.org/2000/svg', 'image')
+      : null);
+  if (!node) return null;
+  const axisColor = normalizeColorValue(ADV.axis && ADV.axis.style && ADV.axis.style.stroke ? ADV.axis.style.stroke : DEFAULT_AXIS_COLOR)
+    || DEFAULT_AXIS_COLOR;
+  const dataUrl = axisArrowSvgData(axis, axisColor);
+  try {
+    node.setAttributeNS('http://www.w3.org/1999/xlink', 'href', dataUrl);
+  } catch (_) {}
+  try {
+    node.setAttribute('href', dataUrl);
+    node.setAttribute('xlink:href', dataUrl);
+  } catch (_) {}
+  node.setAttribute('data-axis-arrow', axis);
+  node.setAttribute('preserveAspectRatio', 'none');
+  if (!node.getAttribute('width')) {
+    const width = axis === 'y' ? axisArrowHalfWidth() * 2 : axisArrowLengthX();
+    node.setAttribute('width', String(width));
+  }
+  if (!node.getAttribute('height')) {
+    const height = axis === 'y' ? axisArrowLengthY() : axisArrowHalfHeight() * 2;
+    node.setAttribute('height', String(height));
+  }
+  if (!node.getAttribute('x') || !node.getAttribute('y')) {
+    const bb = appState.board && typeof appState.board.getBoundingBox === 'function'
+      ? appState.board.getBoundingBox()
+      : null;
+    if (Array.isArray(bb) && bb.length === 4) {
+      const [xmin, ymax, xmax, ymin] = bb;
+      const xPos = axis === 'y' ? -axisArrowHalfWidth() : (Number.isFinite(xmax) ? xmax : 0) - axisArrowLengthX();
+      const yPos = axis === 'y'
+        ? (Number.isFinite(ymax) ? ymax : 0) - axisArrowLengthY()
+        : -axisArrowHalfHeight();
+      node.setAttribute('x', String(xPos));
+      node.setAttribute('y', String(yPos));
+    }
+  }
+  return node;
+}
+
+function ensureAxisArrowsInSvgClone(node) {
+  if (!node || typeof node.querySelector !== 'function') return;
+  const doc = node.ownerDocument || (typeof document !== 'undefined' ? document : null);
+  ['x', 'y'].forEach((axisKey) => {
+    const existing = node.querySelector(`[data-axis-arrow="${axisKey}"]`);
+    if (existing) return;
+    const clone = cloneAxisArrowNode(axisKey, doc);
+    if (clone) {
+      node.appendChild(clone);
+    }
+  });
+}
+
 function cloneBoardSvgRoot() {
   if (!appState.board || !appState.board.renderer || !appState.board.renderer.svgRoot) return null;
   const width = appState.board.canvasWidth;
@@ -6283,6 +6356,7 @@ function cloneBoardSvgRoot() {
   sanitizeSvgForeignObjects(node);
   appendAxisLabelsToSvgClone(node);
   appendCurveLabelsToSvgClone(node);
+  ensureAxisArrowsInSvgClone(node);
   const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
   if (helper && typeof helper.ensureSvgBackground === 'function') {
     helper.ensureSvgBackground(node, {
