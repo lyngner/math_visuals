@@ -2357,6 +2357,31 @@ function computeAutoScreenFunctions() {
     ymax = cy + half;
   }
 
+  // Begrens utsnittet og sørg for minimumsstørrelse
+  const MAX_VAL = 10000;
+  const MIN_SPAN = 0.1;
+
+  if (!Number.isFinite(xmin)) xmin = -5;
+  if (!Number.isFinite(xmax)) xmax = 5;
+  xmin = Math.max(-MAX_VAL, Math.min(MAX_VAL, xmin));
+  xmax = Math.max(-MAX_VAL, Math.min(MAX_VAL, xmax));
+
+  if (!Number.isFinite(ymin)) ymin = -5;
+  if (!Number.isFinite(ymax)) ymax = 5;
+  ymin = Math.max(-MAX_VAL, Math.min(MAX_VAL, ymin));
+  ymax = Math.max(-MAX_VAL, Math.min(MAX_VAL, ymax));
+
+  if (xmax - xmin < MIN_SPAN) {
+    const mid = (xmin + xmax) / 2;
+    xmin = mid - MIN_SPAN / 2;
+    xmax = mid + MIN_SPAN / 2;
+  }
+  if (ymax - ymin < MIN_SPAN) {
+    const mid = (ymin + ymax) / 2;
+    ymin = mid - MIN_SPAN / 2;
+    ymax = mid + MIN_SPAN / 2;
+  }
+
   // Aksene alltid med
   xmin = Math.min(xmin, 0);
   xmax = Math.max(xmax, 0);
