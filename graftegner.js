@@ -8239,6 +8239,16 @@ function setupSettingsForm() {
     }
     return row;
   };
+  const resetScreenStateForExample = () => {
+    ADV.screen = null;
+    LAST_COMPUTED_SCREEN = null;
+    LAST_SCREEN_SOURCE = 'auto';
+    if (screenInput) {
+      screenInput.value = '';
+      if (screenInput.dataset) screenInput.dataset.autoscreen = '1';
+      screenInput.classList.add('is-auto');
+    }
+  };
   const fillFormFromSimple = simple => {
     const source = typeof simple === 'string' ? simple : typeof window !== 'undefined' ? window.SIMPLE : SIMPLE;
     const text = typeof source === 'string' ? source : '';
@@ -8380,6 +8390,7 @@ function setupSettingsForm() {
   }
   if (typeof window !== 'undefined') {
     window.addEventListener('examples:loaded', () => {
+      resetScreenStateForExample();
       fillFormFromSimple(window.SIMPLE);
       apply();
     });
