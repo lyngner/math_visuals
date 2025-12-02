@@ -801,6 +801,11 @@ function expandScreenToLockAspect(screen) {
     return screen.slice(0, 4);
   }
   const span = Math.max(width, height);
+
+  if (ADV && ADV.firstQuadrant) {
+    return [xmin, xmin + span, ymin, ymin + span];
+  }
+
   const cx = (xmin + xmax) / 2;
   const cy = (ymin + ymax) / 2;
   const half = span / 2;
@@ -2411,43 +2416,35 @@ function computeAutoScreenFunctions() {
   if (!Number.isFinite(ymin)) ymin = -5;
   if (!Number.isFinite(ymax)) ymax = 5;
 
-  // Sentrer, clamp og sikre fornuftig utsnitt for å hindre hopping
-  const finalSpanX = xmax - xmin;
-  const finalSpanY = ymax - ymin;
-  xmin -= finalSpanX * 0.1;
-  xmax += finalSpanX * 0.1;
-  ymin -= finalSpanY * 0.1;
-  ymax += finalSpanY * 0.1;
+  const spanX = xmax - xmin;
+  const spanY = ymax - ymin;
+  const padFactor = 0.1;
 
-  const MAX_AUTO = 20;
-  xmin = Math.max(-MAX_AUTO, Math.min(MAX_AUTO, xmin));
-  xmax = Math.max(-MAX_AUTO, Math.min(MAX_AUTO, xmax));
-  ymin = Math.max(-MAX_AUTO, Math.min(MAX_AUTO, ymin));
-  ymax = Math.max(-MAX_AUTO, Math.min(MAX_AUTO, ymax));
+  xmin -= spanX * padFactor;
+  xmax += spanX * padFactor;
+  ymin -= spanY * padFactor;
+  ymax += spanY * padFactor;
 
-  if (xmax - xmin < 2) {
-    const c = (xmax + xmin) / 2;
-    xmin = c - 1;
-    xmax = c + 1;
-  }
-  if (ymax - ymin < 2) {
-    const c = (ymax + ymin) / 2;
-    ymin = c - 1;
-    ymax = c + 1;
+  if (ADV.firstQuadrant) {
+    xmin = Math.max(0, xmin);
+    ymin = Math.max(0, ymin);
+    if (ymax < 1) ymax = 10;
+    if (xmax < 1) xmax = 10;
   }
 
-  // Aksene alltid med (snapping)
-  // Hvis vi skal være i 1. kvadrant, ikke legg til negativ marg.
+  const MAX_VAL = 1000;
+  xmin = Math.max(-MAX_VAL, xmin);
+  xmax = Math.min(MAX_VAL, xmax);
+  ymin = Math.max(-MAX_VAL, ymin);
+  ymax = Math.min(MAX_VAL, ymax);
+
   if (!ADV.firstQuadrant) {
     if (xmin > 0) xmin = -0.5;
     if (ymin > 0) ymin = -0.5;
-  } else {
-    xmin = Math.max(0, xmin);
-    ymin = Math.max(0, ymin);
   }
 
-  if (xmax < 0) xmax = 0.5;
-  if (ymax < 0) ymax = 0.5;
+  if (xmax <= xmin) xmax = xmin + 10;
+  if (ymax <= ymin) ymax = ymin + 10;
 
   const screen = [xmin, xmax, ymin, ymax];
   return normalizeAutoScreen(screen);
@@ -3218,43 +3215,33 @@ function enforceAspectStrict() {
   enforcing = true;
   try {
     let [xmin, ymax, xmax, ymin] = brd.getBoundingBox();
-    const pixAR = brd.canvasWidth / brd.canvasHeight;
-    const W = xmax - xmin,
-      H = ymax - ymin;
+    const W = xmax - xmin;
+    const H = ymax - ymin;
 
-    if (!(W > 0 && H > 0) || !Number.isFinite(pixAR)) return;
+    if (!(W > 0 && H > 0)) return;
+
+    const pixAR = brd.canvasWidth / brd.canvasHeight;
+    if (!Number.isFinite(pixAR)) return;
 
     const worldAR = W / H;
-    if (Math.abs(worldAR - pixAR) < 1e-9) return;
+    if (Math.abs(worldAR - pixAR) < 1e-3) return;
 
-    const HARD_MIN_Q1 = -0.5;
-    if (ADV && ADV.firstQuadrant) {
-      xmin = Math.max(xmin, HARD_MIN_Q1);
-      ymin = Math.max(ymin, HARD_MIN_Q1);
-      const width = Math.max(xmax - xmin, 1e-9);
-      const height = Math.max(ymax - ymin, 1e-9);
-      let newW = width,
-        newH = height;
-      const anchoredAR = width / height;
-      if (anchoredAR > pixAR) {
-        newH = width / pixAR;
-      } else {
-        newW = height * pixAR;
-      }
-      brd.setBoundingBox([xmin, ymin + newH, xmin + newW, ymin], false);
-      return;
-    }
+    let newW = W;
+    let newH = H;
 
-    let newW = W,
-      newH = H;
     if (worldAR > pixAR) {
       newH = W / pixAR;
     } else {
       newW = H * pixAR;
     }
-    const cx = (xmax + xmin) / 2,
-      cy = (ymax + ymin) / 2;
-    brd.setBoundingBox([cx - newW / 2, cy + newH / 2, cx + newW / 2, cy - newH / 2], false);
+
+    if (ADV && ADV.firstQuadrant) {
+      brd.setBoundingBox([xmin, ymin + newH, xmin + newW, ymin], false);
+    } else {
+      const cx = (xmax + xmin) / 2;
+      const cy = (ymax + ymin) / 2;
+      brd.setBoundingBox([cx - newW / 2, cy + newH / 2, cx + newW / 2, cy - newH / 2], false);
+    }
   } finally {
     enforcing = false;
   }
