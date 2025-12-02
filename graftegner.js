@@ -5775,18 +5775,15 @@ function hideCheckControls() {
 }
 
 /* ================= Oppdater / resize ================= */
-function updateAfterViewChange() {
-  if (!brd) return;
-  enforceAspectStrict();
-  applyTickSettings();
-  if (ADV.axis.forceIntegers) {
-    rebuildGrid();
-  }
-  placeAxisNames();
-  updateAxisArrows();
-  if (MODE === 'functions') {
-    rebuildAllFunctionSegments();
-    updateAllBrackets();
+  function updateAfterViewChange() {
+    if (!brd) return;
+    enforceAspectStrict();
+    applyTickSettings();
+    placeAxisNames();
+    updateAxisArrows();
+    if (MODE === 'functions') {
+      rebuildAllFunctionSegments();
+      updateAllBrackets();
   }
   if (brd && typeof brd.getBoundingBox === 'function') {
     const bb = brd.getBoundingBox();
@@ -5854,6 +5851,9 @@ function updateAfterViewChange() {
           if (input.dataset) delete input.dataset.autoscreen;
         }
       }
+    }
+    if (ADV.axis.forceIntegers) {
+      rebuildGrid();
     }
   }
 }
