@@ -390,7 +390,7 @@ function refreshGraftegnerTheme(options = {}) {
   if (typeof refreshFunctionColorDefaults === 'function') {
     refreshFunctionColorDefaults();
   }
-  const shouldRequestRebuild = typeof requestRebuild === 'function' && !IS_REBUILDING;
+  const shouldRequestRebuild = typeof requestRebuild === 'function' && !appState.isRebuilding;
   if (shouldRequestRebuild) {
     requestRebuild();
   }
@@ -953,39 +953,43 @@ const ALT_TEXT_DEFAULT_STATE = {
   text: '',
   source: 'auto'
 };
-let ALT_TEXT_STATE = {
-  ...ALT_TEXT_DEFAULT_STATE
+const appState = {
+  altText: {
+    ...ALT_TEXT_DEFAULT_STATE
+  },
+  altTextManager: null,
+  board: null,
+  axes: {
+    x: null,
+    y: null,
+    labels: { x: null, y: null },
+    arrows: { x: null, y: null },
+    customTicks: { x: null, y: null }
+  },
+  grid: {
+    vertical: [],
+    horizontal: []
+  },
+  graphs: [],
+  points: {
+    A: null,
+    B: null,
+    moving: []
+  },
+  isRebuilding: false
 };
 if (typeof window !== 'undefined' && window.GRAF_ALT_TEXT && typeof window.GRAF_ALT_TEXT === 'object') {
   const existing = window.GRAF_ALT_TEXT;
-  ALT_TEXT_STATE.text = typeof existing.text === 'string' ? existing.text : '';
-  ALT_TEXT_STATE.source = existing.source === 'manual' ? 'manual' : 'auto';
+  appState.altText.text = typeof existing.text === 'string' ? existing.text : '';
+  appState.altText.source = existing.source === 'manual' ? 'manual' : 'auto';
 }
 if (typeof window !== 'undefined') {
-  window.GRAF_ALT_TEXT = ALT_TEXT_STATE;
+  window.GRAF_ALT_TEXT = appState.altText;
 }
-let altTextManager = null;
-
-let brd = null;
-let axX = null;
-let axY = null;
-let xName = null;
-let yName = null;
 const AXIS_LABEL_STATE = {
   x: { manual: false, position: null },
   y: { manual: false, position: null }
 };
-let axisArrowX = null;
-let axisArrowY = null;
-let customTicksX = null;
-let customTicksY = null;
-let gridV = [];
-let gridH = [];
-let graphs = [];
-let A = null;
-let B = null;
-let moving = [];
-let IS_REBUILDING = false;
 
 /* ====================== AVANSERT KONFIG ===================== */
 const INITIAL_POINT_MARKER_RAW = paramStr('marker', DEFAULT_POINT_MARKER);
@@ -2586,53 +2590,53 @@ function syncSimpleFromWindow() {
 }
 function destroyBoard() {
   resetViewChangeScheduling();
-  if (brd) {
+  if (appState.board) {
     try {
       var _brd$off, _brd;
-      (_brd$off = (_brd = brd).off) === null || _brd$off === void 0 || _brd$off.call(_brd, 'boundingbox', updateAfterViewChange);
+      (_brd$off = (_brd = appState.board).off) === null || _brd$off === void 0 || _brd$off.call(_brd, 'boundingbox', updateAfterViewChange);
     } catch (_) {}
     try {
-      if (customTicksX) {
-        brd.removeObject(customTicksX);
+      if (appState.axes.customTicks.x) {
+        appState.board.removeObject(appState.axes.customTicks.x);
       }
-      if (customTicksY) {
-        brd.removeObject(customTicksY);
+      if (appState.axes.customTicks.y) {
+        appState.board.removeObject(appState.axes.customTicks.y);
       }
     } catch (_) {}
     try {
       const jxg = getJXG();
       if (jxg && jxg.JSXGraph && typeof jxg.JSXGraph.freeBoard === 'function') {
-        jxg.JSXGraph.freeBoard(brd);
+        jxg.JSXGraph.freeBoard(appState.board);
       }
     } catch (_) {}
   }
-  brd = null;
-  axX = null;
-  axY = null;
-  xName = null;
-  yName = null;
+  appState.board = null;
+  appState.axes.x = null;
+  appState.axes.y = null;
+  appState.axes.labels.x = null;
+  appState.axes.labels.y = null;
   resetAxisLabelState('x');
   resetAxisLabelState('y');
-  axisArrowX = null;
-  axisArrowY = null;
-  customTicksX = null;
-  customTicksY = null;
-  gridV = [];
-  gridH = [];
-  graphs = [];
-  A = null;
-  B = null;
-  moving = [];
+  appState.axes.arrows.x = null;
+  appState.axes.arrows.y = null;
+  appState.axes.customTicks.x = null;
+  appState.axes.customTicks.y = null;
+  appState.grid.vertical = [];
+  appState.grid.horizontal = [];
+  appState.graphs = [];
+  appState.points.A = null;
+  appState.points.B = null;
+  appState.points.moving = [];
   START_SCREEN = null;
 }
 function applyAxisStyles() {
-  if (!brd || typeof ADV === 'undefined' || !ADV || !ADV.axis || !ADV.axis.style) return;
+  if (!appState.board || typeof ADV === 'undefined' || !ADV || !ADV.axis || !ADV.axis.style) return;
   const stroke = resolveAxisStrokeColor();
   if (stroke) {
     ADV.axis.style.stroke = stroke;
   }
   ['x', 'y'].forEach(ax => {
-    brd.defaultAxes[ax].setAttribute({
+    appState.board.defaultAxes[ax].setAttribute({
       withLabel: false,
       strokeColor: ADV.axis.style.stroke,
       strokeWidth: ADV.axis.style.width,
@@ -2642,8 +2646,8 @@ function applyAxisStyles() {
       firstArrow: false,
       lastArrow: false
     });
-    if (typeof brd.defaultAxes[ax].setHighlight === 'function') {
-      brd.defaultAxes[ax].setHighlight(false);
+    if (typeof appState.board.defaultAxes[ax].setHighlight === 'function') {
+      appState.board.defaultAxes[ax].setHighlight(false);
     }
   });
   updateAxisArrows();
@@ -2657,33 +2661,33 @@ function updateAxisThemeStyling() {
   }
   applyAxisStyles();
   placeAxisNames();
-  if (brd && typeof brd.update === 'function') {
-    brd.update();
+  if (appState.board && typeof appState.board.update === 'function') {
+    appState.board.update();
   }
 }
 function applyTickSettings() {
-  if (!axX || !axY) return;
+  if (!appState.axes.x || !appState.axes.y) return;
   const showNumbers = !!(ADV.axis && ADV.axis.ticks && ADV.axis.ticks.showNumbers);
   const showGrid = !!(ADV.axis && ADV.axis.grid && ADV.axis.grid.show);
   const showTicks = showNumbers || showGrid;
   if (!ADV.axis.forceIntegers) {
-    if (customTicksX) {
+    if (appState.axes.customTicks.x) {
       try {
-        brd.removeObject(customTicksX);
+        appState.board.removeObject(appState.axes.customTicks.x);
       } catch (_) {}
-      customTicksX = null;
+      appState.axes.customTicks.x = null;
     }
-    if (customTicksY) {
+    if (appState.axes.customTicks.y) {
       try {
-        brd.removeObject(customTicksY);
+        appState.board.removeObject(appState.axes.customTicks.y);
       } catch (_) {}
-      customTicksY = null;
+      appState.axes.customTicks.y = null;
     }
-    axX.defaultTicks.setAttribute({
+    appState.axes.x.defaultTicks.setAttribute({
       visible: showTicks,
       drawLabels: showNumbers
     });
-    axY.defaultTicks.setAttribute({
+    appState.axes.y.defaultTicks.setAttribute({
       visible: showTicks,
       drawLabels: showNumbers
     });
@@ -2726,23 +2730,23 @@ function applyTickSettings() {
       offset: [-8, 0]
     }
   };
-  axX.defaultTicks.setAttribute({
+  appState.axes.x.defaultTicks.setAttribute({
     ...tickBase,
     visible: false
   });
-  axY.defaultTicks.setAttribute({
+  appState.axes.y.defaultTicks.setAttribute({
     ...tickBase,
     visible: false
   });
-  if (!customTicksX || customTicksX.board !== brd) {
-    customTicksX = brd.create('ticks', [axX, xOpts.ticksDistance], xOpts);
+  if (!appState.axes.customTicks.x || appState.axes.customTicks.x.board !== appState.board) {
+    appState.axes.customTicks.x = appState.board.create('ticks', [appState.axes.x, xOpts.ticksDistance], xOpts);
   } else {
-    customTicksX.setAttribute(xOpts);
+    appState.axes.customTicks.x.setAttribute(xOpts);
   }
-  if (!customTicksY || customTicksY.board !== brd) {
-    customTicksY = brd.create('ticks', [axY, yOpts.ticksDistance], yOpts);
+  if (!appState.axes.customTicks.y || appState.axes.customTicks.y.board !== appState.board) {
+    appState.axes.customTicks.y = appState.board.create('ticks', [appState.axes.y, yOpts.ticksDistance], yOpts);
   } else {
-    customTicksY.setAttribute(yOpts);
+    appState.axes.customTicks.y.setAttribute(yOpts);
   }
   updateCustomTickSpacing();
 }
@@ -2784,28 +2788,28 @@ function shouldLockForceTicks(screen) {
   return ticksX > FORCE_TICKS_AUTO_DISABLE_LIMIT || ticksY > FORCE_TICKS_AUTO_DISABLE_LIMIT;
 }
 function updateCustomTickSpacing() {
-  if (!brd) return;
-  const bb = brd.getBoundingBox();
+  if (!appState.board) return;
+  const bb = appState.board.getBoundingBox();
   if (!Array.isArray(bb) || bb.length !== 4) return;
   const [xmin, ymax, xmax, ymin] = bb;
-  if (customTicksX) {
+  if (appState.axes.customTicks.x) {
     const spanX = Math.abs(xmax - xmin);
     const spacingX = computeTickSpacing(+ADV.axis.grid.majorX, spanX);
-    customTicksX.setAttribute({
+    appState.axes.customTicks.x.setAttribute({
       ticksDistance: spacingX
     });
-    if (typeof customTicksX.fullUpdate === 'function') {
-      customTicksX.fullUpdate();
+    if (typeof appState.axes.customTicks.x.fullUpdate === 'function') {
+      appState.axes.customTicks.x.fullUpdate();
     }
   }
-  if (customTicksY) {
+  if (appState.axes.customTicks.y) {
     const spanY = Math.abs(ymax - ymin);
     const spacingY = computeTickSpacing(+ADV.axis.grid.majorY, spanY);
-    customTicksY.setAttribute({
+    appState.axes.customTicks.y.setAttribute({
       ticksDistance: spacingY
     });
-    if (typeof customTicksY.fullUpdate === 'function') {
-      customTicksY.fullUpdate();
+    if (typeof appState.axes.customTicks.y.fullUpdate === 'function') {
+      appState.axes.customTicks.y.fullUpdate();
     }
   }
 }
@@ -2815,10 +2819,10 @@ function initBoard() {
   }
   const jxg = getJXG();
   if (!jxg || !jxg.JSXGraph || typeof jxg.JSXGraph.initBoard !== 'function') {
-    brd = null;
+    appState.board = null;
     return;
   }
-  brd = jxg.JSXGraph.initBoard('board', {
+  appState.board = jxg.JSXGraph.initBoard('board', {
     boundingbox: toBB(START_SCREEN),
     axis: true,
     grid: ADV.axis.grid.show && !ADV.axis.forceIntegers,
@@ -2836,62 +2840,62 @@ function initBoard() {
       factorY: ADV.interactions.zoom.factorY
     }
   });
-  axX = brd.defaultAxes.x;
-  axY = brd.defaultAxes.y;
+  appState.axes.x = appState.board.defaultAxes.x;
+  appState.axes.y = appState.board.defaultAxes.y;
   applyAxisStyles();
   applyTickSettings();
-  xName = null;
-  yName = null;
+  appState.axes.labels.x = null;
+  appState.axes.labels.y = null;
   placeAxisNames();
-  gridV = [];
-  gridH = [];
+  appState.grid.vertical = [];
+  appState.grid.horizontal = [];
 }
 
 /* ---------- akser og navn ---------- */
 function axisArrowLengthX() {
-  if (!brd) return 0;
-  const [xmin, , xmax] = brd.getBoundingBox();
+  if (!appState.board) return 0;
+  const [xmin, , xmax] = appState.board.getBoundingBox();
   const span = xmax - xmin;
   if (!Number.isFinite(span) || span === 0) return 0;
-  const px = Math.max(1, brd.canvasWidth || 1);
+  const px = Math.max(1, appState.board.canvasWidth || 1);
   const pixelLength = AXIS_ARROW_PIXEL_THICKNESS * AXIS_ARROW_ASPECT_RATIO;
   const len = (span / px) * pixelLength;
   return Math.max(len, span * 0.01);
 }
 
 function axisArrowHalfHeight() {
-  if (!brd) return 0;
-  const [, ymax, , ymin] = brd.getBoundingBox();
+  if (!appState.board) return 0;
+  const [, ymax, , ymin] = appState.board.getBoundingBox();
   const span = ymax - ymin;
   if (!Number.isFinite(span) || span === 0) return 0;
-  const px = Math.max(1, brd.canvasHeight || 1);
+  const px = Math.max(1, appState.board.canvasHeight || 1);
   const half = (span / px) * (AXIS_ARROW_PIXEL_THICKNESS / 2);
   return Math.max(half, span * 0.01);
 }
 
 function axisArrowLengthY() {
-  if (!brd) return 0;
-  const [, ymax, , ymin] = brd.getBoundingBox();
+  if (!appState.board) return 0;
+  const [, ymax, , ymin] = appState.board.getBoundingBox();
   const span = ymax - ymin;
   if (!Number.isFinite(span) || span === 0) return 0;
-  const px = Math.max(1, brd.canvasHeight || 1);
+  const px = Math.max(1, appState.board.canvasHeight || 1);
   const pixelLength = AXIS_ARROW_PIXEL_THICKNESS * AXIS_ARROW_ASPECT_RATIO;
   const len = (span / px) * pixelLength;
   return Math.max(len, span * 0.01);
 }
 
 function axisArrowHalfWidth() {
-  if (!brd) return 0;
-  const [xmin, , xmax] = brd.getBoundingBox();
+  if (!appState.board) return 0;
+  const [xmin, , xmax] = appState.board.getBoundingBox();
   const span = xmax - xmin;
   if (!Number.isFinite(span) || span === 0) return 0;
-  const px = Math.max(1, brd.canvasWidth || 1);
+  const px = Math.max(1, appState.board.canvasWidth || 1);
   const half = (span / px) * (AXIS_ARROW_PIXEL_THICKNESS / 2);
   return Math.max(half, span * 0.01);
 }
 
 function ensureAxisArrowShapes() {
-  if (!brd) return;
+  if (!appState.board) return;
   const baseOptions = {
     fixed: true,
     highlight: false,
@@ -2899,13 +2903,13 @@ function ensureAxisArrowShapes() {
     cssStyle: 'pointer-events:none;'
   };
   const axisColor = ADV.axis.style.stroke;
-  if (!axisArrowX) {
-    axisArrowX = brd.create(
+  if (!appState.axes.arrows.x) {
+    appState.axes.arrows.x = appState.board.create(
       'image',
       [
         axisArrowSvgData('x', axisColor),
         [
-          () => (brd ? brd.getBoundingBox()[2] - axisArrowLengthX() : 0),
+          () => (appState.board ? appState.board.getBoundingBox()[2] - axisArrowLengthX() : 0),
           () => -axisArrowHalfHeight()
         ],
         [
@@ -2916,14 +2920,14 @@ function ensureAxisArrowShapes() {
       baseOptions
     );
   }
-  if (!axisArrowY) {
-    axisArrowY = brd.create(
+  if (!appState.axes.arrows.y) {
+    appState.axes.arrows.y = appState.board.create(
       'image',
       [
         axisArrowSvgData('y', axisColor),
         [
           () => -axisArrowHalfWidth(),
-          () => (brd ? brd.getBoundingBox()[1] - axisArrowLengthY() : 0)
+          () => (appState.board ? appState.board.getBoundingBox()[1] - axisArrowLengthY() : 0)
         ],
         [
           () => axisArrowHalfWidth() * 2,
@@ -2936,14 +2940,14 @@ function ensureAxisArrowShapes() {
 }
 
 function updateAxisArrows() {
-  if (!brd) return;
+  if (!appState.board) return;
   ensureAxisArrowShapes();
   const axisColor = ADV.axis.style.stroke;
-  if (axisArrowX) {
-    updateAxisArrowImage(axisArrowX, axisArrowSvgData('x', axisColor), axisArrowLengthX(), axisArrowHalfHeight() * 2);
+  if (appState.axes.arrows.x) {
+    updateAxisArrowImage(appState.axes.arrows.x, axisArrowSvgData('x', axisColor), axisArrowLengthX(), axisArrowHalfHeight() * 2);
   }
-  if (axisArrowY) {
-    updateAxisArrowImage(axisArrowY, axisArrowSvgData('y', axisColor), axisArrowHalfWidth() * 2, axisArrowLengthY());
+  if (appState.axes.arrows.y) {
+    updateAxisArrowImage(appState.axes.arrows.y, axisArrowSvgData('y', axisColor), axisArrowHalfWidth() * 2, axisArrowLengthY());
   }
 }
 
@@ -3018,16 +3022,16 @@ function manualAxisLabelPosition(axisKey) {
 }
 
 function computeAxisLabelWorldPosition(axisKey) {
-  if (!brd) return null;
+  if (!appState.board) return null;
   const manual = manualAxisLabelPosition(axisKey);
   if (manual) return manual;
-  const box = brd.getBoundingBox();
+  const box = appState.board.getBoundingBox();
   if (!Array.isArray(box) || box.length < 4) return null;
   const [xmin, ymax, xmax, ymin] = box;
   const rx = xmax - xmin;
   const ry = ymax - ymin;
-  const canvasWidth = Math.max(1, brd.canvasWidth || 1);
-  const canvasHeight = Math.max(1, brd.canvasHeight || 1);
+  const canvasWidth = Math.max(1, appState.board.canvasWidth || 1);
+  const canvasHeight = Math.max(1, appState.board.canvasHeight || 1);
   const offsetX = Number.isFinite(rx) ? (rx / canvasWidth) * AXIS_LABEL_OFFSET_PX : 0;
   const offsetY = Number.isFinite(ry) ? (ry / canvasHeight) * AXIS_LABEL_OFFSET_PX : 0;
   if (axisKey === 'x') {
@@ -3047,15 +3051,15 @@ function computeAxisLabelWorldPosition(axisKey) {
 }
 
 function worldToScreenPoint(worldPoint) {
-  if (!worldPoint || !brd) return null;
-  const box = brd.getBoundingBox();
+  if (!worldPoint || !appState.board) return null;
+  const box = appState.board.getBoundingBox();
   if (!Array.isArray(box) || box.length < 4) return null;
   const [xmin, ymax, xmax, ymin] = box;
   const rx = xmax - xmin;
   const ry = ymax - ymin;
   if (!Number.isFinite(rx) || !Number.isFinite(ry) || rx === 0 || ry === 0) return null;
-  const width = Math.max(1, brd.canvasWidth || 1);
-  const height = Math.max(1, brd.canvasHeight || 1);
+  const width = Math.max(1, appState.board.canvasWidth || 1);
+  const height = Math.max(1, appState.board.canvasHeight || 1);
   const sx = ((worldPoint.x - xmin) / rx) * width;
   const sy = ((ymax - worldPoint.y) / ry) * height;
   if (!Number.isFinite(sx) || !Number.isFinite(sy)) return null;
@@ -3115,14 +3119,14 @@ function curveLabelExportText(label) {
 
 function appendCurveLabelsToSvgClone(node) {
   if (!node || !ADV.curveName || !ADV.curveName.show) return;
-  if (!Array.isArray(graphs) || graphs.length === 0) return;
+  if (!Array.isArray(appState.graphs) || appState.graphs.length === 0) return;
   const doc = node.ownerDocument || (typeof document !== 'undefined' ? document : null);
   if (!doc) return;
   const fontSizeRaw = Number.parseFloat(ADV.curveName.fontSize);
   const fontSize = Number.isFinite(fontSizeRaw) ? fontSizeRaw : 15;
   const group = doc.createElementNS('http://www.w3.org/2000/svg', 'g');
   group.setAttribute('data-export-curve-labels', '');
-  graphs.forEach(g => {
+  appState.graphs.forEach(g => {
     const label = g && g.labelElement;
     if (!label || label.visProp && label.visProp.visible === false) return;
     const textContent = curveLabelExportText(label);
@@ -3150,14 +3154,14 @@ function appendCurveLabelsToSvgClone(node) {
 }
 
 function placeAxisNames() {
-  if (!brd) return;
+  if (!appState.board) return;
   const xWorld = computeAxisLabelWorldPosition('x');
   const yWorld = computeAxisLabelWorldPosition('y');
   const xLabelPos = [Number.isFinite(xWorld === null || xWorld === void 0 ? void 0 : xWorld.x) ? xWorld.x : 0, Number.isFinite(xWorld === null || xWorld === void 0 ? void 0 : xWorld.y) ? xWorld.y : 0];
   const yLabelPos = [Number.isFinite(yWorld === null || yWorld === void 0 ? void 0 : yWorld.x) ? yWorld.x : 0, Number.isFinite(yWorld === null || yWorld === void 0 ? void 0 : yWorld.y) ? yWorld.y : 0];
   const axisLabelCss = 'user-select:none;cursor:move;touch-action:none;';
-  if (!xName) {
-    xName = brd.create('text', [...xLabelPos, () => axisLabelChip('x')], {
+  if (!appState.axes.labels.x) {
+    appState.axes.labels.x = appState.board.create('text', [...xLabelPos, () => axisLabelChip('x')], {
       display: 'html',
       anchorX: 'right',
       anchorY: 'bottom',
@@ -3167,14 +3171,14 @@ function placeAxisNames() {
       cssStyle: axisLabelCss
     });
   } else {
-    xName.setAttribute({
+    appState.axes.labels.x.setAttribute({
       cssStyle: axisLabelCss,
       highlight: false,
       anchorX: 'right'
     });
   }
-  if (!yName) {
-    yName = brd.create('text', [...yLabelPos, () => axisLabelChip('y')], {
+  if (!appState.axes.labels.y) {
+    appState.axes.labels.y = appState.board.create('text', [...yLabelPos, () => axisLabelChip('y')], {
       display: 'html',
       anchorX: 'left',
       anchorY: 'top',
@@ -3184,25 +3188,25 @@ function placeAxisNames() {
       cssStyle: axisLabelCss
     });
   } else {
-    yName.setAttribute({
+    appState.axes.labels.y.setAttribute({
       cssStyle: axisLabelCss,
       highlight: false
     });
   }
-  if (xName) {
-    xName.setText(() => axisLabelChip('x'));
+  if (appState.axes.labels.x) {
+    appState.axes.labels.x.setText(() => axisLabelChip('x'));
   }
-  if (yName) {
-    yName.setText(() => axisLabelChip('y'));
+  if (appState.axes.labels.y) {
+    appState.axes.labels.y.setText(() => axisLabelChip('y'));
   }
-  xName.moveTo(xLabelPos);
-  yName.moveTo(yLabelPos);
-  clampLabelToView(xName, AXIS_LABEL_MARGINS);
-  clampLabelToView(yName, AXIS_LABEL_MARGINS);
-  rememberAxisLabelPosition('x', { x: xName.X(), y: xName.Y() }, !!manualAxisLabelPosition('x'));
-  rememberAxisLabelPosition('y', { x: yName.X(), y: yName.Y() }, !!manualAxisLabelPosition('y'));
-  makeAxisLabelDraggable('x', xName);
-  makeAxisLabelDraggable('y', yName);
+  appState.axes.labels.x.moveTo(xLabelPos);
+  appState.axes.labels.y.moveTo(yLabelPos);
+  clampLabelToView(appState.axes.labels.x, AXIS_LABEL_MARGINS);
+  clampLabelToView(appState.axes.labels.y, AXIS_LABEL_MARGINS);
+  rememberAxisLabelPosition('x', { x: appState.axes.labels.x.X(), y: appState.axes.labels.x.Y() }, !!manualAxisLabelPosition('x'));
+  rememberAxisLabelPosition('y', { x: appState.axes.labels.y.X(), y: appState.axes.labels.y.Y() }, !!manualAxisLabelPosition('y'));
+  makeAxisLabelDraggable('x', appState.axes.labels.x);
+  makeAxisLabelDraggable('y', appState.axes.labels.y);
 }
 
 /* ====== Lås 1:1 når lockAspect===true,
@@ -3216,16 +3220,16 @@ function shouldLockAspect() {
 }
 let enforcing = false;
 function enforceAspectStrict() {
-  if (!brd || !shouldLockAspect() || enforcing) return;
+  if (!appState.board || !shouldLockAspect() || enforcing) return;
   enforcing = true;
   try {
-    let [xmin, ymax, xmax, ymin] = brd.getBoundingBox();
+    let [xmin, ymax, xmax, ymin] = appState.board.getBoundingBox();
     const W = xmax - xmin;
     const H = ymax - ymin;
 
     if (!(W > 0 && H > 0)) return;
 
-    const pixAR = brd.canvasWidth / brd.canvasHeight;
+    const pixAR = appState.board.canvasWidth / appState.board.canvasHeight;
     if (!Number.isFinite(pixAR)) return;
 
     const worldAR = W / H;
@@ -3241,11 +3245,11 @@ function enforceAspectStrict() {
     }
 
     if (ADV && ADV.firstQuadrant) {
-      brd.setBoundingBox([xmin, ymin + newH, xmin + newW, ymin], false);
+      appState.board.setBoundingBox([xmin, ymin + newH, xmin + newW, ymin], false);
     } else {
       const cx = (xmax + xmin) / 2;
       const cy = (ymax + ymin) / 2;
-      brd.setBoundingBox([cx - newW / 2, cy + newH / 2, cx + newW / 2, cy - newH / 2], false);
+      appState.board.setBoundingBox([cx - newW / 2, cy + newH / 2, cx + newW / 2, cy - newH / 2], false);
     }
   } finally {
     enforcing = false;
@@ -3254,17 +3258,17 @@ function enforceAspectStrict() {
 
 /* ---------- GRID (statisk) ---------- */
 function rebuildGrid() {
-  if (!brd) return;
+  if (!appState.board) return;
   
   // Fjern gamle linjer
-  for (const L of gridV) {
-    try { brd.removeObject(L); } catch (_) {}
+  for (const L of appState.grid.vertical) {
+    try { appState.board.removeObject(L); } catch (_) {}
   }
-  for (const L of gridH) {
-    try { brd.removeObject(L); } catch (_) {}
+  for (const L of appState.grid.horizontal) {
+    try { appState.board.removeObject(L); } catch (_) {}
   }
-  gridV = [];
-  gridH = [];
+  appState.grid.vertical = [];
+  appState.grid.horizontal = [];
 
   if (!ADV.axis.forceIntegers || !ADV.axis.grid.show) {
     return;
@@ -3272,7 +3276,7 @@ function rebuildGrid() {
 
   enforceAspectStrict();
   
-  const [xmin, ymax, xmax, ymin] = brd.getBoundingBox();
+  const [xmin, ymax, xmax, ymin] = appState.board.getBoundingBox();
   const sx = +ADV.axis.grid.majorX > 1e-9 ? +ADV.axis.grid.majorX : 1;
   const sy = +ADV.axis.grid.majorY > 1e-9 ? +ADV.axis.grid.majorY : 1;
 
@@ -3296,12 +3300,12 @@ function rebuildGrid() {
 
   // Tegn VERTIKALE linjer (x endres, men y er låst til gridBottom/Top)
   for (let x = gridLeft; x <= gridRight + 1e-9; x += sx) {
-    gridV.push(brd.create('line', [[x, gridBottom], [x, gridTop]], attrs));
+    appState.grid.vertical.push(appState.board.create('line', [[x, gridBottom], [x, gridTop]], attrs));
   }
 
   // Tegn HORISONTALE linjer (y endres, men x er låst til gridLeft/Right)
   for (let y = gridBottom; y <= gridTop + 1e-9; y += sy) {
-    gridH.push(brd.create('line', [[gridLeft, y], [gridRight, y]], attrs));
+    appState.grid.horizontal.push(appState.board.create('line', [[gridLeft, y], [gridRight, y]], attrs));
   }
 }
 
@@ -3361,7 +3365,7 @@ function measureTextPx(label) {
 }
 function ensurePlateFor(label) {
   if (label._plate) return;
-  const mkPt = (x, y) => brd.create('point', [x, y], {
+  const mkPt = (x, y) => appState.board.create('point', [x, y], {
     visible: false,
     fixed: true,
     layer: ADV.curveName.layer - 1
@@ -3370,7 +3374,7 @@ function ensurePlateFor(label) {
     p2 = mkPt(0, 0),
     p3 = mkPt(0, 0),
     p4 = mkPt(0, 0);
-  brd.create('polygon', [p1, p2, p3, p4], {
+  appState.board.create('polygon', [p1, p2, p3, p4], {
     fillColor: ADV.curveName.plate.fill,
     fillOpacity: ADV.curveName.plate.opacity,
     borders: {
@@ -3396,9 +3400,9 @@ function ensureLabelFront(label) {
 }
 function updatePlate(label) {
   if (!label._plate) return;
-  const [xmin, ymax, xmax, ymin] = brd.getBoundingBox();
-  const ux = (xmax - xmin) / brd.canvasWidth,
-    uy = (ymax - ymin) / brd.canvasHeight;
+  const [xmin, ymax, xmax, ymin] = appState.board.getBoundingBox();
+  const ux = (xmax - xmin) / appState.board.canvasWidth,
+    uy = (ymax - ymin) / appState.board.canvasHeight;
   const {
       w,
       h
@@ -3437,7 +3441,7 @@ function updatePlate(label) {
 }
 function clampLabelToView(label, marginFractions) {
   if (!label) return;
-  const bb = brd.getBoundingBox();
+  const bb = appState.board.getBoundingBox();
   const xmin = bb[0],
     xmax = bb[2],
     ymin = bb[3],
@@ -3468,7 +3472,7 @@ function makeAxisLabelDraggable(axisKey, label) {
     let offset = [0, 0];
     const toCoords = ev => {
       try {
-        const c = brd.getUsrCoordsOfMouse(ev);
+        const c = appState.board.getUsrCoordsOfMouse(ev);
         if (Array.isArray(c) && c.length >= 2) {
           return [c[0], c[1]];
         }
@@ -3546,7 +3550,7 @@ function makeLabelDraggable(label, g, reposition) {
     let offset = [0, 0];
     const toCoords = ev => {
       try {
-        const c = brd.getUsrCoordsOfMouse(ev);
+        const c = appState.board.getUsrCoordsOfMouse(ev);
         if (Array.isArray(c) && c.length >= 2) {
           return [c[0], c[1]];
         }
@@ -3629,10 +3633,10 @@ function colorFor(i) {
   return palette[index % palette.length];
 }
 function updateCurveColorsFromTheme() {
-  if (!Array.isArray(graphs) || graphs.length === 0) return;
-  const palette = resolveCurvePalette(graphs.length);
+  if (!Array.isArray(appState.graphs) || appState.graphs.length === 0) return;
+  const palette = resolveCurvePalette(appState.graphs.length);
   let updated = false;
-  graphs.forEach((g, idx) => {
+  appState.graphs.forEach((g, idx) => {
     if (!g) return;
     const nextColor = palette[idx % palette.length];
     const paletteColor = typeof nextColor === 'string' && nextColor ? nextColor : null;
@@ -3679,21 +3683,21 @@ function updateCurveColorsFromTheme() {
       });
     }
   });
-  if (updated && brd && typeof brd.update === 'function') {
-    brd.update();
+  if (updated && appState.board && typeof appState.board.update === 'function') {
+    appState.board.update();
   }
 }
 
 /* =================== SEGMENTERT TEGNING =================== */
 function removeSegments(g) {
   if (g.segs) {
-    g.segs.forEach(s => brd.removeObject(s));
+    g.segs.forEach(s => appState.board.removeObject(s));
     g.segs = [];
   }
 }
 function rebuildFunctionSegmentsFor(g) {
   removeSegments(g);
-  const bb = brd.getBoundingBox();
+  const bb = appState.board.getBoundingBox();
   let L = bb[0],
     R = bb[2];
   if (g.domain) {
@@ -3727,7 +3731,7 @@ function rebuildFunctionSegmentsFor(g) {
     if (leftOpen) a += eps;
     if (rightOpen) b -= eps;
     if (b <= a) continue;
-    const seg = brd.create('functiongraph', [safe, () => a, () => b], {
+    const seg = appState.board.create('functiongraph', [safe, () => a, () => b], {
       strokeColor: g.color,
       strokeWidth: 4,
       fixed: true,
@@ -3737,7 +3741,7 @@ function rebuildFunctionSegmentsFor(g) {
   }
 }
 function rebuildAllFunctionSegments() {
-  graphs.forEach(rebuildFunctionSegmentsFor);
+  appState.graphs.forEach(rebuildFunctionSegmentsFor);
 }
 
 /* =================== FUNKSJONER + BRACKETS =================== */
@@ -4347,20 +4351,20 @@ function resolveAltTextTitle() {
 }
 function refreshAltText(reason) {
   const signature = buildGrafAltText();
-  if (altTextManager && typeof altTextManager.refresh === 'function') {
-    altTextManager.refresh(reason || 'auto', signature);
-  } else if (altTextManager && typeof altTextManager.notifyFigureChange === 'function') {
-    altTextManager.notifyFigureChange(signature);
+  if (appState.altTextManager && typeof appState.altTextManager.refresh === 'function') {
+    appState.altTextManager.refresh(reason || 'auto', signature);
+  } else if (appState.altTextManager && typeof appState.altTextManager.notifyFigureChange === 'function') {
+    appState.altTextManager.notifyFigureChange(signature);
   }
 }
 function applyAltTextToBoard() {
-  if (altTextManager) {
-    altTextManager.applyCurrent();
+  if (appState.altTextManager) {
+    appState.altTextManager.applyCurrent();
   }
 }
 
 function getCurrentAltText() {
-  const text = ALT_TEXT_STATE && typeof ALT_TEXT_STATE.text === 'string' ? ALT_TEXT_STATE.text.trim() : '';
+  const text = appState.altText && typeof appState.altText.text === 'string' ? appState.altText.text.trim() : '';
   if (text) {
     return text;
   }
@@ -4371,24 +4375,24 @@ function initAltTextManager() {
   if (typeof window === 'undefined' || !window.MathVisAltText) return;
   const container = document.getElementById('exportCard');
   if (!container) return;
-  if (altTextManager) {
-    altTextManager.ensureDom();
-    altTextManager.applyCurrent();
+  if (appState.altTextManager) {
+    appState.altTextManager.ensureDom();
+    appState.altTextManager.applyCurrent();
     return;
   }
-  altTextManager = window.MathVisAltText.create({
-    svg: () => brd && brd.renderer && brd.renderer.svgRoot || null,
+  appState.altTextManager = window.MathVisAltText.create({
+    svg: () => appState.board && appState.board.renderer && appState.board.renderer.svgRoot || null,
     container,
     getTitle: resolveAltTextTitle,
     getState: () => ({
-      text: typeof ALT_TEXT_STATE.text === 'string' ? ALT_TEXT_STATE.text : '',
-      source: ALT_TEXT_STATE.source === 'manual' ? 'manual' : 'auto'
+      text: typeof appState.altText.text === 'string' ? appState.altText.text : '',
+      source: appState.altText.source === 'manual' ? 'manual' : 'auto'
     }),
     setState: (text, source) => {
-      ALT_TEXT_STATE.text = typeof text === 'string' ? text : '';
-      ALT_TEXT_STATE.source = source === 'manual' ? 'manual' : 'auto';
+      appState.altText.text = typeof text === 'string' ? text : '';
+      appState.altText.source = source === 'manual' ? 'manual' : 'auto';
       if (typeof window !== 'undefined') {
-        window.GRAF_ALT_TEXT = ALT_TEXT_STATE;
+        window.GRAF_ALT_TEXT = appState.altText;
       }
     },
     generate: () => buildGrafAltText(),
@@ -4396,8 +4400,8 @@ function initAltTextManager() {
     getAutoMessage: reason => reason && reason.startsWith('manual') ? 'Alternativ tekst oppdatert.' : 'Alternativ tekst oppdatert automatisk.',
     getManualMessage: () => 'Alternativ tekst oppdatert manuelt.'
   });
-  if (altTextManager) {
-    altTextManager.applyCurrent();
+  if (appState.altTextManager) {
+    appState.altTextManager.applyCurrent();
     refreshAltText('init');
   }
 }
@@ -4427,7 +4431,7 @@ function makeSmartCurveLabel(g, idx, content) {
       return cached;
     };
   })();
-  const label = brd.create('text', [0, 0, renderer], {
+  const label = appState.board.create('text', [0, 0, renderer], {
     color: g.color,
     fillColor: g.color,
     fontSize: ADV.curveName.fontSize,
@@ -4446,7 +4450,7 @@ function makeSmartCurveLabel(g, idx, content) {
   function finiteYAt(x) {
     let y = g.fn(x);
     if (Number.isFinite(y)) return y;
-    const [xmin, ymax, xmax, ymin] = brd.getBoundingBox();
+    const [xmin, ymax, xmax, ymin] = appState.board.getBoundingBox();
     const span = xmax - xmin,
       step = span / 60;
     for (let k = 1; k <= 60; k++) {
@@ -4466,7 +4470,7 @@ function makeSmartCurveLabel(g, idx, content) {
       ensureLabelFront(label);
       return;
     }
-    const bb = brd.getBoundingBox(),
+    const bb = appState.board.getBoundingBox(),
       xmin = bb[0],
       xmax = bb[2],
       ymin = bb[3],
@@ -4496,8 +4500,8 @@ function makeSmartCurveLabel(g, idx, content) {
       const L2 = Math.hypot(nx, ny) || 1;
       nx /= L2;
       ny /= L2;
-      const rx = (xmax - xmin) / brd.canvasWidth,
-        ry = (ymax - ymin) / brd.canvasHeight;
+      const rx = (xmax - xmin) / appState.board.canvasWidth,
+        ry = (ymax - ymin) / appState.board.canvasHeight;
       const off = ADV.curveName.gapPx;
       let X = x + nx * off * rx,
         Y = y + ny * off * ry;
@@ -4520,14 +4524,14 @@ function makeSmartCurveLabel(g, idx, content) {
     g._labelManual = false;
   }
   position();
-  brd.on('boundingbox', position);
+  appState.board.on('boundingbox', position);
   makeLabelDraggable(label, g, position);
   g._repositionLabel = position;
 }
 function removeBracketAt(g, side) {
   if (!g || !g._br || !g._br[side]) return;
   const items = g._br[side];
-  items.forEach(o => brd.removeObject(o));
+  items.forEach(o => appState.board.removeObject(o));
   g._br[side] = null;
 }
 
@@ -4557,9 +4561,9 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
   removeBracketAt(g, side);
   if (!g.domain || !shouldShowDomainMarker(g.domain, side) || !ADV.domainMarkers.show) return;
   if (!Number.isFinite(x0)) return;
-  const [xmin, ymax, xmax, ymin] = brd.getBoundingBox();
-  const rx = (xmax - xmin) / brd.canvasWidth;
-  const ry = (ymax - ymin) / brd.canvasHeight;
+  const [xmin, ymax, xmax, ymin] = appState.board.getBoundingBox();
+  const rx = (xmax - xmin) / appState.board.canvasWidth;
+  const ry = (ymax - ymin) / appState.board.canvasHeight;
   const baseH = Math.max((xmax - xmin) / 200, 1e-4);
 
   // Finn et punkt innover i domenet med finite y
@@ -4632,12 +4636,12 @@ function makeBracketAt(g, x0, side /* -1 = venstre (a), +1 = høyre (b) */, clos
     const dx = q[0] - p[0];
     const dy = q[1] - p[1];
     if (Math.hypot(dx, dy) < 1e-8) continue;
-    segments.push(brd.create('segment', [p, q], style));
+    segments.push(appState.board.create('segment', [p, q], style));
   }
   g._br[side] = segments;
 }
 function updateAllBrackets() {
-  for (const g of graphs) {
+  for (const g of appState.graphs) {
     if (!g.domain) {
       removeBracketAt(g, -1);
       removeBracketAt(g, +1);
@@ -4691,7 +4695,7 @@ function buildCurveLabelContent(fun) {
   };
 }
 function buildFunctions() {
-  graphs = [];
+  appState.graphs = [];
   const requiredCount = Math.max(1, Array.isArray(SIMPLE_PARSED.funcs) ? SIMPLE_PARSED.funcs.length : 1);
   ensurePaletteCapacity(requiredCount);
   const fallbackColor = normalizeColorValue(getDefaultCurveColor(0))
@@ -4736,25 +4740,25 @@ function buildFunctions() {
     g.segs = [];
 
     // usynlig "carrier" for glidere – VIKTIG: STRAMT TIL DOMENET
-    const xMinCarrier = g.domain ? g.domain.min : () => brd.getBoundingBox()[0];
-    const xMaxCarrier = g.domain ? g.domain.max : () => brd.getBoundingBox()[2];
-    g.carrier = brd.create('functiongraph', [g.fn, xMinCarrier, xMaxCarrier], {
+    const xMinCarrier = g.domain ? g.domain.min : () => appState.board.getBoundingBox()[0];
+    const xMaxCarrier = g.domain ? g.domain.max : () => appState.board.getBoundingBox()[2];
+    g.carrier = appState.board.create('functiongraph', [g.fn, xMinCarrier, xMaxCarrier], {
       visible: false,
       strokeOpacity: 0,
       fixed: true
     });
-    graphs.push(g);
+    appState.graphs.push(g);
     if (labelContent) {
       makeSmartCurveLabel(g, i, labelContent);
     }
   });
   rebuildAllFunctionSegments();
   updateAllBrackets();
-  LAST_FUNCTION_VIEW_SCREEN = fromBoundingBox(brd && brd.getBoundingBox ? brd.getBoundingBox() : null);
+  LAST_FUNCTION_VIEW_SCREEN = fromBoundingBox(appState.board && appState.board.getBoundingBox ? appState.board.getBoundingBox() : null);
 
   // glidere
   const n = SIMPLE_PARSED.pointsCount | 0;
-  if (n > 0 && graphs.length > 0) {
+  if (n > 0 && appState.graphs.length > 0) {
     const firstFunc = SIMPLE_PARSED.funcs && SIMPLE_PARSED.funcs.length ? SIMPLE_PARSED.funcs[0] : null;
     const gliderTemplate = interpretLineTemplate(firstFunc ? firstFunc.rhs : '');
     const shouldEmitLinePointEvents = !!(gliderTemplate && gliderTemplate.kind);
@@ -4787,7 +4791,7 @@ function buildFunctions() {
       }
       window.dispatchEvent(new CustomEvent('graf:linepoints-changed', { detail }));
     };
-    const G = graphs[0];
+    const G = appState.graphs[0];
     const sxList = SIMPLE_PARSED.startX && SIMPLE_PARSED.startX.length > 0 ? SIMPLE_PARSED.startX : ADV.points.startX && ADV.points.startX.length > 0 ? ADV.points.startX : [0];
     function stepXg() {
       return (ADV.points.snap.stepX != null ? ADV.points.snap.stepX : +ADV.axis.grid.majorX) || 1;
@@ -4799,7 +4803,7 @@ function buildFunctions() {
     };
     for (let i = 0; i < n; i++) {
       const xi = sxList[i] != null ? clampToDomain(sxList[i]) : clampToDomain(sxList[0]);
-      const P = brd.create('glider', [xi, G.fn(xi), G.carrier], {
+      const P = appState.board.create('glider', [xi, G.fn(xi), G.carrier], {
         name: '',
         withLabel: true,
         face: 'o',
@@ -4851,7 +4855,7 @@ function buildFunctions() {
         });
       }
       if (MODE === 'functions' && ADV.points.guideArrows) {
-        brd.create('arrow', [() => [P.X(), P.Y()], () => [0, P.Y()]], {
+        appState.board.create('arrow', [() => [P.X(), P.Y()], () => [0, P.Y()]], {
           strokeColor: DEFAULT_POINT_COLORS.guideStroke || DEFAULT_POINT_COLORS.fallbackGuide,
           strokeWidth: 2,
           dash: 2,
@@ -4861,7 +4865,7 @@ function buildFunctions() {
           layer: 10,
           highlight: false
         });
-        brd.create('arrow', [() => [P.X(), P.Y()], () => [P.X(), 0]], {
+        appState.board.create('arrow', [() => [P.X(), P.Y()], () => [P.X(), 0]], {
           strokeColor: DEFAULT_POINT_COLORS.guideStroke || DEFAULT_POINT_COLORS.fallbackGuide,
           strokeWidth: 2,
           dash: 2,
@@ -4881,10 +4885,10 @@ function buildFunctions() {
 /* =================== LINJE FRA PUNKTER =================== */
 function buildPointsLine() {
   var _SIMPLE_PARSED$funcs$;
-  graphs = [];
-  A = null;
-  B = null;
-  moving = [];
+  appState.graphs = [];
+  appState.points.A = null;
+  appState.points.B = null;
+  appState.points.moving = [];
   const fallbackColor = normalizeColorValue(DEFAULT_POINT_COLORS.line)
     || normalizeColorValue(getDefaultCurveColor(0))
     || DEFAULT_FUNCTION_COLORS.fallback[0]
@@ -4903,7 +4907,7 @@ function buildPointsLine() {
   const start0 = ADV.points.start[0],
     start1 = ADV.points.start[1];
   if (kind === 'two') {
-    const P0 = brd.create('point', start0.slice(), {
+    const P0 = appState.board.create('point', start0.slice(), {
       name: '',
       size: POINT_MARKER_SIZE,
       face: 'o',
@@ -4912,7 +4916,7 @@ function buildPointsLine() {
       withLabel: true,
       showInfobox: false
     });
-    const P1 = brd.create('point', start1.slice(), {
+    const P1 = appState.board.create('point', start1.slice(), {
       name: '',
       size: POINT_MARKER_SIZE,
       face: 'o',
@@ -4921,16 +4925,16 @@ function buildPointsLine() {
       withLabel: true,
       showInfobox: false
     });
-    A = P0;
-    B = P1;
-    moving = [P0, P1];
+    appState.points.A = P0;
+    appState.points.B = P1;
+    appState.points.moving = [P0, P1];
   } else if (kind === 'anchorY') {
-    const F = brd.create('point', [0, anchorC], {
+    const F = appState.board.create('point', [0, anchorC], {
       name: '',
       visible: false,
       fixed: true
     });
-    const P = brd.create('point', start0.slice(), {
+    const P = appState.board.create('point', start0.slice(), {
       name: '',
       size: POINT_MARKER_SIZE,
       face: 'o',
@@ -4939,11 +4943,11 @@ function buildPointsLine() {
       withLabel: true,
       showInfobox: false
     });
-    A = F;
-    B = P;
-    moving = [P];
+    appState.points.A = F;
+    appState.points.B = P;
+    appState.points.moving = [P];
   } else {
-    const P = brd.create('point', start0.slice(), {
+    const P = appState.board.create('point', start0.slice(), {
       name: '',
       size: POINT_MARKER_SIZE,
       face: 'o',
@@ -4952,16 +4956,16 @@ function buildPointsLine() {
       withLabel: true,
       showInfobox: false
     });
-    const Q = brd.create('point', [() => P.X() + 1, () => P.Y() + slopeM], {
+    const Q = appState.board.create('point', [() => P.X() + 1, () => P.Y() + slopeM], {
       name: '',
       visible: false,
       fixed: true
     });
-    A = P;
-    B = Q;
-    moving = [P];
+    appState.points.A = P;
+    appState.points.B = Q;
+    appState.points.moving = [P];
   }
-  const line = brd.create('line', [A, B], {
+  const line = appState.board.create('line', [appState.points.A, appState.points.B], {
     strokeColor: lineColor,
     strokeWidth: 4
   });
@@ -5030,17 +5034,17 @@ function buildPointsLine() {
       label: labelContent.text || '',
       labelContent,
       expression: labelFun.rhs || '',
-      gliders: Array.isArray(moving) ? moving.slice() : [],
+      gliders: Array.isArray(appState.points.moving) ? appState.points.moving.slice() : [],
       segs: [line]
     };
     g.fn = x => {
-      if (!A || !B || typeof A.X !== 'function' || typeof A.Y !== 'function' || typeof B.X !== 'function' || typeof B.Y !== 'function') {
+      if (!appState.points.A || !appState.points.B || typeof appState.points.A.X !== 'function' || typeof appState.points.A.Y !== 'function' || typeof appState.points.B.X !== 'function' || typeof appState.points.B.Y !== 'function') {
         return NaN;
       }
-      const x1 = A.X();
-      const y1 = A.Y();
-      const x2 = B.X();
-      const y2 = B.Y();
+      const x1 = appState.points.A.X();
+      const y1 = appState.points.A.Y();
+      const x2 = appState.points.B.X();
+      const y2 = appState.points.B.Y();
       if (!Number.isFinite(x1) || !Number.isFinite(y1) || !Number.isFinite(x2) || !Number.isFinite(y2)) {
         return NaN;
       }
@@ -5051,15 +5055,15 @@ function buildPointsLine() {
       const m = (y2 - y1) / dx;
       return y1 + m * (x - x1);
     };
-    graphs.push(g);
+    appState.graphs.push(g);
     makeSmartCurveLabel(g, 0, labelContent);
     const refreshLabelPosition = () => {
       if (g && typeof g._repositionLabel === 'function') {
         g._repositionLabel(true);
       }
     };
-    if (Array.isArray(moving)) {
-      moving.forEach(point => {
+    if (Array.isArray(appState.points.moving)) {
+      appState.points.moving.forEach(point => {
         if (!point || typeof point.on !== 'function') return;
         point.on('drag', refreshLabelPosition);
         point.on('up', refreshLabelPosition);
@@ -5079,10 +5083,10 @@ function buildPointsLine() {
     if (typeof updateLabelWithAB === 'function') {
       updateLabelWithAB();
     }
-    if (typeof window === 'undefined' || !Array.isArray(moving) || moving.length === 0) {
+    if (typeof window === 'undefined' || !Array.isArray(appState.points.moving) || appState.points.moving.length === 0) {
       return;
     }
-    const sample = kind === 'two' ? moving : moving.slice(0, 1);
+    const sample = kind === 'two' ? appState.points.moving : appState.points.moving.slice(0, 1);
     const points = [];
     for (const point of sample) {
       if (!point) {
@@ -5109,7 +5113,7 @@ function buildPointsLine() {
   };
   if (ADV.points.snap.enabled) {
     const mode = ADV.points.snap.mode || 'up';
-    for (const P of moving) {
+    for (const P of appState.points.moving) {
       if (mode === 'drag') P.on('drag', () => snap(P));else P.on('up', () => {
         snap(P);
         if (P.label) P.label.setText(() => fmtCoordsStatic(P));
@@ -5117,7 +5121,7 @@ function buildPointsLine() {
     }
   }
   if (ADV.points.showCoordsOnHover) {
-    for (const P of moving) {
+    for (const P of appState.points.moving) {
       P.label.setAttribute({
         visible: false
       });
@@ -5141,8 +5145,8 @@ function buildPointsLine() {
       }));
     }
   }
-  if (Array.isArray(moving)) {
-    for (const P of moving) {
+  if (Array.isArray(appState.points.moving)) {
+    for (const P of appState.points.moving) {
       P.on('drag', () => emitLinePointUpdate({ sync: false }));
       P.on('up', () => emitLinePointUpdate());
     }
@@ -5153,9 +5157,9 @@ function buildPointsLine() {
 
 /* ====== MB fra punktene + tolke fasit-uttrykk robust ====== */
 function currentMB() {
-  const dx = B.X() - A.X();
-  const m = Math.abs(dx) < 1e-12 ? NaN : (B.Y() - A.Y()) / dx;
-  const b = Number.isFinite(m) ? A.Y() - m * A.X() : NaN;
+  const dx = appState.points.B.X() - appState.points.A.X();
+  const m = Math.abs(dx) < 1e-12 ? NaN : (appState.points.B.Y() - appState.points.A.Y()) / dx;
+  const b = Number.isFinite(m) ? appState.points.A.Y() - m * appState.points.A.X() : NaN;
   return {
     m,
     b
@@ -5316,10 +5320,10 @@ function extractGliderAnswerXValues(text) {
 }
 
 function getFunctionGliderPoints(funcIndex) {
-  if (!Array.isArray(graphs) || !Number.isInteger(funcIndex) || funcIndex < 0) {
+  if (!Array.isArray(appState.graphs) || !Number.isInteger(funcIndex) || funcIndex < 0) {
     return [];
   }
-  const graph = graphs[funcIndex];
+  const graph = appState.graphs[funcIndex];
   if (!graph || !Array.isArray(graph.gliders)) {
     return [];
   }
@@ -5712,9 +5716,9 @@ function addFixedPoints() {
       pointOptions.strokeOpacity = 0;
       pointOptions.fillOpacity = 0;
     }
-    const P = brd.create('point', pt.slice(), pointOptions);
+    const P = appState.board.create('point', pt.slice(), pointOptions);
     if (useCustomMarker) {
-      brd.create('text', [() => P.X(), () => P.Y(), markerValue], {
+      appState.board.create('text', [() => P.X(), () => P.Y(), markerValue], {
         anchorX: 'middle',
         anchorY: 'middle',
         fontSize: 24,
@@ -5824,8 +5828,8 @@ function queueFunctionViewUpdate(screen) {
   }
   PENDING_VIEW_CHANGE_HANDLE = setTimeout(() => {
     PENDING_VIEW_CHANGE_HANDLE = null;
-    if (!brd || MODE !== 'functions') return;
-    const latest = fromBoundingBox(brd.getBoundingBox()) || screenCopy;
+    if (!appState.board || MODE !== 'functions') return;
+    const latest = fromBoundingBox(appState.board.getBoundingBox()) || screenCopy;
     if (!Array.isArray(latest) || latest.length !== 4) return;
     if (!screensDifferBeyondNoise(LAST_FUNCTION_VIEW_SCREEN, latest)) return;
     LAST_FUNCTION_VIEW_SCREEN = latest.slice(0, 4);
@@ -5837,7 +5841,7 @@ function queueFunctionViewUpdate(screen) {
 /* ================= Oppdater / resize ================= */
   function updateAfterViewChange() {
     if (IS_SETTING_BOUNDING_BOX) return;
-    if (!brd) return;
+    if (!appState.board) return;
     enforceAspectStrict();
     applyTickSettings();
     if (ADV.axis.forceIntegers) {
@@ -5845,8 +5849,8 @@ function queueFunctionViewUpdate(screen) {
     }
     placeAxisNames();
     updateAxisArrows();
-    if (brd && typeof brd.getBoundingBox === 'function') {
-      const bb = brd.getBoundingBox();
+    if (appState.board && typeof appState.board.getBoundingBox === 'function') {
+      const bb = appState.board.getBoundingBox();
       let screen = fromBoundingBox(bb);
 
       // Avoid propagating absurd or invalid bounding boxes that can appear during
@@ -5885,14 +5889,14 @@ function queueFunctionViewUpdate(screen) {
       }
 
       // 3. Sjekk om vi må oppdatere brettet eller state
-      const currentBB = fromBoundingBox(brd.getBoundingBox());
+      const currentBB = fromBoundingBox(appState.board.getBoundingBox());
       if (!screensEqual(currentBB, screen)) {
-        if (brd && typeof brd.setBoundingBox === 'function') {
+        if (appState.board && typeof appState.board.setBoundingBox === 'function') {
           // False her betyr "ikke tving keepAspectRatio" (fordi vi har beregnet det selv)
           // Men JSXGraph kan være sta, så noen ganger må man bruke true hvis forholdet er riktig.
           IS_SETTING_BOUNDING_BOX = true;
           try {
-            brd.setBoundingBox(toBB(screen), false);
+            appState.board.setBoundingBox(toBB(screen), false);
           } finally {
             IS_SETTING_BOUNDING_BOX = false;
           }
@@ -5923,82 +5927,94 @@ function queueFunctionViewUpdate(screen) {
         }
         queueFunctionViewUpdate(screen);
       }
-    }
   }
+}
+function rememberManualScreenFromBoard() {
+  if (!appState.board) return;
+  const currentBB = fromBoundingBox(appState.board.getBoundingBox());
+  if (!currentBB || !currentBB.every(Number.isFinite)) return;
+  const normalized = normalizeAutoScreen(currentBB);
+  if (!Array.isArray(normalized) || normalized.length !== 4 || !normalized.every(Number.isFinite)) return;
+  rememberScreenState(normalized, 'manual');
+  const input = document.getElementById('cfgScreen');
+  if (input && document.activeElement !== input) {
+    const newValue = formatScreenForInput(normalized);
+    if (newValue && input.value !== newValue) {
+      input.value = newValue;
+    }
+    if (input.dataset) delete input.dataset.autoscreen;
+    input.classList.remove('is-auto');
+  }
+}
+function prepareSimpleState() {
+  syncSimpleFromWindow();
+  if (typeof window !== 'undefined') {
+    window.SIMPLE = SIMPLE;
+  }
+  if (typeof SIMPLE !== 'string') {
+    SIMPLE = SIMPLE == null ? '' : String(SIMPLE);
+  }
+  SIMPLE_PARSED = parseSimple(SIMPLE);
+  applyLinePointStart(SIMPLE_PARSED);
+  applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
+  const markerList = Array.isArray(SIMPLE_PARSED.pointMarkers)
+    ? SIMPLE_PARSED.pointMarkers.map(sanitizePointMarkerValue).filter(Boolean)
+    : [];
+  const markerFromList = markerList.length ? formatPointMarkerList(markerList) : SIMPLE_PARSED.pointMarker;
+  const normalizedMarker = normalizePointMarkerValue(markerFromList);
+  ADV.points.markerList = markerList.slice();
+  ADV.points.marker = !normalizedMarker || isDefaultPointMarker(normalizedMarker)
+    ? DEFAULT_POINT_MARKER
+    : normalizedMarker;
+  ADV.points.lockExtraPoints = SIMPLE_PARSED && SIMPLE_PARSED.lockExtraPoints === false ? false : true;
+  MODE = decideMode(SIMPLE_PARSED);
+}
+function configureBoardFromState() {
+  hideCheckControls();
+  destroyBoard();
+  ADV.axis.forceIntegers = FORCE_TICKS_REQUESTED;
+  FORCE_TICKS_LOCKED_FALSE = false;
+  const plannedScreen = initialScreen();
+  if (shouldLockForceTicks(plannedScreen)) {
+    FORCE_TICKS_LOCKED_FALSE = true;
+    ADV.axis.forceIntegers = false;
+  }
+  START_SCREEN = plannedScreen;
+  initBoard();
+}
+function renderBoardContent() {
+  if (!appState.board) return false;
+  if (MODE === 'functions') {
+    buildFunctions();
+  } else {
+    buildPointsLine();
+  }
+  return true;
+}
+function finalizeBoardRender() {
+  if (!appState.board) return;
+  addFixedPoints();
+  appState.board.on('boundingbox', updateAfterViewChange);
+  updateAfterViewChange();
+  setupTaskCheck();
+  applyAltTextToBoard();
+  refreshAltText('rebuild');
+  LAST_RENDERED_SIMPLE = SIMPLE;
+}
 function rebuildAll() {
-  if (IS_REBUILDING) return;
-  IS_REBUILDING = true;
+  if (appState.isRebuilding) return;
+  appState.isRebuilding = true;
   try {
-    if (brd) {
-      const currentBB = fromBoundingBox(brd.getBoundingBox());
-      if (currentBB && currentBB.every(Number.isFinite)) {
-        const normalized = normalizeAutoScreen(currentBB);
-        if (Array.isArray(normalized) && normalized.length === 4 && normalized.every(Number.isFinite)) {
-          rememberScreenState(normalized, 'manual');
-          const input = document.getElementById('cfgScreen');
-          if (input && document.activeElement !== input) {
-            const newValue = formatScreenForInput(normalized);
-            if (newValue && input.value !== newValue) {
-              input.value = newValue;
-            }
-            if (input.dataset) delete input.dataset.autoscreen;
-            input.classList.remove('is-auto');
-          }
-        }
-      }
-    }
-    syncSimpleFromWindow();
-    if (typeof window !== 'undefined') {
-      window.SIMPLE = SIMPLE;
-    }
-    if (typeof SIMPLE !== 'string') {
-      SIMPLE = SIMPLE == null ? '' : String(SIMPLE);
-    }
-    SIMPLE_PARSED = parseSimple(SIMPLE);
-    applyLinePointStart(SIMPLE_PARSED);
-    applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
-    {
-      const markerList = Array.isArray(SIMPLE_PARSED.pointMarkers)
-        ? SIMPLE_PARSED.pointMarkers.map(sanitizePointMarkerValue).filter(Boolean)
-        : [];
-      const markerFromList = markerList.length ? formatPointMarkerList(markerList) : SIMPLE_PARSED.pointMarker;
-      const normalizedMarker = normalizePointMarkerValue(markerFromList);
-      ADV.points.markerList = markerList.slice();
-      ADV.points.marker = !normalizedMarker || isDefaultPointMarker(normalizedMarker)
-        ? DEFAULT_POINT_MARKER
-        : normalizedMarker;
-    }
-    ADV.points.lockExtraPoints = SIMPLE_PARSED && SIMPLE_PARSED.lockExtraPoints === false ? false : true;
-    MODE = decideMode(SIMPLE_PARSED);
-    hideCheckControls();
-    destroyBoard();
-    ADV.axis.forceIntegers = FORCE_TICKS_REQUESTED;
-    FORCE_TICKS_LOCKED_FALSE = false;
-    const plannedScreen = initialScreen();
-    if (shouldLockForceTicks(plannedScreen)) {
-      FORCE_TICKS_LOCKED_FALSE = true;
-      ADV.axis.forceIntegers = false;
-    }
-    START_SCREEN = plannedScreen;
-    initBoard();
-    if (!brd) {
+    rememberManualScreenFromBoard();
+    prepareSimpleState();
+    configureBoardFromState();
+    if (!renderBoardContent()) {
       LAST_RENDERED_SIMPLE = SIMPLE;
       return;
     }
-    if (MODE === 'functions') {
-      buildFunctions();
-    } else {
-      buildPointsLine();
-    }
-    addFixedPoints();
-    brd.on('boundingbox', updateAfterViewChange);
-    updateAfterViewChange();
-    setupTaskCheck();
-    applyAltTextToBoard();
-    refreshAltText('rebuild');
-    LAST_RENDERED_SIMPLE = SIMPLE;
+    finalizeBoardRender();
   } finally {
-    IS_REBUILDING = false;
+    appState.isRebuilding = false;
   }
 }
 window.addEventListener('resize', () => {
@@ -6006,13 +6022,13 @@ window.addEventListener('resize', () => {
   const resizeBoards = jxg && jxg.JSXGraph && typeof jxg.JSXGraph.resizeBoards === 'function' ? jxg.JSXGraph.resizeBoards : null;
   if (typeof resizeBoards === 'function') {
     resizeBoards();
-  } else if (brd && typeof brd.resizeContainer === 'function') {
+  } else if (appState.board && typeof appState.board.resizeContainer === 'function') {
     var _brd$containerObj, _brd$containerObj2;
-    const cw = (_brd$containerObj = brd.containerObj) === null || _brd$containerObj === void 0 ? void 0 : _brd$containerObj.clientWidth;
-    const ch = (_brd$containerObj2 = brd.containerObj) === null || _brd$containerObj2 === void 0 ? void 0 : _brd$containerObj2.clientHeight;
+    const cw = (_brd$containerObj = appState.board.containerObj) === null || _brd$containerObj === void 0 ? void 0 : _brd$containerObj.clientWidth;
+    const ch = (_brd$containerObj2 = appState.board.containerObj) === null || _brd$containerObj2 === void 0 ? void 0 : _brd$containerObj2.clientHeight;
     if (cw && ch) {
-      brd.resizeContainer(cw, ch);
-      brd.update();
+      appState.board.resizeContainer(cw, ch);
+      appState.board.update();
     }
   }
   updateAfterViewChange();
@@ -6240,10 +6256,10 @@ function sanitizeSvgForeignObjects(svgNode) {
 }
 
 function cloneBoardSvgRoot() {
-  if (!brd || !brd.renderer || !brd.renderer.svgRoot) return null;
-  const width = brd.canvasWidth;
-  const height = brd.canvasHeight;
-  const node = brd.renderer.svgRoot.cloneNode(true);
+  if (!appState.board || !appState.board.renderer || !appState.board.renderer.svgRoot) return null;
+  const width = appState.board.canvasWidth;
+  const height = appState.board.canvasHeight;
+  const node = appState.board.renderer.svgRoot.cloneNode(true);
   node.removeAttribute('style');
   node.setAttribute('width', `${width}`);
   node.setAttribute('height', `${height}`);
@@ -7290,7 +7306,7 @@ function setupSettingsForm() {
   };
   const applyGliderStartValues = rawValues => {
     const numbers = Array.isArray(rawValues) ? rawValues.filter(Number.isFinite) : [];
-    const primary = MODE === 'functions' && Array.isArray(graphs) && graphs.length > 0 ? graphs[0] : null;
+    const primary = MODE === 'functions' && Array.isArray(appState.graphs) && appState.graphs.length > 0 ? appState.graphs[0] : null;
     const domain = primary && primary.domain ? primary.domain : null;
     const clampValue = val => {
       if (!Number.isFinite(val)) return val;
@@ -7342,8 +7358,8 @@ function setupSettingsForm() {
           }
         } catch (_) {}
       }
-      if (moved && brd && typeof brd.update === 'function') {
-        brd.update();
+      if (moved && appState.board && typeof appState.board.update === 'function') {
+        appState.board.update();
       }
     }
     return clampedNumbers;
@@ -7422,13 +7438,13 @@ function setupSettingsForm() {
       if (xValues.length) {
         ADV.points.startX = xValues.slice();
       }
-      if (MODE === 'points' && brd && Array.isArray(moving) && moving.length) {
+      if (MODE === 'points' && appState.board && Array.isArray(appState.points.moving) && appState.points.moving.length) {
         const resolvedSpec = spec || getLineTemplateSpec();
         const kind = resolvedSpec && resolvedSpec.kind ? resolvedSpec.kind : null;
         const moveTargets = kind === 'two' ? clones : [clones[0]];
-        const limit = Math.min(moveTargets.length, moving.length);
+        const limit = Math.min(moveTargets.length, appState.points.moving.length);
         for (let i = 0; i < limit; i++) {
-          const point = moving[i];
+          const point = appState.points.moving[i];
           const target = kind === 'two' ? moveTargets[i] : moveTargets[0];
           if (!point || !Array.isArray(target)) continue;
           const [tx, ty] = target;
@@ -7455,13 +7471,13 @@ function setupSettingsForm() {
             }
           }
         }
-        if (typeof brd.update === 'function') {
-          brd.update();
+        if (typeof appState.board.update === 'function') {
+          appState.board.update();
         }
-      } else if (MODE === 'functions' && Array.isArray(graphs) && graphs.length > 0) {
+      } else if (MODE === 'functions' && Array.isArray(appState.graphs) && appState.graphs.length > 0) {
         const resolvedSpec = spec || getLineTemplateSpec();
         const targetPoints = resolvedSpec && resolvedSpec.kind === 'two' ? clones : [clones[0]];
-        const primary = graphs[0];
+        const primary = appState.graphs[0];
         if (primary && Array.isArray(primary.gliders) && primary.gliders.length) {
           const domain = primary.domain || null;
           const gliders = primary.gliders;
@@ -7492,8 +7508,8 @@ function setupSettingsForm() {
               }
             } catch (_) {}
           }
-          if (brd && typeof brd.update === 'function') {
-            brd.update();
+          if (appState.board && typeof appState.board.update === 'function') {
+            appState.board.update();
           }
         }
       }
@@ -8531,7 +8547,7 @@ function setupSettingsForm() {
               colorVal = '';
               parsedFunc.colorSource = 'auto';
               parsedFunc.color = '';
-              const existingGraph = Array.isArray(graphs) ? graphs[funcIndex] || null : null;
+              const existingGraph = Array.isArray(appState.graphs) ? appState.graphs[funcIndex] || null : null;
               if (existingGraph) {
                 existingGraph.manualColor = false;
               }
@@ -8755,8 +8771,8 @@ function setupSettingsForm() {
         EXAMPLE_STATE.screen = nextScreen ? nextScreen.slice(0, 4) : null;
         EXAMPLE_STATE.screenSource = nextScreen ? 'manual' : 'auto';
       }
-      if (nextScreen && brd && typeof brd.setBoundingBox === 'function') {
-        brd.setBoundingBox(toBB(nextScreen), true);
+      if (nextScreen && appState.board && typeof appState.board.setBoundingBox === 'function') {
+        appState.board.setBoundingBox(toBB(nextScreen), true);
         rememberScreenState(nextScreen, 'manual');
       }
       needsRebuild = true;
