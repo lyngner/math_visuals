@@ -2513,26 +2513,22 @@ function clampScreenToFirstQuadrant(screen) {
     return screen.slice(0, 4);
   }
 
-  // BEREGN BREDDE OG HØYDE
   const width = xmax - xmin;
   const height = ymax - ymin;
 
-  // Litt ekstra luft når vi begrenser oss til 1. kvadrant
-  const pad = Math.max(0.75, 0.08 * Math.max(Math.abs(width), Math.abs(height), 1));
-  const HARD_MIN = -pad;
+  // Hold oss i (eller rett ved) 1. kvadrant ved å skyve hele utsnittet opp og til høyre
+  const HARD_MIN = -0.5;
 
-  // TVING VESTRE OG NEDRE KANT TIL 0 (eller bittelitt minus for penere akser)
-  // Vi legger på litt luft (minst ~0.75) så aksen ikke ligger helt klistret inntil kanten
   if (xmin < HARD_MIN) {
     const delta = HARD_MIN - xmin;
     xmin = HARD_MIN;
-    xmax += delta; // Behold bredden, skyv mot høyre
+    xmax += delta; // Beholder bredden, skyv mot høyre
   }
 
   if (ymin < HARD_MIN) {
     const delta = HARD_MIN - ymin;
     ymin = HARD_MIN;
-    ymax += delta; // Behold høyden, skyv oppover
+    ymax += delta; // Beholder høyden, skyv oppover
   }
 
   return [xmin, xmax, ymin, ymax];
@@ -2543,14 +2539,11 @@ function normalizeAutoScreen(screen) {
     return screen;
   }
   let normalized = screen.slice(0, 4);
-  if (ADV && ADV.firstQuadrant) {
-    normalized = clampScreenToFirstQuadrant(normalized);
-  }
   if (shouldLockAspect() && !screenSupportsLockAspect(normalized)) {
     normalized = expandScreenToLockAspect(normalized);
-    if (ADV && ADV.firstQuadrant) {
-      normalized = clampScreenToFirstQuadrant(normalized);
-    }
+  }
+  if (ADV && ADV.firstQuadrant) {
+    normalized = clampScreenToFirstQuadrant(normalized);
   }
   return normalized;
 }
