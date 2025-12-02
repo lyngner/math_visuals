@@ -8550,8 +8550,13 @@ function setupSettingsForm() {
         }
       }
     }
-    if (!screensEqual(nextScreen, ADV.screen)) {
+    const screenChanged = !screensEqual(nextScreen, ADV.screen);
+    if (screenChanged) {
       ADV.screen = nextScreen;
+      if (nextScreen && brd && typeof brd.setBoundingBox === 'function') {
+        brd.setBoundingBox(toBB(nextScreen), true);
+        rememberScreenState(nextScreen, 'manual');
+      }
       needsRebuild = true;
     }
     const lockChecked = !!(lockInput && lockInput.checked);
