@@ -999,7 +999,6 @@ if (typeof window !== 'undefined') {
 appState.simple.value = typeof window !== 'undefined' && typeof window.SIMPLE !== 'undefined' ? window.SIMPLE : buildSimple();
 appState.simple.lastRendered = appState.simple.value;
 appState.simple.parsed = parseSimple(appState.simple.value);
-applyLinePointStart(appState.simple.parsed);
 if (typeof window !== 'undefined') {
   window.SIMPLE = appState.simple.value;
 }
@@ -1229,6 +1228,9 @@ Object.values(DOMAIN_MARKER_SHAPES).forEach(shape => {
 });
 
 const DEFAULT_LINE_POINTS = ADV.points.start.map(pt => pt.slice());
+
+// Initialize line points after defaults have been computed
+applyLinePointStart(appState.simple.parsed);
 
 function parsePointListString(str) {
   if (typeof str !== 'string') return [];
