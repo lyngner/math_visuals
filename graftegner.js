@@ -1743,6 +1743,9 @@ let START_SCREEN = null;
 let LAST_COMPUTED_SCREEN = Array.isArray(ADV.screen) ? ADV.screen.slice(0, 4) : null;
 let LAST_SCREEN_SOURCE = INITIAL_SCREEN_SOURCE;
 let SCREEN_INPUT_IS_EDITING = false;
+const VIEW_CHANGE_DEBOUNCE_MS = 80;
+let PENDING_VIEW_CHANGE_HANDLE = null;
+let LAST_FUNCTION_VIEW_SCREEN = null;
 
 applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
 
@@ -2581,6 +2584,7 @@ function syncSimpleFromWindow() {
   }
 }
 function destroyBoard() {
+  resetViewChangeScheduling();
   if (brd) {
     try {
       var _brd$off, _brd;
@@ -4745,6 +4749,7 @@ function buildFunctions() {
   });
   rebuildAllFunctionSegments();
   updateAllBrackets();
+  LAST_FUNCTION_VIEW_SCREEN = fromBoundingBox(brd && brd.getBoundingBox ? brd.getBoundingBox() : null);
 
   // glidere
   const n = SIMPLE_PARSED.pointsCount | 0;
@@ -5783,6 +5788,51 @@ function hideCheckControls() {
   }
 }
 
+function resetViewChangeScheduling() {
+  if (PENDING_VIEW_CHANGE_HANDLE) {
+    clearTimeout(PENDING_VIEW_CHANGE_HANDLE);
+    PENDING_VIEW_CHANGE_HANDLE = null;
+  }
+  LAST_FUNCTION_VIEW_SCREEN = null;
+}
+
+function screensDifferBeyondNoise(prev, next) {
+  if (!Array.isArray(prev) || prev.length !== 4 || !Array.isArray(next) || next.length !== 4) return true;
+  const prevWidth = Math.abs(prev[1] - prev[0]);
+  const prevHeight = Math.abs(prev[3] - prev[2]);
+  const nextWidth = Math.abs(next[1] - next[0]);
+  const nextHeight = Math.abs(next[3] - next[2]);
+  const normWidth = Math.max(prevWidth, nextWidth, 1e-9);
+  const normHeight = Math.max(prevHeight, nextHeight, 1e-9);
+  const spanDiff = Math.max(Math.abs(nextWidth - prevWidth) / normWidth, Math.abs(nextHeight - prevHeight) / normHeight);
+  const prevCX = (prev[0] + prev[1]) / 2;
+  const prevCY = (prev[2] + prev[3]) / 2;
+  const nextCX = (next[0] + next[1]) / 2;
+  const nextCY = (next[2] + next[3]) / 2;
+  const centerDiff = Math.max(Math.abs(nextCX - prevCX) / normWidth, Math.abs(nextCY - prevCY) / normHeight);
+  const CHANGE_THRESHOLD = 1e-3;
+  return spanDiff > CHANGE_THRESHOLD || centerDiff > CHANGE_THRESHOLD;
+}
+
+function queueFunctionViewUpdate(screen) {
+  if (MODE !== 'functions') return;
+  if (!Array.isArray(screen) || screen.length !== 4) return;
+  const screenCopy = screen.slice(0, 4);
+  if (PENDING_VIEW_CHANGE_HANDLE) {
+    clearTimeout(PENDING_VIEW_CHANGE_HANDLE);
+  }
+  PENDING_VIEW_CHANGE_HANDLE = setTimeout(() => {
+    PENDING_VIEW_CHANGE_HANDLE = null;
+    if (!brd || MODE !== 'functions') return;
+    const latest = fromBoundingBox(brd.getBoundingBox()) || screenCopy;
+    if (!Array.isArray(latest) || latest.length !== 4) return;
+    if (!screensDifferBeyondNoise(LAST_FUNCTION_VIEW_SCREEN, latest)) return;
+    LAST_FUNCTION_VIEW_SCREEN = latest.slice(0, 4);
+    rebuildAllFunctionSegments();
+    updateAllBrackets();
+  }, VIEW_CHANGE_DEBOUNCE_MS);
+}
+
 /* ================= Oppdater / resize ================= */
   function updateAfterViewChange() {
     if (!brd) return;
@@ -5793,10 +5843,6 @@ function hideCheckControls() {
     }
     placeAxisNames();
     updateAxisArrows();
-    if (MODE === 'functions') {
-      rebuildAllFunctionSegments();
-      updateAllBrackets();
-    }
     if (brd && typeof brd.getBoundingBox === 'function') {
       const bb = brd.getBoundingBox();
       let screen = fromBoundingBox(bb);
@@ -5868,6 +5914,7 @@ function hideCheckControls() {
             if (input.dataset) delete input.dataset.autoscreen;
           }
         }
+        queueFunctionViewUpdate(screen);
       }
     }
   }
@@ -5897,52 +5944,52 @@ function rebuildAll() {
     if (typeof window !== 'undefined') {
       window.SIMPLE = SIMPLE;
     }
-  if (typeof SIMPLE !== 'string') {
-    SIMPLE = SIMPLE == null ? '' : String(SIMPLE);
-  }
-  SIMPLE_PARSED = parseSimple(SIMPLE);
-  applyLinePointStart(SIMPLE_PARSED);
-  applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
-  {
-    const markerList = Array.isArray(SIMPLE_PARSED.pointMarkers)
-      ? SIMPLE_PARSED.pointMarkers.map(sanitizePointMarkerValue).filter(Boolean)
-      : [];
-    const markerFromList = markerList.length ? formatPointMarkerList(markerList) : SIMPLE_PARSED.pointMarker;
-    const normalizedMarker = normalizePointMarkerValue(markerFromList);
-    ADV.points.markerList = markerList.slice();
-    ADV.points.marker = !normalizedMarker || isDefaultPointMarker(normalizedMarker)
-      ? DEFAULT_POINT_MARKER
-      : normalizedMarker;
-  }
-  ADV.points.lockExtraPoints = SIMPLE_PARSED && SIMPLE_PARSED.lockExtraPoints === false ? false : true;
-  MODE = decideMode(SIMPLE_PARSED);
-  hideCheckControls();
-  destroyBoard();
-  ADV.axis.forceIntegers = FORCE_TICKS_REQUESTED;
-  FORCE_TICKS_LOCKED_FALSE = false;
-  const plannedScreen = initialScreen();
-  if (shouldLockForceTicks(plannedScreen)) {
-    FORCE_TICKS_LOCKED_FALSE = true;
-    ADV.axis.forceIntegers = false;
-  }
-  START_SCREEN = plannedScreen;
-  initBoard();
-  if (!brd) {
+    if (typeof SIMPLE !== 'string') {
+      SIMPLE = SIMPLE == null ? '' : String(SIMPLE);
+    }
+    SIMPLE_PARSED = parseSimple(SIMPLE);
+    applyLinePointStart(SIMPLE_PARSED);
+    applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
+    {
+      const markerList = Array.isArray(SIMPLE_PARSED.pointMarkers)
+        ? SIMPLE_PARSED.pointMarkers.map(sanitizePointMarkerValue).filter(Boolean)
+        : [];
+      const markerFromList = markerList.length ? formatPointMarkerList(markerList) : SIMPLE_PARSED.pointMarker;
+      const normalizedMarker = normalizePointMarkerValue(markerFromList);
+      ADV.points.markerList = markerList.slice();
+      ADV.points.marker = !normalizedMarker || isDefaultPointMarker(normalizedMarker)
+        ? DEFAULT_POINT_MARKER
+        : normalizedMarker;
+    }
+    ADV.points.lockExtraPoints = SIMPLE_PARSED && SIMPLE_PARSED.lockExtraPoints === false ? false : true;
+    MODE = decideMode(SIMPLE_PARSED);
+    hideCheckControls();
+    destroyBoard();
+    ADV.axis.forceIntegers = FORCE_TICKS_REQUESTED;
+    FORCE_TICKS_LOCKED_FALSE = false;
+    const plannedScreen = initialScreen();
+    if (shouldLockForceTicks(plannedScreen)) {
+      FORCE_TICKS_LOCKED_FALSE = true;
+      ADV.axis.forceIntegers = false;
+    }
+    START_SCREEN = plannedScreen;
+    initBoard();
+    if (!brd) {
+      LAST_RENDERED_SIMPLE = SIMPLE;
+      return;
+    }
+    if (MODE === 'functions') {
+      buildFunctions();
+    } else {
+      buildPointsLine();
+    }
+    addFixedPoints();
+    brd.on('boundingbox', updateAfterViewChange);
+    updateAfterViewChange();
+    setupTaskCheck();
+    applyAltTextToBoard();
+    refreshAltText('rebuild');
     LAST_RENDERED_SIMPLE = SIMPLE;
-    return;
-  }
-  if (MODE === 'functions') {
-    buildFunctions();
-  } else {
-    buildPointsLine();
-  }
-  addFixedPoints();
-  brd.on('boundingbox', updateAfterViewChange);
-  updateAfterViewChange();
-  setupTaskCheck();
-  applyAltTextToBoard();
-  refreshAltText('rebuild');
-  LAST_RENDERED_SIMPLE = SIMPLE;
   } finally {
     IS_REBUILDING = false;
   }
