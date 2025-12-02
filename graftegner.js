@@ -888,27 +888,24 @@ function buildSimple() {
   }
   return lines.join('\n');
 }
-let SIMPLE = typeof window !== 'undefined' && typeof window.SIMPLE !== 'undefined' ? window.SIMPLE : buildSimple();
-let LAST_RENDERED_SIMPLE = SIMPLE;
-let PENDING_SIMPLE_REBUILD = null;
 function cancelScheduledSimpleRebuild() {
-  if (PENDING_SIMPLE_REBUILD != null) {
-    clearTimeout(PENDING_SIMPLE_REBUILD);
-    PENDING_SIMPLE_REBUILD = null;
+  if (appState.simple.pendingRebuild != null) {
+    clearTimeout(appState.simple.pendingRebuild);
+    appState.simple.pendingRebuild = null;
   }
 }
 function scheduleSimpleRebuild() {
   if (typeof setTimeout !== 'function') {
     return;
   }
-  if (SIMPLE === LAST_RENDERED_SIMPLE) {
+  if (appState.simple.value === appState.simple.lastRendered) {
     cancelScheduledSimpleRebuild();
     return;
   }
   cancelScheduledSimpleRebuild();
-  PENDING_SIMPLE_REBUILD = setTimeout(() => {
-    PENDING_SIMPLE_REBUILD = null;
-    if (SIMPLE !== LAST_RENDERED_SIMPLE) {
+  appState.simple.pendingRebuild = setTimeout(() => {
+    appState.simple.pendingRebuild = null;
+    if (appState.simple.value !== appState.simple.lastRendered) {
       requestRebuild();
     }
   }, 180);
@@ -945,9 +942,6 @@ function createSimpleFormChangeQueue(task, delay = 360) {
   };
   return schedule;
 }
-if (typeof window !== 'undefined') {
-  window.SIMPLE = SIMPLE;
-}
 
 const ALT_TEXT_DEFAULT_STATE = {
   text: '',
@@ -976,6 +970,12 @@ const appState = {
     B: null,
     moving: []
   },
+  simple: {
+    value: '',
+    parsed: null,
+    lastRendered: '',
+    pendingRebuild: null
+  },
   isRebuilding: false
 };
 if (typeof window !== 'undefined' && window.GRAF_ALT_TEXT && typeof window.GRAF_ALT_TEXT === 'object') {
@@ -986,6 +986,15 @@ if (typeof window !== 'undefined' && window.GRAF_ALT_TEXT && typeof window.GRAF_
 if (typeof window !== 'undefined') {
   window.GRAF_ALT_TEXT = appState.altText;
 }
+
+appState.simple.value = typeof window !== 'undefined' && typeof window.SIMPLE !== 'undefined' ? window.SIMPLE : buildSimple();
+appState.simple.lastRendered = appState.simple.value;
+appState.simple.parsed = parseSimple(appState.simple.value);
+applyLinePointStart(appState.simple.parsed);
+if (typeof window !== 'undefined') {
+  window.SIMPLE = appState.simple.value;
+}
+
 const AXIS_LABEL_STATE = {
   x: { manual: false, position: null },
   y: { manual: false, position: null }
@@ -1048,7 +1057,7 @@ const ADV = {
     start: [[-3, 1], [1, 3]],
     // to punkt i linje-modus
     startX: [1],
-    // start-X for glidere (kan overstyres i SIMPLE)
+    // start-X for glidere (kan overstyres i appState.simple.value)
     showCoordsOnHover: true,
     marker: INITIAL_POINT_MARKER_VALUE,
     markerList: INITIAL_POINT_MARKER_LIST,
@@ -1718,16 +1727,15 @@ function parseSimple(txt) {
   }
   return out;
 }
-let SIMPLE_PARSED = parseSimple(SIMPLE);
-applyLinePointStart(SIMPLE_PARSED);
 function computePaletteRequestCount() {
   const simpleCount = DEFAULT_GRAFTEGNER_SIMPLE.expressions.length;
   const trigCount = DEFAULT_GRAFTEGNER_TRIG_SIMPLE.expressions.length;
-  const parsedCount = Array.isArray(SIMPLE_PARSED && SIMPLE_PARSED.funcs) ? SIMPLE_PARSED.funcs.length : 0;
-  const manualCount = Array.isArray(SIMPLE_PARSED && SIMPLE_PARSED.extraPoints) ? SIMPLE_PARSED.extraPoints.length : 0;
+  const parsedCount = Array.isArray(appState.simple.parsed && appState.simple.parsed.funcs) ? appState.simple.parsed.funcs.length : 0;
+  const manualCount = Array.isArray(appState.simple.parsed && appState.simple.parsed.extraPoints) ? appState.simple.parsed.extraPoints.length : 0;
   return Math.max(simpleCount, trigCount, parsedCount, manualCount, DEFAULT_FUNCTION_COLORS.fallback.length, 1);
 }
 const ALLOWED_NAMES = ['sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'sinh', 'cosh', 'tanh', 'log', 'ln', 'lg', 'sqrt', 'exp', 'abs', 'min', 'max', 'floor', 'ceil', 'round', 'pow'];
+const ALLOWED_IDENTIFIER_SET = new Set([...ALLOWED_NAMES.map(name => name.toLowerCase()), 'x', 'pi', 'e', 'tau', 'log10']);
 function isExplicitRHS(rhs) {
   let s = rhs.toLowerCase();
   for (const k of ALLOWED_NAMES) s = s.replace(new RegExp(`\\b${k}\\b`, 'g'), '');
@@ -1739,7 +1747,7 @@ function decideMode(parsed) {
   const anyPlaceholder = parsed.funcs.some(f => !isExplicitRHS(f.rhs));
   return anyPlaceholder ? 'points' : 'functions';
 }
-let MODE = decideMode(SIMPLE_PARSED);
+let MODE = decideMode(appState.simple.parsed);
 // Deaktiverer "Tving 1, 2, 3" når mer enn 40 tall får plass på en akse.
 const FORCE_TICKS_AUTO_DISABLE_LIMIT = 40;
 let FORCE_TICKS_LOCKED_FALSE = false;
@@ -1773,6 +1781,12 @@ function parseFunctionSpec(spec) {
     .replace(/\be\b/gi, 'E')
     .replace(/\btau\b/gi, '(2*PI)')
     .replace(/(\bPI|\bE|[\d.)x])\s+(?=[a-zA-Z(0-9)])/g, '$1*');
+  const identifiers = (rhs.match(/[A-Za-z_][A-Za-z0-9_]*/g) || []).map(id => id.toLowerCase());
+  const hasDisallowedIdentifier = identifiers.some(id => !ALLOWED_IDENTIFIER_SET.has(id));
+  const hasDangerousSyntax = /[;{}\[\]`]|=>|new\s+function|function\s*\(/i.test(rhs);
+  if (hasDisallowedIdentifier || hasDangerousSyntax) {
+    return () => NaN;
+  }
   let fn;
   try {
     // eslint-disable-next-line no-new-func
@@ -2238,7 +2252,7 @@ function sampleFeatures(fn, a, b, opts = {}) {
 
 /* ===================== Autozoom ===================== */
 function computeAutoScreenFunctions() {
-  const allUnbounded = SIMPLE_PARSED.funcs.every(f => !f.domain);
+  const allUnbounded = appState.simple.parsed.funcs.every(f => !f.domain);
 
   // samle features
   const feats = [];
@@ -2248,8 +2262,8 @@ function computeAutoScreenFunctions() {
     trimmedXMax = -Infinity,
     coreYMin = Infinity,
     coreYMax = -Infinity;
-  const domainSpan = SIMPLE_PARSED.funcs.length > 1 ? MULTI_FUNCTION_UNBOUNDED_DOMAIN_SPAN : DEFAULT_UNBOUNDED_DOMAIN_SPAN;
-  for (const f of SIMPLE_PARSED.funcs) {
+  const domainSpan = appState.simple.parsed.funcs.length > 1 ? MULTI_FUNCTION_UNBOUNDED_DOMAIN_SPAN : DEFAULT_UNBOUNDED_DOMAIN_SPAN;
+  for (const f of appState.simple.parsed.funcs) {
     const fn = parseFunctionSpec(`${f.name}(x)=${f.rhs}`);
     if (f.domain) {
       const [sampleMin, sampleMax] = resolveDomainSamplingBounds(f.domain, domainSpan);
@@ -2583,9 +2597,9 @@ function initialScreen() {
 }
 function syncSimpleFromWindow() {
   if (typeof window !== 'undefined' && typeof window.SIMPLE !== 'undefined') {
-    SIMPLE = window.SIMPLE;
+    appState.simple.value = window.SIMPLE;
   } else if (typeof window !== 'undefined') {
-    window.SIMPLE = SIMPLE;
+    window.SIMPLE = appState.simple.value;
   }
 }
 function destroyBoard() {
@@ -4324,9 +4338,9 @@ function buildLineAltTextSummary(parsed) {
   return sentences.join(' ');
 }
 function getSimpleString() {
-  if (typeof SIMPLE === 'string') return SIMPLE;
-  if (SIMPLE == null) return '';
-  return String(SIMPLE);
+  if (typeof appState.simple.value === 'string') return appState.simple.value;
+  if (appState.simple.value == null) return '';
+  return String(appState.simple.value);
 }
 function buildGrafAltText() {
   try {
@@ -4696,13 +4710,13 @@ function buildCurveLabelContent(fun) {
 }
 function buildFunctions() {
   appState.graphs = [];
-  const requiredCount = Math.max(1, Array.isArray(SIMPLE_PARSED.funcs) ? SIMPLE_PARSED.funcs.length : 1);
+  const requiredCount = Math.max(1, Array.isArray(appState.simple.parsed.funcs) ? appState.simple.parsed.funcs.length : 1);
   ensurePaletteCapacity(requiredCount);
   const fallbackColor = normalizeColorValue(getDefaultCurveColor(0))
     || DEFAULT_FUNCTION_COLORS.fallback[0]
     || GRAFTEGNER_FALLBACK_PALETTE[0];
   const palette = resolveCurvePalette(requiredCount);
-  SIMPLE_PARSED.funcs.forEach((f, i) => {
+  appState.simple.parsed.funcs.forEach((f, i) => {
     const defaultColor = normalizeColorValue(palette[i % palette.length]) || fallbackColor;
     let manualColor = '';
     if (f) {
@@ -4757,9 +4771,9 @@ function buildFunctions() {
   LAST_FUNCTION_VIEW_SCREEN = fromBoundingBox(appState.board && appState.board.getBoundingBox ? appState.board.getBoundingBox() : null);
 
   // glidere
-  const n = SIMPLE_PARSED.pointsCount | 0;
+  const n = appState.simple.parsed.pointsCount | 0;
   if (n > 0 && appState.graphs.length > 0) {
-    const firstFunc = SIMPLE_PARSED.funcs && SIMPLE_PARSED.funcs.length ? SIMPLE_PARSED.funcs[0] : null;
+    const firstFunc = appState.simple.parsed.funcs && appState.simple.parsed.funcs.length ? appState.simple.parsed.funcs[0] : null;
     const gliderTemplate = interpretLineTemplate(firstFunc ? firstFunc.rhs : '');
     const shouldEmitLinePointEvents = !!(gliderTemplate && gliderTemplate.kind);
     const gliders = [];
@@ -4792,7 +4806,7 @@ function buildFunctions() {
       window.dispatchEvent(new CustomEvent('graf:linepoints-changed', { detail }));
     };
     const G = appState.graphs[0];
-    const sxList = SIMPLE_PARSED.startX && SIMPLE_PARSED.startX.length > 0 ? SIMPLE_PARSED.startX : ADV.points.startX && ADV.points.startX.length > 0 ? ADV.points.startX : [0];
+    const sxList = appState.simple.parsed.startX && appState.simple.parsed.startX.length > 0 ? appState.simple.parsed.startX : ADV.points.startX && ADV.points.startX.length > 0 ? ADV.points.startX : [0];
     function stepXg() {
       return (ADV.points.snap.stepX != null ? ADV.points.snap.stepX : +ADV.axis.grid.majorX) || 1;
     }
@@ -4894,7 +4908,7 @@ function buildPointsLine() {
     || DEFAULT_FUNCTION_COLORS.fallback[0]
     || GRAFTEGNER_FALLBACK_PALETTE[0];
   const paletteColor = normalizeColorValue(colorFor(0)) || fallbackColor;
-  const first = (_SIMPLE_PARSED$funcs$ = SIMPLE_PARSED.funcs[0]) !== null && _SIMPLE_PARSED$funcs$ !== void 0 ? _SIMPLE_PARSED$funcs$ : {
+  const first = (_SIMPLE_PARSED$funcs$ = appState.simple.parsed.funcs[0]) !== null && _SIMPLE_PARSED$funcs$ !== void 0 ? _SIMPLE_PARSED$funcs$ : {
     rhs: 'ax+b'
   };
   const manualLineColor = first && first.colorSource === 'manual' ? normalizeColorValue(first.color) : '';
@@ -4969,7 +4983,7 @@ function buildPointsLine() {
     strokeColor: lineColor,
     strokeWidth: 4
   });
-  const labelFun = SIMPLE_PARSED.funcs && SIMPLE_PARSED.funcs.length ? SIMPLE_PARSED.funcs[0] : null;
+  const labelFun = appState.simple.parsed.funcs && appState.simple.parsed.funcs.length ? appState.simple.parsed.funcs[0] : null;
   const labelContent = labelFun ? buildCurveLabelContent(labelFun) : null;
   let updateLabelWithAB = null;
   if (labelContent && labelFun) {
@@ -5342,7 +5356,7 @@ function getFunctionGliderPoints(funcIndex) {
 
 function evaluateFunctionGliderAnswer(answerText, rowSpec, index) {
   const funcIndex = rowSpec && Number.isFinite(rowSpec.funcIndex) ? rowSpec.funcIndex : index;
-  const funcs = Array.isArray(SIMPLE_PARSED.funcs) ? SIMPLE_PARSED.funcs : [];
+  const funcs = Array.isArray(appState.simple.parsed.funcs) ? appState.simple.parsed.funcs : [];
   const fun = funcs[funcIndex];
   if (!fun || !fun.rhs) {
     return {
@@ -5479,7 +5493,7 @@ function evaluateCoordinateAnswer(expectedPoints, rowSpec, index) {
   }
   const start = rowSpec && Number.isFinite(rowSpec.pointStart) ? rowSpec.pointStart : 0;
   const count = rowSpec && Number.isFinite(rowSpec.pointCount) ? rowSpec.pointCount : expectedPoints.length;
-  const actualSource = Array.isArray(SIMPLE_PARSED.extraPoints) ? SIMPLE_PARSED.extraPoints : [];
+  const actualSource = Array.isArray(appState.simple.parsed.extraPoints) ? appState.simple.parsed.extraPoints : [];
   const actualPoints = actualSource.slice(start, start + count);
   const expectedStr = formatPointList(expectedPoints);
   const actualStr = formatPointList(actualPoints);
@@ -5510,7 +5524,7 @@ function evaluateAnswerForRow(answer, index) {
   if (!trimmed) {
     return { ok: true, message: '' };
   }
-  const rows = Array.isArray(SIMPLE_PARSED.rows) ? SIMPLE_PARSED.rows : [];
+  const rows = Array.isArray(appState.simple.parsed.rows) ? appState.simple.parsed.rows : [];
   const rowSpec = rows[index] || null;
   if (rowSpec && rowSpec.type === 'function') {
     if (MODE === 'points') {
@@ -5555,7 +5569,7 @@ function evaluateAnswerForRow(answer, index) {
 }
 
 function evaluateAnswers() {
-  const answers = Array.isArray(SIMPLE_PARSED.answers) ? SIMPLE_PARSED.answers : [];
+  const answers = Array.isArray(appState.simple.parsed.answers) ? appState.simple.parsed.answers : [];
   const messages = [];
   for (let i = 0; i < answers.length; i++) {
     const answer = answers[i];
@@ -5593,7 +5607,7 @@ function evaluateDescriptionInputs() {
 }
 
 function setupTaskCheck() {
-  const answers = Array.isArray(SIMPLE_PARSED.answers) ? SIMPLE_PARSED.answers : [];
+  const answers = Array.isArray(appState.simple.parsed.answers) ? appState.simple.parsed.answers : [];
   const hasAnswers = answers.some(answer => typeof answer === 'string' && answer.trim());
   if (!hasAnswers) {
     hideCheckControls();
@@ -5694,11 +5708,11 @@ function updateCoordsInputFromPoints(points, options = {}) {
   }
 }
 function addFixedPoints() {
-  if (!Array.isArray(SIMPLE_PARSED.extraPoints)) return;
-  const markerList = Array.isArray(SIMPLE_PARSED.pointMarkers) && SIMPLE_PARSED.pointMarkers.length
-    ? SIMPLE_PARSED.pointMarkers
+  if (!Array.isArray(appState.simple.parsed.extraPoints)) return;
+  const markerList = Array.isArray(appState.simple.parsed.pointMarkers) && appState.simple.parsed.pointMarkers.length
+    ? appState.simple.parsed.pointMarkers
     : parsePointMarkerList(ADV.points.marker);
-  SIMPLE_PARSED.extraPoints.forEach((pt, idx) => {
+  appState.simple.parsed.extraPoints.forEach((pt, idx) => {
     const pointOptions = {
       name: '',
       size: POINT_MARKER_SIZE,
@@ -5743,12 +5757,12 @@ function addFixedPoints() {
     }
     if (!ADV.points.lockExtraPoints) {
       const updatePointState = commit => {
-        if (!Array.isArray(SIMPLE_PARSED.extraPoints)) return;
+        if (!Array.isArray(appState.simple.parsed.extraPoints)) return;
         const x = typeof P.X === 'function' ? P.X() : NaN;
         const y = typeof P.Y === 'function' ? P.Y() : NaN;
         if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-        SIMPLE_PARSED.extraPoints[idx] = [x, y];
-        updateCoordsInputFromPoints(SIMPLE_PARSED.extraPoints, {
+        appState.simple.parsed.extraPoints[idx] = [x, y];
+        updateCoordsInputFromPoints(appState.simple.parsed.extraPoints, {
           triggerInput: true,
           triggerChange: !!commit
         });
@@ -5949,25 +5963,25 @@ function rememberManualScreenFromBoard() {
 function prepareSimpleState() {
   syncSimpleFromWindow();
   if (typeof window !== 'undefined') {
-    window.SIMPLE = SIMPLE;
+    window.SIMPLE = appState.simple.value;
   }
-  if (typeof SIMPLE !== 'string') {
-    SIMPLE = SIMPLE == null ? '' : String(SIMPLE);
+  if (typeof appState.simple.value !== 'string') {
+    appState.simple.value = appState.simple.value == null ? '' : String(appState.simple.value);
   }
-  SIMPLE_PARSED = parseSimple(SIMPLE);
-  applyLinePointStart(SIMPLE_PARSED);
+  appState.simple.parsed = parseSimple(appState.simple.value);
+  applyLinePointStart(appState.simple.parsed);
   applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
-  const markerList = Array.isArray(SIMPLE_PARSED.pointMarkers)
-    ? SIMPLE_PARSED.pointMarkers.map(sanitizePointMarkerValue).filter(Boolean)
+  const markerList = Array.isArray(appState.simple.parsed.pointMarkers)
+    ? appState.simple.parsed.pointMarkers.map(sanitizePointMarkerValue).filter(Boolean)
     : [];
-  const markerFromList = markerList.length ? formatPointMarkerList(markerList) : SIMPLE_PARSED.pointMarker;
+  const markerFromList = markerList.length ? formatPointMarkerList(markerList) : appState.simple.parsed.pointMarker;
   const normalizedMarker = normalizePointMarkerValue(markerFromList);
   ADV.points.markerList = markerList.slice();
   ADV.points.marker = !normalizedMarker || isDefaultPointMarker(normalizedMarker)
     ? DEFAULT_POINT_MARKER
     : normalizedMarker;
-  ADV.points.lockExtraPoints = SIMPLE_PARSED && SIMPLE_PARSED.lockExtraPoints === false ? false : true;
-  MODE = decideMode(SIMPLE_PARSED);
+  ADV.points.lockExtraPoints = appState.simple.parsed && appState.simple.parsed.lockExtraPoints === false ? false : true;
+  MODE = decideMode(appState.simple.parsed);
 }
 function configureBoardFromState() {
   hideCheckControls();
@@ -5999,7 +6013,7 @@ function finalizeBoardRender() {
   setupTaskCheck();
   applyAltTextToBoard();
   refreshAltText('rebuild');
-  LAST_RENDERED_SIMPLE = SIMPLE;
+  appState.simple.lastRendered = appState.simple.value;
 }
 function rebuildAll() {
   if (appState.isRebuilding) return;
@@ -6009,7 +6023,7 @@ function rebuildAll() {
     prepareSimpleState();
     configureBoardFromState();
     if (!renderBoardContent()) {
-      LAST_RENDERED_SIMPLE = SIMPLE;
+      appState.simple.lastRendered = appState.simple.value;
       return;
     }
     finalizeBoardRender();
@@ -6324,8 +6338,8 @@ function serializeBoardSvg(clone) {
   function getSuggestedFilename() {
     const sanitize = getFilenameSanitizer('Koordinatsystem');
 
-    if (SIMPLE_PARSED && Array.isArray(SIMPLE_PARSED.funcs) && SIMPLE_PARSED.funcs.length > 0) {
-      const f = SIMPLE_PARSED.funcs[0];
+    if (appState.simple.parsed && Array.isArray(appState.simple.parsed.funcs) && appState.simple.parsed.funcs.length > 0) {
+      const f = appState.simple.parsed.funcs[0];
       const name = f && typeof f.name === 'string' && f.name.trim() ? f.name : 'f';
       const rhs = f && typeof f.rhs === 'string' ? f.rhs : f && f.rhs != null ? String(f.rhs) : '';
 
@@ -6511,7 +6525,7 @@ function setupSettingsForm() {
   let flushSimpleFormChange = () => {};
   const pointMarkerControls = [];
   let pointLockControl = null;
-  let pointLockEnabled = !(SIMPLE_PARSED && SIMPLE_PARSED.lockExtraPoints === false);
+  let pointLockEnabled = !(appState.simple.parsed && appState.simple.parsed.lockExtraPoints === false);
   ADV.points.lockExtraPoints = pointLockEnabled;
   const functionColorControls = [];
   let answerControl = null;
@@ -7322,8 +7336,8 @@ function setupSettingsForm() {
       return next;
     };
     const clampedNumbers = numbers.map(clampValue);
-    if (SIMPLE_PARSED && typeof SIMPLE_PARSED === 'object') {
-      SIMPLE_PARSED.startX = clampedNumbers.slice();
+    if (appState.simple.parsed && typeof appState.simple.parsed === 'object') {
+      appState.simple.parsed.startX = clampedNumbers.slice();
     }
     ADV.points.startX = clampedNumbers.slice();
     if (primary && Array.isArray(primary.gliders) && primary.gliders.length > 0) {
@@ -7424,10 +7438,10 @@ function setupSettingsForm() {
         return false;
       }
       const xValues = clones.map(pt => pt[0]).filter(Number.isFinite);
-      if (SIMPLE_PARSED && typeof SIMPLE_PARSED === 'object') {
-        SIMPLE_PARSED.linePoints = clones.map(pt => pt.slice());
+      if (appState.simple.parsed && typeof appState.simple.parsed === 'object') {
+        appState.simple.parsed.linePoints = clones.map(pt => pt.slice());
         if (xValues.length) {
-          SIMPLE_PARSED.startX = xValues.slice();
+          appState.simple.parsed.startX = xValues.slice();
         }
       }
       if (Array.isArray(ADV.points.start)) {
@@ -7547,10 +7561,10 @@ function setupSettingsForm() {
     if (direct.length === needed) {
       return direct;
     }
-    if (Array.isArray(SIMPLE_PARSED.linePoints) && SIMPLE_PARSED.linePoints.length >= needed) {
+    if (Array.isArray(appState.simple.parsed.linePoints) && appState.simple.parsed.linePoints.length >= needed) {
       const fallback = [];
       for (let i = 0; i < needed; i++) {
-        const src = SIMPLE_PARSED.linePoints[i];
+        const src = appState.simple.parsed.linePoints[i];
         if (!isValidPointArray(src)) return [];
         fallback.push([src[0], src[1]]);
       }
@@ -7585,7 +7599,7 @@ function setupSettingsForm() {
     return getGliderCount() > 0;
   };
   const hasConfiguredPoints = () => {
-    const parsedMode = SIMPLE_PARSED ? decideMode(SIMPLE_PARSED) : 'functions';
+    const parsedMode = appState.simple.parsed ? decideMode(appState.simple.parsed) : 'functions';
     if (parsedMode === 'points') {
       return true;
     }
@@ -7599,12 +7613,12 @@ function setupSettingsForm() {
     if (firstValue && !isCoords(firstValue) && !isExplicitFun(firstValue)) {
       return true;
     }
-    const parsedCount = SIMPLE_PARSED && Number.isFinite(SIMPLE_PARSED.pointsCount) ? SIMPLE_PARSED.pointsCount : 0;
+    const parsedCount = appState.simple.parsed && Number.isFinite(appState.simple.parsed.pointsCount) ? appState.simple.parsed.pointsCount : 0;
     if (parsedCount > 0) {
       return true;
     }
-    const parsedExtraPoints = SIMPLE_PARSED && Array.isArray(SIMPLE_PARSED.extraPoints)
-      ? SIMPLE_PARSED.extraPoints.length
+    const parsedExtraPoints = appState.simple.parsed && Array.isArray(appState.simple.parsed.extraPoints)
+      ? appState.simple.parsed.extraPoints.length
       : 0;
     if (parsedExtraPoints > 0) {
       return true;
@@ -7854,9 +7868,9 @@ function setupSettingsForm() {
     const neededLinePoints = getLinePointCount(lineSpec);
     const resolveMarkerValue = value => normalizePointMarkerValue(value) || '';
     const markerInputValue = pointMarkerControls.length ? resolveMarkerValue(getPointMarkerInputValue()) : '';
-    const parsedMarkerValue = resolveMarkerValue(SIMPLE_PARSED.pointMarker);
-    const parsedMarkerListValue = Array.isArray(SIMPLE_PARSED.pointMarkers) && SIMPLE_PARSED.pointMarkers.length
-      ? resolveMarkerValue(formatPointMarkerList(SIMPLE_PARSED.pointMarkers))
+    const parsedMarkerValue = resolveMarkerValue(appState.simple.parsed.pointMarker);
+    const parsedMarkerListValue = Array.isArray(appState.simple.parsed.pointMarkers) && appState.simple.parsed.pointMarkers.length
+      ? resolveMarkerValue(formatPointMarkerList(appState.simple.parsed.pointMarkers))
       : '';
     const lines = [];
     const answerLines = [];
@@ -7916,8 +7930,8 @@ function setupSettingsForm() {
         lines.push(`startx=${startValues.map(val => formatNumber(val, stepX())).join(', ')}`);
       }
     }
-    if (!hasCoordsLine && Array.isArray(SIMPLE_PARSED.extraPoints)) {
-      const coords = SIMPLE_PARSED.extraPoints
+    if (!hasCoordsLine && Array.isArray(appState.simple.parsed.extraPoints)) {
+      const coords = appState.simple.parsed.extraPoints
         .filter(pt => Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite))
         .map(pt => `(${formatNumber(pt[0], stepX())}, ${formatNumber(pt[1], stepY())})`);
       if (coords.length) {
@@ -7932,7 +7946,7 @@ function setupSettingsForm() {
         hasMarkerLine = true;
       }
     }
-    if (!hasLinePtsLine && neededLinePoints > 0 && (linePointsEdited || Array.isArray(SIMPLE_PARSED.linePoints) && SIMPLE_PARSED.linePoints.length > 0)) {
+    if (!hasLinePtsLine && neededLinePoints > 0 && (linePointsEdited || Array.isArray(appState.simple.parsed.linePoints) && appState.simple.parsed.linePoints.length > 0)) {
       const exportPoints = gatherLinePointsForExport(neededLinePoints);
       if (exportPoints.length === neededLinePoints) {
         lines.push(`linepts=${formatLinePoints(exportPoints)}`);
@@ -7955,10 +7969,10 @@ function setupSettingsForm() {
   };
   const syncSimpleFromForm = () => {
     const simple = buildSimpleFromForm();
-    if (simple !== SIMPLE) {
-      SIMPLE = simple;
+    if (simple !== appState.simple.value) {
+      appState.simple.value = simple;
       if (typeof window !== 'undefined') {
-        window.SIMPLE = SIMPLE;
+        window.SIMPLE = appState.simple.value;
       }
       refreshAltText('form-change');
     }
@@ -8465,15 +8479,15 @@ function setupSettingsForm() {
     }
   };
   const fillFormFromSimple = simple => {
-    const source = typeof simple === 'string' ? simple : typeof window !== 'undefined' ? window.SIMPLE : SIMPLE;
+    const source = typeof simple === 'string' ? simple : typeof window !== 'undefined' ? window.SIMPLE : appState.simple.value;
     const text = typeof source === 'string' ? source : '';
     if (typeof source === 'string') {
-      SIMPLE = source;
-      SIMPLE_PARSED = parseSimple(SIMPLE);
-      applyLinePointStart(SIMPLE_PARSED);
+      appState.simple.value = source;
+      appState.simple.parsed = parseSimple(appState.simple.value);
+      applyLinePointStart(appState.simple.parsed);
       applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
     }
-    linePointsEdited = Array.isArray(SIMPLE_PARSED.linePoints) && SIMPLE_PARSED.linePoints.length > 0;
+    linePointsEdited = Array.isArray(appState.simple.parsed.linePoints) && appState.simple.parsed.linePoints.length > 0;
     const lines = text.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
     const filteredLines = lines.filter(line => {
       if (/^\s*points\s*=/i.test(line)) return false;
@@ -8504,7 +8518,7 @@ function setupSettingsForm() {
       extraAnswerControls.length = 0;
       funcRows.innerHTML = '';
     }
-    pointLockEnabled = SIMPLE_PARSED && SIMPLE_PARSED.lockExtraPoints === false ? false : true;
+    pointLockEnabled = appState.simple.parsed && appState.simple.parsed.lockExtraPoints === false ? false : true;
     ADV.points.lockExtraPoints = pointLockEnabled;
     glidersVisible = false;
     forcedGliderCount = null;
@@ -8534,8 +8548,8 @@ function setupSettingsForm() {
       let colorVal = '';
       let colorManualFlag = false;
       const isFunctionLine = !coordsMatch && /=/.test(line);
-      if (isFunctionLine && Array.isArray(SIMPLE_PARSED.funcs)) {
-        const parsedFunc = SIMPLE_PARSED.funcs[funcIndex] || null;
+      if (isFunctionLine && Array.isArray(appState.simple.parsed.funcs)) {
+        const parsedFunc = appState.simple.parsed.funcs[funcIndex] || null;
         if (parsedFunc) {
           colorVal = typeof parsedFunc.color === 'string' ? parsedFunc.color : '';
           colorManualFlag = parsedFunc.colorSource === 'manual' && !!colorVal;
@@ -8556,34 +8570,34 @@ function setupSettingsForm() {
         }
         funcIndex++;
       }
-      const answerVal = Array.isArray(SIMPLE_PARSED.answers) ? SIMPLE_PARSED.answers[idx] || '' : '';
+      const answerVal = Array.isArray(appState.simple.parsed.answers) ? appState.simple.parsed.answers[idx] || '' : '';
       createRow(idx + 1, funVal, domVal, colorVal, colorManualFlag, answerVal);
     });
     refreshFunctionColorDefaultsLocal();
     updatePointLockVisibility();
     if (gliderCountInput) {
       var _SIMPLE_PARSED;
-      const count = Number.isFinite((_SIMPLE_PARSED = SIMPLE_PARSED) === null || _SIMPLE_PARSED === void 0 ? void 0 : _SIMPLE_PARSED.pointsCount) ? SIMPLE_PARSED.pointsCount : 0;
+      const count = Number.isFinite((_SIMPLE_PARSED = appState.simple.parsed) === null || _SIMPLE_PARSED === void 0 ? void 0 : _SIMPLE_PARSED.pointsCount) ? appState.simple.parsed.pointsCount : 0;
       const clamped = Math.max(0, Math.min(2, count));
       gliderCountInput.value = String(clamped);
     }
     if (gliderStartInput) {
       var _SIMPLE_PARSED2;
-      const startVals = Array.isArray((_SIMPLE_PARSED2 = SIMPLE_PARSED) === null || _SIMPLE_PARSED2 === void 0 ? void 0 : _SIMPLE_PARSED2.startX)
-        ? SIMPLE_PARSED.startX.filter(Number.isFinite)
+      const startVals = Array.isArray((_SIMPLE_PARSED2 = appState.simple.parsed) === null || _SIMPLE_PARSED2 === void 0 ? void 0 : _SIMPLE_PARSED2.startX)
+        ? appState.simple.parsed.startX.filter(Number.isFinite)
         : [];
       setGliderStartInputValues(startVals);
       refreshGliderStartInputDisplay();
     }
-    if (linePointInputs.length && SIMPLE_PARSED) {
-      const resolvedPoints = resolveLineStartPoints(SIMPLE_PARSED);
+    if (linePointInputs.length && appState.simple.parsed) {
+      const resolvedPoints = resolveLineStartPoints(appState.simple.parsed);
       setLinePointInputValues(resolvedPoints);
     }
     updateGliderVisibility();
     updateLinePointControls({ silent: true });
-    const parsedMarkerValueForInput = Array.isArray(SIMPLE_PARSED.pointMarkers) && SIMPLE_PARSED.pointMarkers.length
-      ? formatPointMarkerList(SIMPLE_PARSED.pointMarkers)
-      : SIMPLE_PARSED.pointMarker;
+    const parsedMarkerValueForInput = Array.isArray(appState.simple.parsed.pointMarkers) && appState.simple.parsed.pointMarkers.length
+      ? formatPointMarkerList(appState.simple.parsed.pointMarkers)
+      : appState.simple.parsed.pointMarker;
     const parsedMarker = normalizePointMarkerValue(parsedMarkerValueForInput);
     setPointMarkerInputValue(parsedMarker);
     updatePointMarkerVisibility();
@@ -8594,7 +8608,7 @@ function setupSettingsForm() {
     updateSnapAvailability();
     refreshAltText('form-fill');
   };
-  fillFormFromSimple(SIMPLE);
+  fillFormFromSimple(appState.simple.value);
   if (addBtn) {
     addBtn.addEventListener('click', () => {
       const index = (funcRows ? funcRows.querySelectorAll('.func-group').length : 0) + 1;
@@ -8678,7 +8692,7 @@ function setupSettingsForm() {
     syncFontSizeSelect(fontSizeInput, sanitizeFontSize(ADV.axis.grid.fontSize, FONT_DEFAULT));
   }
   const apply = () => {
-    const prevSimple = LAST_RENDERED_SIMPLE;
+    const prevSimple = appState.simple.lastRendered;
     const currentSimple = syncSimpleFromForm();
     const simpleChanged = currentSimple !== prevSimple;
     let needsRebuild = simpleChanged;
@@ -8850,10 +8864,10 @@ function setupSettingsForm() {
     }
     const currentFontSize = sanitizeFontSize(ADV.axis.grid.fontSize, FONT_DEFAULT);
     const p = new URLSearchParams();
-    const parsedMarkerListForExport = Array.isArray(SIMPLE_PARSED.pointMarkers) && SIMPLE_PARSED.pointMarkers.length
-      ? formatPointMarkerList(SIMPLE_PARSED.pointMarkers)
+    const parsedMarkerListForExport = Array.isArray(appState.simple.parsed.pointMarkers) && appState.simple.parsed.pointMarkers.length
+      ? formatPointMarkerList(appState.simple.parsed.pointMarkers)
       : '';
-    const parsedMarkerNormalized = normalizePointMarkerValue(parsedMarkerListForExport || SIMPLE_PARSED.pointMarker);
+    const parsedMarkerNormalized = normalizePointMarkerValue(parsedMarkerListForExport || appState.simple.parsed.pointMarker);
     let idx = 1;
     (funcRows ? funcRows.querySelectorAll('.func-group') : []).forEach((row, rowIdx) => {
       const funInput = row.querySelector('[data-fun]');
@@ -8891,8 +8905,8 @@ function setupSettingsForm() {
         }
       }
     }
-    if (!p.has('coords') && Array.isArray(SIMPLE_PARSED.extraPoints)) {
-      const exportCoords = SIMPLE_PARSED.extraPoints
+    if (!p.has('coords') && Array.isArray(appState.simple.parsed.extraPoints)) {
+      const exportCoords = appState.simple.parsed.extraPoints
         .filter(pt => Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite))
         .map(pt => `(${formatNumber(pt[0], stepX())}, ${formatNumber(pt[1], stepY())})`);
       if (exportCoords.length) {
@@ -8907,7 +8921,7 @@ function setupSettingsForm() {
     }
     const applyLineSpec = interpretLineTemplateFromExpression(getFirstFunctionValue());
     const applyNeededLinePoints = getLinePointCount(applyLineSpec);
-    if (applyNeededLinePoints > 0 && (linePointsEdited || Array.isArray(SIMPLE_PARSED.linePoints) && SIMPLE_PARSED.linePoints.length > 0)) {
+    if (applyNeededLinePoints > 0 && (linePointsEdited || Array.isArray(appState.simple.parsed.linePoints) && appState.simple.parsed.linePoints.length > 0)) {
       const exportPoints = gatherLinePointsForExport(applyNeededLinePoints);
       if (exportPoints.length === applyNeededLinePoints) {
         p.set('linepts', formatLinePoints(exportPoints));
