@@ -806,6 +806,24 @@ function expandScreenToLockAspect(screen) {
   const half = span / 2;
   return [cx - half, cx + half, cy - half, cy + half];
 }
+function clampScreenToWholeGrid(screen) {
+  if (!Array.isArray(screen) || screen.length !== 4) return screen;
+  if (!ADV || !ADV.axis || !ADV.axis.forceIntegers || !ADV.axis.grid || !ADV.axis.grid.show) {
+    return screen;
+  }
+  const [xmin, xmax, ymin, ymax] = screen;
+  if (![xmin, xmax, ymin, ymax].every(Number.isFinite)) return screen;
+  const sx = Math.abs(+ADV.axis.grid.majorX) > 1e-9 ? Math.abs(+ADV.axis.grid.majorX) : 1;
+  const sy = Math.abs(+ADV.axis.grid.majorY) > 1e-9 ? Math.abs(+ADV.axis.grid.majorY) : 1;
+  const gridLeft = Math.ceil(xmin / sx - 1e-12) * sx;
+  const gridRight = Math.floor(xmax / sx + 1e-12) * sx;
+  const gridBottom = Math.ceil(ymin / sy - 1e-12) * sy;
+  const gridTop = Math.floor(ymax / sy + 1e-12) * sy;
+  if (gridRight - gridLeft < 1e-12 || gridTop - gridBottom < 1e-12) {
+    return screen;
+  }
+  return [gridLeft, gridRight, gridBottom, gridTop];
+}
 function screensEqual(a, b) {
   if (a === b) return true;
   if (!Array.isArray(a) || !Array.isArray(b)) return false;
@@ -5768,6 +5786,16 @@ function updateAfterViewChange() {
           if (brd && typeof brd.setBoundingBox === 'function') {
             brd.setBoundingBox(toBB(screen), true);
           }
+        }
+      }
+    }
+    if (ADV.axis.forceIntegers && ADV.axis.grid && ADV.axis.grid.show) {
+      const clampedGrid = clampScreenToWholeGrid(screen);
+      if (!screensEqual(screen, clampedGrid)) {
+        screen = clampedGrid;
+        const currentBB = fromBoundingBox(brd.getBoundingBox());
+        if (!screensEqual(currentBB, screen) && typeof brd.setBoundingBox === 'function') {
+          brd.setBoundingBox(toBB(screen), true);
         }
       }
     }
