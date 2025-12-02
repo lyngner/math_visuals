@@ -989,6 +989,12 @@ const INITIAL_POINT_MARKER_LIST = parsePointMarkerList(INITIAL_POINT_MARKER_RAW)
 const INITIAL_POINT_MARKER_VALUE = !INITIAL_POINT_MARKER_NORMALIZED || isDefaultPointMarker(INITIAL_POINT_MARKER_NORMALIZED)
   ? DEFAULT_POINT_MARKER
   : INITIAL_POINT_MARKER_NORMALIZED;
+const PARAM_SCREEN_RAW = paramStr('screen', '');
+const PARAM_SCREEN = parseScreen(PARAM_SCREEN_RAW);
+const HAS_PARAM_SCREEN = params.has('screen') && Array.isArray(PARAM_SCREEN);
+const INITIAL_SCREEN = HAS_PARAM_SCREEN ? PARAM_SCREEN : null;
+const INITIAL_SCREEN_SOURCE = HAS_PARAM_SCREEN ? 'manual' : 'auto';
+
 const ADV = {
   axis: {
     labels: {
@@ -1012,7 +1018,7 @@ const ADV = {
     },
     forceIntegers: FORCE_TICKS_REQUESTED
   },
-  screen: parseScreen(paramStr('screen', DEFAULT_SCREEN_BOUNDS.join(','))) || DEFAULT_SCREEN_BOUNDS.slice(),
+  screen: INITIAL_SCREEN,
   lockAspect: params.has('lock') ? paramBool('lock') : true,
   firstQuadrant: paramBool('q1'),
   interactions: {
@@ -1130,6 +1136,15 @@ const EXAMPLE_STATE = (() => {
   }
   if (!Object.prototype.hasOwnProperty.call(existing, 'showExpression')) {
     existing.showExpression = !!(ADV.curveName && ADV.curveName.showExpression);
+  }
+  if (!Object.prototype.hasOwnProperty.call(existing, 'lockAspect')) {
+    existing.lockAspect = ADV.lockAspect !== false;
+  }
+  if (!Object.prototype.hasOwnProperty.call(existing, 'screen')) {
+    existing.screen = Array.isArray(ADV.screen) ? ADV.screen.slice(0, 4) : null;
+  }
+  if (!Object.prototype.hasOwnProperty.call(existing, 'screenSource')) {
+    existing.screenSource = INITIAL_SCREEN_SOURCE;
   }
   if (ADV.curveName) {
     const resolvedShowNames = !!existing.showNames;
@@ -1720,8 +1735,8 @@ let MODE = decideMode(SIMPLE_PARSED);
 const FORCE_TICKS_AUTO_DISABLE_LIMIT = 40;
 let FORCE_TICKS_LOCKED_FALSE = false;
 let START_SCREEN = null;
-let LAST_COMPUTED_SCREEN = null;
-let LAST_SCREEN_SOURCE = 'auto';
+let LAST_COMPUTED_SCREEN = Array.isArray(ADV.screen) ? ADV.screen.slice(0, 4) : null;
+let LAST_SCREEN_SOURCE = INITIAL_SCREEN_SOURCE;
 let SCREEN_INPUT_IS_EDITING = false;
 
 applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
@@ -1854,6 +1869,10 @@ function rememberScreenState(screen, source) {
   }
   LAST_COMPUTED_SCREEN = next;
   LAST_SCREEN_SOURCE = source === 'manual' ? 'manual' : 'auto';
+  if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
+    EXAMPLE_STATE.screen = next ? next.slice(0, 4) : null;
+    EXAMPLE_STATE.screenSource = LAST_SCREEN_SOURCE;
+  }
   syncScreenInputFromState();
 }
 
@@ -2275,6 +2294,11 @@ function computeAutoScreenFunctions() {
   }
   const hasTrimmedX = Number.isFinite(trimmedXMin) && Number.isFinite(trimmedXMax) && trimmedXMax - trimmedXMin > 1e-9;
   let xmin, xmax, ymin, ymax;
+  const clampFeatureValue = v => {
+    const MAX_FEATURE_MAGNITUDE = 100;
+    if (!Number.isFinite(v)) return v;
+    return Math.max(-MAX_FEATURE_MAGNITUDE, Math.min(MAX_FEATURE_MAGNITUDE, v));
+  };
   if (allUnbounded) {
     // behold [-5,5] så lenge sentrale punkter ikke faller utenfor
     if (hasTrimmedX) {
@@ -2288,16 +2312,19 @@ function computeAutoScreenFunctions() {
     ymax = 5;
     for (const F of feats) {
       if (Number.isFinite(F.yIntercept)) {
-        ymin = Math.min(ymin, F.yIntercept);
-        ymax = Math.max(ymax, F.yIntercept);
+        const y = clampFeatureValue(F.yIntercept);
+        ymin = Math.min(ymin, y);
+        ymax = Math.max(ymax, y);
       }
       F.extrema.forEach(e => {
-        ymin = Math.min(ymin, e.y);
-        ymax = Math.max(ymax, e.y);
+        const y = clampFeatureValue(e.y);
+        ymin = Math.min(ymin, y);
+        ymax = Math.max(ymax, y);
       });
       if (Number.isFinite(F.ha)) {
-        ymin = Math.min(ymin, F.ha);
-        ymax = Math.max(ymax, F.ha);
+        const y = clampFeatureValue(F.ha);
+        ymin = Math.min(ymin, y);
+        ymax = Math.max(ymax, y);
       }
     }
   } else {
@@ -2326,20 +2353,23 @@ function computeAutoScreenFunctions() {
         xmax = Math.max(xmax, r);
       });
       if (Number.isFinite(F.yIntercept)) {
-        ymin = Math.min(ymin, F.yIntercept);
-        ymax = Math.max(ymax, F.yIntercept);
+        const y = clampFeatureValue(F.yIntercept);
+        ymin = Math.min(ymin, y);
+        ymax = Math.max(ymax, y);
       }
       F.extrema.forEach(e => {
+        const clampedY = clampFeatureValue(e.y);
         xmin = Math.min(xmin, e.x);
         xmax = Math.max(xmax, e.x);
-        ymin = Math.min(ymin, e.y);
-        ymax = Math.max(ymax, e.y);
+        ymin = Math.min(ymin, clampedY);
+        ymax = Math.max(ymax, clampedY);
       });
       (F.endVals || []).forEach(ev => {
+        const clampedY = clampFeatureValue(ev.y);
         xmin = Math.min(xmin, ev.x);
         xmax = Math.max(xmax, ev.x);
-        ymin = Math.min(ymin, ev.y);
-        ymax = Math.max(ymax, ev.y);
+        ymin = Math.min(ymin, clampedY);
+        ymax = Math.max(ymax, clampedY);
       });
       if (F.vas && F.vas.length) {
         for (const a of F.vas) {
@@ -2348,8 +2378,9 @@ function computeAutoScreenFunctions() {
         }
       }
       if (Number.isFinite(F.ha)) {
-        ymin = Math.min(ymin, F.ha);
-        ymax = Math.max(ymax, F.ha);
+        const y = clampFeatureValue(F.ha);
+        ymin = Math.min(ymin, y);
+        ymax = Math.max(ymax, y);
       }
     }
   }
@@ -2375,44 +2406,42 @@ function computeAutoScreenFunctions() {
     ymax = cy + half;
   }
 
-  // Begrens utsnittet og sørg for minimumsstørrelse
-  const MAX_VAL = 10000;
-  const MIN_SPAN = 0.1;
-
   if (!Number.isFinite(xmin)) xmin = -5;
   if (!Number.isFinite(xmax)) xmax = 5;
-  xmin = Math.max(-MAX_VAL, Math.min(MAX_VAL, xmin));
-  xmax = Math.max(-MAX_VAL, Math.min(MAX_VAL, xmax));
-
   if (!Number.isFinite(ymin)) ymin = -5;
   if (!Number.isFinite(ymax)) ymax = 5;
-  ymin = Math.max(-MAX_VAL, Math.min(MAX_VAL, ymin));
-  ymax = Math.max(-MAX_VAL, Math.min(MAX_VAL, ymax));
 
-  if (xmax - xmin < MIN_SPAN) {
-    const mid = (xmin + xmax) / 2;
-    xmin = mid - MIN_SPAN / 2;
-    xmax = mid + MIN_SPAN / 2;
+  // Sentrer, clamp og sikre fornuftig utsnitt for å hindre hopping
+  const finalSpanX = xmax - xmin;
+  const finalSpanY = ymax - ymin;
+  xmin -= finalSpanX * 0.1;
+  xmax += finalSpanX * 0.1;
+  ymin -= finalSpanY * 0.1;
+  ymax += finalSpanY * 0.1;
+
+  const MAX_AUTO = 20;
+  xmin = Math.max(-MAX_AUTO, Math.min(MAX_AUTO, xmin));
+  xmax = Math.max(-MAX_AUTO, Math.min(MAX_AUTO, xmax));
+  ymin = Math.max(-MAX_AUTO, Math.min(MAX_AUTO, ymin));
+  ymax = Math.max(-MAX_AUTO, Math.min(MAX_AUTO, ymax));
+
+  if (xmax - xmin < 2) {
+    const c = (xmax + xmin) / 2;
+    xmin = c - 1;
+    xmax = c + 1;
   }
-  if (ymax - ymin < MIN_SPAN) {
-    const mid = (ymin + ymax) / 2;
-    ymin = mid - MIN_SPAN / 2;
-    ymax = mid + MIN_SPAN / 2;
+  if (ymax - ymin < 2) {
+    const c = (ymax + ymin) / 2;
+    ymin = c - 1;
+    ymax = c + 1;
   }
 
-  // Aksene alltid med
-  xmin = Math.min(xmin, 0);
-  xmax = Math.max(xmax, 0);
-  ymin = Math.min(ymin, 0);
-  ymax = Math.max(ymax, 0);
+  // Aksene alltid med (snapping)
+  if (xmin > 0) xmin = -0.5;
+  if (xmax < 0) xmax = 0.5;
+  if (ymin > 0) ymin = -0.5;
+  if (ymax < 0) ymax = 0.5;
 
-  // padding (og ev. kvadrat)
-  const padX = 0.08 * (xmax - xmin || 10);
-  const padY = 0.08 * (ymax - ymin || 10);
-  xmin -= padX;
-  xmax += padX;
-  ymin -= padY;
-  ymax += padY;
   const screen = [xmin, xmax, ymin, ymax];
   return normalizeAutoScreen(screen);
 }
@@ -2529,9 +2558,13 @@ function normalizeAutoScreen(screen) {
 /* ===================== Init JSXGraph ===================== */
 function initialScreen() {
   var _ADV$screen;
-  const hasManualScreen = Array.isArray(ADV.screen) && ADV.screen.length === 4;
-  let scr = (_ADV$screen = ADV.screen) !== null && _ADV$screen !== void 0 ? _ADV$screen : MODE === 'functions' ? computeAutoScreenFunctions() : computeAutoScreenPoints();
-  if (hasManualScreen && shouldLockAspect() && !screenSupportsLockAspect(scr)) {
+  const hasStoredScreen = Array.isArray(ADV.screen) && ADV.screen.length === 4;
+  const screenSource = hasStoredScreen && LAST_SCREEN_SOURCE === 'manual' ? 'manual' : 'auto';
+  let scr = hasStoredScreen ? (_ADV$screen = ADV.screen) !== null && _ADV$screen !== void 0 ? _ADV$screen : null : null;
+  if (!scr) {
+    scr = MODE === 'functions' ? computeAutoScreenFunctions() : computeAutoScreenPoints();
+  }
+  if (screenSource === 'manual' && shouldLockAspect() && !screenSupportsLockAspect(scr)) {
     const expanded = expandScreenToLockAspect(scr);
     if (Array.isArray(expanded) && expanded.length === 4) {
       scr = expanded;
@@ -2540,7 +2573,7 @@ function initialScreen() {
   if (ADV.firstQuadrant) {
     scr = clampScreenToFirstQuadrant(scr);
   }
-  rememberScreenState(scr, hasManualScreen ? 'manual' : 'auto');
+  rememberScreenState(scr, screenSource);
   return scr;
 }
 function syncSimpleFromWindow() {
@@ -5828,10 +5861,28 @@ function rebuildAll() {
   if (IS_REBUILDING) return;
   IS_REBUILDING = true;
   try {
-  syncSimpleFromWindow();
-  if (typeof window !== 'undefined') {
-    window.SIMPLE = SIMPLE;
-  }
+    if (brd) {
+      const currentBB = fromBoundingBox(brd.getBoundingBox());
+      if (currentBB && currentBB.every(Number.isFinite)) {
+        const normalized = normalizeAutoScreen(currentBB);
+        if (Array.isArray(normalized) && normalized.length === 4 && normalized.every(Number.isFinite)) {
+          rememberScreenState(normalized, 'manual');
+          const input = document.getElementById('cfgScreen');
+          if (input && document.activeElement !== input) {
+            const newValue = formatScreenForInput(normalized);
+            if (newValue && input.value !== newValue) {
+              input.value = newValue;
+            }
+            if (input.dataset) delete input.dataset.autoscreen;
+            input.classList.remove('is-auto');
+          }
+        }
+      }
+    }
+    syncSimpleFromWindow();
+    if (typeof window !== 'undefined') {
+      window.SIMPLE = SIMPLE;
+    }
   if (typeof SIMPLE !== 'string') {
     SIMPLE = SIMPLE == null ? '' : String(SIMPLE);
   }
@@ -6325,6 +6376,27 @@ function setupSettingsForm() {
       ADV.curveName.show = showAny;
       changed = true;
     }
+    const lockInput = g('cfgLock');
+    if (Object.prototype.hasOwnProperty.call(exampleState, 'lockAspect')) {
+      const resolvedLock = !!exampleState.lockAspect;
+      if (lockInput && lockInput.checked !== resolvedLock) {
+        lockInput.checked = resolvedLock;
+      }
+      if (ADV.lockAspect !== resolvedLock) {
+        ADV.lockAspect = resolvedLock;
+        changed = true;
+      }
+    }
+    if (Array.isArray(exampleState.screen) && exampleState.screen.length === 4) {
+      const normalized = normalizeAutoScreen(exampleState.screen);
+      if (normalized && normalized.length === 4) {
+        ADV.screen = normalized.slice(0, 4);
+        LAST_COMPUTED_SCREEN = ADV.screen.slice(0, 4);
+        LAST_SCREEN_SOURCE = exampleState.screenSource === 'manual' ? 'manual' : 'auto';
+        syncScreenInputFromState();
+        changed = true;
+      }
+    }
     return changed;
   };
   const syncExampleStateFromControls = () => {
@@ -6332,6 +6404,11 @@ function setupSettingsForm() {
     const resolvedShowExpr = showExprInput ? !!showExprInput.checked : !!(ADV.curveName && ADV.curveName.showExpression);
     exampleState.showNames = resolvedShowNames;
     exampleState.showExpression = resolvedShowExpr;
+    exampleState.lockAspect = ADV.lockAspect !== false;
+    exampleState.screen = Array.isArray(LAST_COMPUTED_SCREEN) && LAST_COMPUTED_SCREEN.length === 4
+      ? LAST_COMPUTED_SCREEN.slice(0, 4)
+      : null;
+    exampleState.screenSource = LAST_SCREEN_SOURCE;
   };
   applyExampleStateToControls();
   let gliderSection = null;
@@ -8522,7 +8599,7 @@ function setupSettingsForm() {
     const simpleChanged = currentSimple !== prevSimple;
     let needsRebuild = simpleChanged;
     const screenTrimmed = screenInput ? screenInput.value.trim() : '';
-    const manualScreenActive = Array.isArray(ADV.screen) && ADV.screen.length === 4;
+    const manualScreenActive = Array.isArray(ADV.screen) && ADV.screen.length === 4 && LAST_SCREEN_SOURCE === 'manual';
     const screenAutoTagged = !!(screenInput && screenInput.dataset && screenInput.dataset.autoscreen === '1');
     const autoScreenActive = !manualScreenActive && LAST_SCREEN_SOURCE === 'auto';
     let shouldAutoScreen = false;
@@ -8606,6 +8683,10 @@ function setupSettingsForm() {
     const screenChanged = !screensEqual(nextScreen, ADV.screen);
     if (screenChanged) {
       ADV.screen = nextScreen;
+      if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
+        EXAMPLE_STATE.screen = nextScreen ? nextScreen.slice(0, 4) : null;
+        EXAMPLE_STATE.screenSource = nextScreen ? 'manual' : 'auto';
+      }
       if (nextScreen && brd && typeof brd.setBoundingBox === 'function') {
         brd.setBoundingBox(toBB(nextScreen), true);
         rememberScreenState(nextScreen, 'manual');
@@ -8615,6 +8696,9 @@ function setupSettingsForm() {
     const lockChecked = !!(lockInput && lockInput.checked);
     if (ADV.lockAspect !== lockChecked) {
       ADV.lockAspect = lockChecked;
+      if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
+        EXAMPLE_STATE.lockAspect = lockChecked;
+      }
       needsRebuild = true;
     }
     const axisXInput = axisXInputElement || g('cfgAxisX');
