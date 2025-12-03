@@ -826,35 +826,6 @@ function applyFirstQuadrantPadding(screen) {
   return [xmin, xmax, ymin, ymax];
 }
 
-function expandScreenToLockAspect(screen) {
-  if (!Array.isArray(screen) || screen.length !== 4) return screen;
-  const [xmin, xmax, ymin, ymax] = screen;
-  if (![xmin, xmax, ymin, ymax].every(Number.isFinite)) return screen;
-  const width = Math.max(1e-9, xmax - xmin);
-  const height = Math.max(1e-9, ymax - ymin);
-  if (!(width > 0 && height > 0)) return screen;
-  const targetAspect = getBoardAspectRatio();
-  const currentAspect = width / height;
-  const tolerance = 1e-6 * Math.max(1, targetAspect);
-  if (Math.abs(currentAspect - targetAspect) <= tolerance) {
-    return screen.slice(0, 4);
-  }
-  let targetWidth = width;
-  let targetHeight = height;
-  if (currentAspect < targetAspect) {
-    targetWidth = height * targetAspect;
-  } else {
-    targetHeight = width / targetAspect;
-  }
-
-  if (ADV && ADV.firstQuadrant) {
-    return [xmin, xmin + targetWidth, ymin, ymin + targetHeight];
-  }
-
-  const cx = (xmin + xmax) / 2;
-  const cy = (ymin + ymax) / 2;
-  return [cx - targetWidth / 2, cx + targetWidth / 2, cy - targetHeight / 2, cy + targetHeight / 2];
-}
 function clampScreenToWholeGrid(screen) {
   if (!Array.isArray(screen) || screen.length !== 4) return screen;
   if (!ADV || !ADV.axis || !ADV.axis.forceIntegers || !ADV.axis.grid || !ADV.axis.grid.show) {
@@ -1947,7 +1918,7 @@ function syncScreenInputFromState() {
 }
 
 function rememberScreenState(screen, source) {
-  const normalized = normalizeAutoScreen(screen);
+  const normalized = calculateCorrectedScreen(screen);
   LAST_COMPUTED_SCREEN = normalized;
   LAST_SCREEN_SOURCE = 'manual';
   if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
@@ -2305,15 +2276,88 @@ function sampleFeatures(fn, a, b, opts = {}) {
 }
 
 /* ===================== Autozoom ===================== */
-function computeAutoScreenFunctions() {
-  // KRAV: Ingen analyse av funksjonen. 
-  // Bruk alltid standard [-5, 5, -5, 5] som utgangspunkt.
-  // normalizeAutoScreen tar seg av 1:1 og 1. kvadrant-reglene etterpå.
-  return normalizeAutoScreen(DEFAULT_SCREEN.slice());
+/**
+ * Hovedhjernen for utsnitt.
+ * Tar inn et ønsket utsnitt og korrigerer det basert på:
+ * 1. Kvadrant 1-regler (C)
+ * 2. Aspekt-ratio (Lås 1:1) (A, B, C)
+ */
+function calculateCorrectedScreen(requestedScreen) {
+  // Sikre at vi har gyldige tall, ellers bruk default
+  let base = Array.isArray(requestedScreen) && requestedScreen.length === 4 && requestedScreen.every(Number.isFinite)
+    ? requestedScreen.slice(0, 4)
+    : DEFAULT_SCREEN.slice(0, 4);
+
+  let [xmin, xmax, ymin, ymax] = base;
+
+  // --- REGEL C: KUN 1. KVADRANT ---
+  if (ADV.firstQuadrant) {
+    // Tving start til -0.5 for å vise aksene, men skjule det meste av negativ side.
+    const PADDING = 0.5;
+    
+    // Beregn bredde/høyde før vi flytter, slik at vi beholder "zoomen" brukeren ba om
+    let w = xmax - xmin;
+    let h = ymax - ymin;
+    
+    // Hvis brukeren har skrevet inn ugyldige tall (f.eks min > max), fiks det
+    if (w <= 0) w = 10;
+    if (h <= 0) h = 10;
+
+    xmin = -PADDING;
+    ymin = -PADDING;
+    xmax = xmin + w;
+    ymax = ymin + h;
+  }
+
+  // --- REGEL A & B: LÅS AKSENE 1:1 ---
+  // Dette må skje ETTER at vi har bestemt xmin/ymin (ankeret)
+  if (ADV.lockAspect) { // Sjekker om "Lås aksene 1:1" er true
+    const board = document.getElementById('board');
+    // Hvis vi ikke finner brettet (første load), anta et bredt format (f.eks. 2:1) eller kvadratisk
+    const cssWidth = board ? board.clientWidth : 800; 
+    const cssHeight = board ? board.clientHeight : 800;
+    
+    if (cssWidth > 0 && cssHeight > 0) {
+      const width = xmax - xmin;
+      const height = ymax - ymin;
+      
+      const pixRatio = cssWidth / cssHeight;   // Fysisk forhold
+      const worldRatio = width / height;       // Matematisk forhold
+
+      // Hvis verden er "smalere" enn skjermen, må vi øke bredden (x)
+      if (worldRatio < pixRatio) {
+        const newWidth = height * pixRatio;
+        const diff = newWidth - width;
+        
+        if (ADV.firstQuadrant) {
+           // I 1. kvadrant: Utvid KUN mot høyre (endre xmax)
+           xmax = xmin + newWidth;
+        } else {
+           // Normalt: Utvid til begge sider (sentrert)
+           xmin -= diff / 2;
+           xmax += diff / 2;
+        }
+      } 
+      // Hvis verden er "flatere" enn skjermen, må vi øke høyden (y)
+      else if (worldRatio > pixRatio) {
+        const newHeight = width / pixRatio;
+        const diff = newHeight - height;
+        
+        if (ADV.firstQuadrant) {
+           // I 1. kvadrant: Utvid KUN oppover (endre ymax)
+           ymax = ymin + newHeight;
+        } else {
+           // Normalt: Utvid til begge sider (sentrert)
+           ymin -= diff / 2;
+           ymax += diff / 2;
+        }
+      }
+    }
+  }
+
+  return [xmin, xmax, ymin, ymax];
 }
-function computeAutoScreenPoints() {
-  return normalizeAutoScreen(DEFAULT_SCREEN.slice());
-}
+
 const toBB = scr => [scr[0], scr[3], scr[1], scr[2]];
 function fromBoundingBox(bb) {
   if (!Array.isArray(bb) || bb.length !== 4) return null;
@@ -2343,68 +2387,11 @@ function screenSupportsFirstQuadrant(screen) {
   return xmin >= -EPS && ymin >= -EPS;
 }
 
-function clampScreenToFirstQuadrant(screen) {
-  if (!Array.isArray(screen) || screen.length !== 4) {
-    return Array.isArray(screen) ? screen.slice(0, 4) : screen;
-  }
-  let [xmin, xmax, ymin, ymax] = screen;
-
-  // Hvis 1. kvadrant ikke er aktivert, gjør ingenting
-  if (!ADV || !ADV.firstQuadrant) {
-    return screen.slice(0, 4);
-  }
-
-  const width = xmax - xmin;
-  const height = ymax - ymin;
-
-  // PADDING: Vi tillater at den går ned til -0.5 for å vise aksene
-  const ALLOWED_MIN = -0.5; 
-
-  // Sjekk X
-  if (xmin < ALLOWED_MIN) {
-    const diff = ALLOWED_MIN - xmin;
-    xmin = ALLOWED_MIN;
-    xmax += diff; // Skyv vinduet til høyre for å bevare bredden
-  }
-
-  // Sjekk Y
-  if (ymin < ALLOWED_MIN) {
-    const diff = ALLOWED_MIN - ymin;
-    ymin = ALLOWED_MIN;
-    ymax += diff; // Skyv vinduet opp for å bevare høyden
-  }
-
-  return [xmin, xmax, ymin, ymax];
-}
-
-function normalizeAutoScreen(screen) {
-  // Start med det vi fikk (som nå alltid er default [-5,5,-5,5] fra punkt 1)
-  // eller det brukeren skrev i feltet.
-  const base = Array.isArray(screen) && screen.length === 4 ? screen.slice(0, 4) : DEFAULT_SCREEN.slice(0, 4);
-
-  let normalized = base;
-
-  // 1. HVIS 1. KVADRANT: Tving startposisjonen til -0.5
-  if (ADV && ADV.firstQuadrant) {
-    // Denne funksjonen (linje 1066 i filen din) setter xmin/ymin til -0.5
-    normalized = applyFirstQuadrantPadding(normalized);
-  }
-
-  // 2. HVIS LÅS 1:1: Utvid boksen basert på gjeldende anker
-  if (shouldLockAspect()) {
-    // expandScreenToLockAspect (linje 1083) sjekker allerede ADV.firstQuadrant
-    // og vet at den skal utvide mot høyre/opp hvis det er på.
-    normalized = expandScreenToLockAspect(normalized);
-  }
-
-  return normalized;
-}
-
 /* ===================== Init JSXGraph ===================== */
 function initialScreen() {
   const hasStoredScreen = Array.isArray(ADV.screen) && ADV.screen.length === 4;
   const rawScreen = hasStoredScreen ? ADV.screen : DEFAULT_SCREEN;
-  const normalized = normalizeAutoScreen(rawScreen);
+  const normalized = calculateCorrectedScreen(rawScreen);
   rememberScreenState(normalized, 'manual');
   ADV.screen = normalized.slice(0, 4);
   return normalized;
@@ -5673,96 +5660,54 @@ function queueFunctionViewUpdate(screen) {
 
 /* ================= Oppdater / resize ================= */
   function updateAfterViewChange() {
-    if (IS_SETTING_BOUNDING_BOX) return;
-    if (!appState.board) return;
-    enforceAspectStrict();
+    if (IS_SETTING_BOUNDING_BOX || !appState.board) return;
+    const bb = appState.board.getBoundingBox();
+    let currentScreen = fromBoundingBox(bb);
+    if (!currentScreen) return;
+
+    // 2. Sjekk om vi bryter 1. kvadrant-reglene
+    if (ADV.firstQuadrant) {
+       // Hvis vi har zoomet/panorert oss bort fra -0.5, tving oss tilbake
+       // Men tillat at max-verdiene endres (zoom ut/inn)
+       const PADDING = 0.5;
+       let [xmin, xmax, ymin, ymax] = currentScreen;
+       let changed = false;
+
+       if (Math.abs(xmin - (-PADDING)) > 0.1) { xmin = -PADDING; changed = true; }
+       if (Math.abs(ymin - (-PADDING)) > 0.1) { ymin = -PADDING; changed = true; }
+       
+       if (changed) {
+           currentScreen = [xmin, xmax, ymin, ymax];
+           IS_SETTING_BOUNDING_BOX = true;
+           appState.board.setBoundingBox(toBB(currentScreen), false);
+           IS_SETTING_BOUNDING_BOX = false;
+       }
+    }
+
+    // 3. Oppdater input-feltet live (uten å endre fokus)
+    // Dette oppfyller kravet: "Tallene skal oppdateres slik at de ALLTID stemmer"
+    const input = document.getElementById('cfgScreen');
+    if (input && document.activeElement !== input) {
+        input.value = formatScreenForInput(currentScreen);
+        input.classList.remove('is-auto');
+    }
+    
+    ADV.screen = currentScreen;
+    
     applyTickSettings();
     if (ADV.axis.forceIntegers) {
       rebuildGrid();
     }
     placeAxisNames();
     updateAxisArrows();
-    const screenInput = document.getElementById('cfgScreen');
-    const hasManualScreenValue = !!(screenInput && screenInput.value && screenInput.value.trim() && (!screenInput.dataset || screenInput.dataset.autoscreen !== '1'));
-    if (appState.board && typeof appState.board.getBoundingBox === 'function') {
-      const bb = appState.board.getBoundingBox();
-      let screen = fromBoundingBox(bb);
-
-      // Avoid propagating absurd or invalid bounding boxes that can appear during
-      // initialization glitches.
-      const MAX_VAL = 10000000;
-      if (!screen || screen.some((v) => !Number.isFinite(v) || Math.abs(v) > MAX_VAL)) {
-        return;
-      }
-
-      // If JSXGraph reports a bounding box that suddenly explodes compared to the
-      // last valid one (often happens on first paint when sizes are being
-      // measured), ignore it and wait for the next valid update.
-      if (Array.isArray(LAST_COMPUTED_SCREEN) && LAST_COMPUTED_SCREEN.length === 4) {
-        const span = (scr) => Math.max(1e-9, Math.abs(scr[1] - scr[0]), Math.abs(scr[3] - scr[2]));
-        const prevSpan = span(LAST_COMPUTED_SCREEN);
-        const nextSpan = span(screen);
-        if (nextSpan / prevSpan > 250) {
-          return;
-        }
-      }
-
-      // 1. Først Grid Snap (hvis aktivert). Hopp over hvis brukeren har
-      // skrevet inn et eksplisitt utsnitt; da skal vi ikke klemme til
-      // heltallsrutenettet og endre grensene deres.
-      if (!hasManualScreenValue && ADV.axis.forceIntegers && ADV.axis.grid && ADV.axis.grid.show) {
-        const clampedGrid = clampScreenToWholeGrid(screen);
-        if (!screensEqual(screen, clampedGrid)) {
-          screen = clampedGrid;
-        }
-      }
-
-      // 2. Deretter 1. Kvadrant (hvis aktivert) - Denne får siste ordet!
-      if (ADV.firstQuadrant) {
-        const clamped = clampScreenToFirstQuadrant(screen);
-        if (!screensEqual(screen, clamped)) {
-          screen = clamped;
-        }
-      }
-
-      // 3. Sjekk om vi må oppdatere brettet eller state
-      const currentBB = fromBoundingBox(appState.board.getBoundingBox());
-      if (!screensEqual(currentBB, screen)) {
-        if (appState.board && typeof appState.board.setBoundingBox === 'function') {
-          // False her betyr "ikke tving keepAspectRatio" (fordi vi har beregnet det selv)
-          // Men JSXGraph kan være sta, så noen ganger må man bruke true hvis forholdet er riktig.
-          IS_SETTING_BOUNDING_BOX = true;
-          try {
-            appState.board.setBoundingBox(toBB(screen), false);
-          } finally {
-            IS_SETTING_BOUNDING_BOX = false;
-          }
-        }
-      }
-
-      if (screen) {
-        if (!screensEqual(ADV.screen, screen)) {
-          ADV.screen = screen;
-          rememberScreenState(screen, 'manual');
-        }
-        const input = document.getElementById('cfgScreen');
-        if (input && document.activeElement !== input) {
-          const newValue = formatScreenForInput(screen);
-          if (input.value !== newValue) {
-            input.value = newValue;
-          }
-          input.classList.remove('is-auto');
-          if (input.dataset) delete input.dataset.autoscreen;
-        }
-        queueFunctionViewUpdate(screen);
-      }
+    queueFunctionViewUpdate(currentScreen);
   }
 }
 function rememberManualScreenFromBoard() {
   if (!appState.board) return;
   const currentBB = fromBoundingBox(appState.board.getBoundingBox());
   if (!currentBB || !currentBB.every(Number.isFinite)) return;
-  const normalized = normalizeAutoScreen(currentBB);
+  const normalized = calculateCorrectedScreen(currentBB);
   if (!Array.isArray(normalized) || normalized.length !== 4 || !normalized.every(Number.isFinite)) return;
   rememberScreenState(normalized, 'manual');
   const input = document.getElementById('cfgScreen');
@@ -6409,7 +6354,7 @@ function setupSettingsForm() {
       changed = true;
     }
     if (Array.isArray(exampleState.screen) && exampleState.screen.length === 4) {
-      const normalized = normalizeAutoScreen(exampleState.screen);
+      const normalized = calculateCorrectedScreen(exampleState.screen);
       if (normalized && normalized.length === 4) {
         ADV.screen = normalized.slice(0, 4);
         LAST_COMPUTED_SCREEN = ADV.screen.slice(0, 4);
@@ -8644,44 +8589,83 @@ function setupSettingsForm() {
     let needsRebuild = simpleChanged;
     const lockInput = g('cfgLock');
     const q1Input = g('cfgQ1');
-    let q1Checked = !!(q1Input && q1Input.checked);
-    let q1Changed = ADV.firstQuadrant !== q1Checked;
-    const screenRaw = screenInput ? screenInput.value.trim() : '';
-    let nextScreen = normalizeAutoScreen(screenInput ? parseScreen(screenRaw) : null);
-    if (q1Input && q1Checked) {
-      const padded = applyFirstQuadrantPadding(nextScreen);
-      if (Array.isArray(padded) && !screensEqual(padded, nextScreen)) {
-        nextScreen = padded;
+    const prevLock = ADV.lockAspect;
+    const prevFirstQuadrant = ADV.firstQuadrant;
+    const screenTrimmed = screenInput ? screenInput.value.trim() : '';
+    let nextScreen = null;
+    let forceRebuild = false;
+
+    // REGEL A: Hvis forfatter sletter innholdet -> Reset til Default + Lås 1:1
+    if (!screenTrimmed) {
+      nextScreen = DEFAULT_SCREEN.slice(); // [-5, 5, -5, 5]
+      
+      // Oppdater UI-elementene
+      if (lockInput) lockInput.checked = true;
+      ADV.lockAspect = true;
+      
+      if (screenInput) {
+        screenInput.classList.add('is-auto'); // Visuelt hint om at dette er default
+      }
+    } 
+    // REGEL B: Hvis forfatter skriver inn tall
+    else {
+      const parsed = parseScreen(screenTrimmed);
+      if (parsed) {
+        // Sjekk om dette er en endring fra forrige state
+        const prevScreen = ADV.screen || DEFAULT_SCREEN;
+        if (!screensEqual(parsed, prevScreen)) {
+           // Bruker har endret tallene manuelt -> Sett Lås 1:1 til FALSE
+           if (lockInput) lockInput.checked = false;
+           ADV.lockAspect = false;
+        }
+        nextScreen = parsed;
+        
+        if (screenInput) {
+          screenInput.classList.remove('is-auto');
+        }
       }
     }
-    if (lockInput && lockInput.checked) {
-      const expanded = expandScreenToLockAspect(nextScreen);
-      if (Array.isArray(expanded) && !screensEqual(expanded, nextScreen)) {
-        nextScreen = expanded;
-      }
+
+    // Oppdater interne variabler basert på checkboxer (i tilfelle bruker klikket på dem)
+    const lockChecked = lockInput ? !!lockInput.checked : ADV.lockAspect;
+    const q1Checked = q1Input ? !!q1Input.checked : ADV.firstQuadrant;
+    const q1Changed = q1Checked !== prevFirstQuadrant;
+    ADV.lockAspect = lockChecked;
+    ADV.firstQuadrant = q1Checked;
+
+    // --- KJØR MATTE-MOTOREN ---
+    // Nå bruker vi calculateCorrectedScreen til å fikse 1:1 og 1.kvadrant
+    // basert på det brukeren ba om (nextScreen) og innstillingene (ADV).
+    if (nextScreen) {
+       const corrected = calculateCorrectedScreen(nextScreen);
+       
+       // Sett den nye skjermen
+       ADV.screen = corrected;
+       
+       // Oppdater input-feltet slik at det "ALLTID stemmer med det faktiske utsnittet"
+       if (screenInput) {
+         screenInput.value = formatScreenForInput(corrected);
+       }
+       
+       // Oppdater boardet
+       if (appState.board) {
+          appState.board.setBoundingBox(toBB(corrected), false); // false = ikke tving aspect i JXG, vi har allerede regnet det ut
+       }
+       
+       if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
+         EXAMPLE_STATE.screen = corrected ? corrected.slice(0, 4) : null;
+         EXAMPLE_STATE.screenSource = 'manual';
+       }
+       rememberScreenState(corrected, 'manual');
+       
+       forceRebuild = true;
     }
-    const formattedScreen = formatScreenForInput(nextScreen);
-    if (screenInput && screenInput.value !== formattedScreen) {
-      screenInput.value = formattedScreen;
-      if (screenInput.dataset) delete screenInput.dataset.autoscreen;
-      screenInput.classList.remove('is-auto');
-    }
-    const screenChanged = !screensEqual(nextScreen, ADV.screen);
-    if (screenChanged) {
-      ADV.screen = nextScreen;
-      if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
-        EXAMPLE_STATE.screen = nextScreen ? nextScreen.slice(0, 4) : null;
-        EXAMPLE_STATE.screenSource = 'manual';
-      }
-      if (nextScreen && appState.board && typeof appState.board.setBoundingBox === 'function') {
-        appState.board.setBoundingBox(toBB(nextScreen), true);
-        rememberScreenState(nextScreen, 'manual');
-      }
+
+    if (forceRebuild) {
       needsRebuild = true;
     }
-    const lockChecked = !!(lockInput && lockInput.checked);
-    if (ADV.lockAspect !== lockChecked) {
-      ADV.lockAspect = lockChecked;
+
+    if (lockChecked !== prevLock) {
       if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
         EXAMPLE_STATE.lockAspect = lockChecked;
       }
@@ -8706,7 +8690,6 @@ function setupSettingsForm() {
     }
     ADV.interactions.pan.enabled = false;
     if (q1Changed) {
-      ADV.firstQuadrant = q1Checked;
       needsRebuild = true;
     }
     const showNamesChecked = showNamesInput ? !!showNamesInput.checked : !!(ADV.curveName && ADV.curveName.showName);
@@ -8749,6 +8732,7 @@ function setupSettingsForm() {
       ADV.points.snap.enabled = snapEnabled;
       needsRebuild = true;
     }
+    const screenValueForParams = screenInput ? screenInput.value.trim() : '';
     const currentFontSize = sanitizeFontSize(ADV.axis.grid.fontSize, FONT_DEFAULT);
     const p = new URLSearchParams();
     const parsedMarkerListForExport = Array.isArray(appState.simple.parsed.pointMarkers) && appState.simple.parsed.pointMarkers.length
@@ -8814,7 +8798,7 @@ function setupSettingsForm() {
         p.set('linepts', formatLinePoints(exportPoints));
       }
     }
-    if (screenRaw) p.set('screen', screenRaw);
+    if (screenValueForParams) p.set('screen', screenValueForParams);
     if (lockChecked) p.set('lock', '1');else p.set('lock', '0');
     if (axisXValue && axisXValue !== 'x') p.set('xName', axisXValue);
     if (axisYValue && axisYValue !== 'y') p.set('yName', axisYValue);
