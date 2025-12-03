@@ -798,6 +798,34 @@ function parseScreen(str) {
   return parts.length === 4 && parts.every(Number.isFinite) ? parts : null;
 }
 
+function getBoardAspectRatio() {
+  if (typeof document === 'undefined') return 1;
+  const board = document.getElementById('board');
+  if (!board || typeof board.getBoundingClientRect !== 'function') return 1;
+  const rect = board.getBoundingClientRect();
+  const width = rect.width;
+  const height = rect.height;
+  if (!(width > 0 && height > 0)) return 1;
+  const ratio = width / height;
+  return Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
+}
+
+function applyFirstQuadrantPadding(screen) {
+  if (!Array.isArray(screen) || screen.length !== 4) return screen;
+  let [xmin, xmax, ymin, ymax] = screen;
+  if (![xmin, xmax, ymin, ymax].every(Number.isFinite)) return screen;
+  let width = xmax - xmin;
+  let height = ymax - ymin;
+  if (!(width > 0)) width = 10;
+  if (!(height > 0)) height = 10;
+  const padding = 0.5;
+  xmin = -padding;
+  ymin = -padding;
+  xmax = xmin + width;
+  ymax = ymin + height;
+  return [xmin, xmax, ymin, ymax];
+}
+
 function expandScreenToLockAspect(screen) {
   if (!Array.isArray(screen) || screen.length !== 4) return screen;
   const [xmin, xmax, ymin, ymax] = screen;
@@ -805,20 +833,27 @@ function expandScreenToLockAspect(screen) {
   const width = Math.max(1e-9, xmax - xmin);
   const height = Math.max(1e-9, ymax - ymin);
   if (!(width > 0 && height > 0)) return screen;
-  const scale = Math.max(Math.abs(width), Math.abs(height), 1);
-  if (Math.abs(width - height) <= 1e-6 * scale) {
+  const targetAspect = getBoardAspectRatio();
+  const currentAspect = width / height;
+  const tolerance = 1e-6 * Math.max(1, targetAspect);
+  if (Math.abs(currentAspect - targetAspect) <= tolerance) {
     return screen.slice(0, 4);
   }
-  const span = Math.max(width, height);
+  let targetWidth = width;
+  let targetHeight = height;
+  if (currentAspect < targetAspect) {
+    targetWidth = height * targetAspect;
+  } else {
+    targetHeight = width / targetAspect;
+  }
 
   if (ADV && ADV.firstQuadrant) {
-    return [xmin, xmin + span, ymin, ymin + span];
+    return [xmin, xmin + targetWidth, ymin, ymin + targetHeight];
   }
 
   const cx = (xmin + xmax) / 2;
   const cy = (ymin + ymax) / 2;
-  const half = span / 2;
-  return [cx - half, cx + half, cy - half, cy + half];
+  return [cx - targetWidth / 2, cx + targetWidth / 2, cy - targetHeight / 2, cy + targetHeight / 2];
 }
 function clampScreenToWholeGrid(screen) {
   if (!Array.isArray(screen) || screen.length !== 4) return screen;
@@ -1019,8 +1054,9 @@ const INITIAL_POINT_MARKER_VALUE = !INITIAL_POINT_MARKER_NORMALIZED || isDefault
 const PARAM_SCREEN_RAW = paramStr('screen', '');
 const PARAM_SCREEN = parseScreen(PARAM_SCREEN_RAW);
 const HAS_PARAM_SCREEN = params.has('screen') && Array.isArray(PARAM_SCREEN);
-const INITIAL_SCREEN = HAS_PARAM_SCREEN ? PARAM_SCREEN : null;
-const INITIAL_SCREEN_SOURCE = HAS_PARAM_SCREEN ? 'manual' : 'auto';
+const DEFAULT_SCREEN = [-5, 5, -5, 5];
+const INITIAL_SCREEN = HAS_PARAM_SCREEN ? PARAM_SCREEN : DEFAULT_SCREEN;
+const INITIAL_SCREEN_SOURCE = 'manual';
 
 const ADV = {
   axis: {
@@ -1883,33 +1919,17 @@ function syncScreenInputFromState() {
   if (Array.isArray(LAST_COMPUTED_SCREEN) && LAST_COMPUTED_SCREEN.length === 4) {
     const formatted = formatScreenForInput(LAST_COMPUTED_SCREEN);
     input.value = formatted;
-    if (LAST_SCREEN_SOURCE === 'auto') {
-      if (input.dataset) input.dataset.autoscreen = '1';
-      input.classList.add('is-auto');
-    } else {
-      if (input.dataset) delete input.dataset.autoscreen;
-      input.classList.remove('is-auto');
-    }
   } else {
-    input.value = '';
-    if (input.dataset) delete input.dataset.autoscreen;
-    input.classList.remove('is-auto');
+    input.value = formatScreenForInput(DEFAULT_SCREEN);
   }
 }
 
 function rememberScreenState(screen, source) {
-  let next = Array.isArray(screen) ? screen.slice(0, 4) : null;
-  if (next && ADV && ADV.firstQuadrant) {
-    if (source === 'manual') {
-      next = clampScreenToFirstQuadrant(next);
-    } else {
-      next = normalizeAutoScreen(next);
-    }
-  }
-  LAST_COMPUTED_SCREEN = next;
-  LAST_SCREEN_SOURCE = source === 'manual' ? 'manual' : 'auto';
+  const normalized = normalizeAutoScreen(screen);
+  LAST_COMPUTED_SCREEN = normalized;
+  LAST_SCREEN_SOURCE = 'manual';
   if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
-    EXAMPLE_STATE.screen = next ? next.slice(0, 4) : null;
+    EXAMPLE_STATE.screen = normalized ? normalized.slice(0, 4) : null;
     EXAMPLE_STATE.screenSource = LAST_SCREEN_SOURCE;
   }
   syncScreenInputFromState();
@@ -2579,39 +2599,35 @@ function clampScreenToFirstQuadrant(screen) {
 }
 
 function normalizeAutoScreen(screen) {
-  if (!Array.isArray(screen) || screen.length !== 4) {
-    return screen;
+  const base = Array.isArray(screen) && screen.length === 4 ? screen.slice(0, 4) : DEFAULT_SCREEN.slice(0, 4);
+  let [xmin, xmax, ymin, ymax] = base;
+  if (![xmin, xmax, ymin, ymax].every(Number.isFinite)) {
+    return DEFAULT_SCREEN.slice(0, 4);
   }
-  let normalized = screen.slice(0, 4);
-  if (shouldLockAspect() && !screenSupportsLockAspect(normalized)) {
-    normalized = expandScreenToLockAspect(normalized);
+  if (xmax <= xmin) {
+    xmax = xmin + 10;
   }
+  if (ymax <= ymin) {
+    ymax = ymin + 10;
+  }
+  let normalized = [xmin, xmax, ymin, ymax];
   if (ADV && ADV.firstQuadrant) {
-    normalized = clampScreenToFirstQuadrant(normalized);
+    normalized = applyFirstQuadrantPadding(normalized);
+  }
+  if (shouldLockAspect()) {
+    normalized = expandScreenToLockAspect(normalized);
   }
   return normalized;
 }
 
 /* ===================== Init JSXGraph ===================== */
 function initialScreen() {
-  var _ADV$screen;
   const hasStoredScreen = Array.isArray(ADV.screen) && ADV.screen.length === 4;
-  const screenSource = hasStoredScreen && LAST_SCREEN_SOURCE === 'manual' ? 'manual' : 'auto';
-  let scr = hasStoredScreen ? (_ADV$screen = ADV.screen) !== null && _ADV$screen !== void 0 ? _ADV$screen : null : null;
-  if (!scr) {
-    scr = MODE === 'functions' ? computeAutoScreenFunctions() : computeAutoScreenPoints();
-  }
-  if (screenSource === 'manual' && shouldLockAspect() && !screenSupportsLockAspect(scr)) {
-    const expanded = expandScreenToLockAspect(scr);
-    if (Array.isArray(expanded) && expanded.length === 4) {
-      scr = expanded;
-    }
-  }
-  if (ADV.firstQuadrant) {
-    scr = clampScreenToFirstQuadrant(scr);
-  }
-  rememberScreenState(scr, screenSource);
-  return scr;
+  const rawScreen = hasStoredScreen ? ADV.screen : DEFAULT_SCREEN;
+  const normalized = normalizeAutoScreen(rawScreen);
+  rememberScreenState(normalized, 'manual');
+  ADV.screen = normalized.slice(0, 4);
+  return normalized;
 }
 function syncSimpleFromWindow() {
   if (typeof window !== 'undefined' && typeof window.SIMPLE !== 'undefined') {
@@ -5941,11 +5957,9 @@ function queueFunctionViewUpdate(screen) {
 
       if (screen) {
         const screenInput = document.getElementById('cfgScreen');
-        const autoScreenRequested = screenInput && screenInput.dataset && screenInput.dataset.autoscreen === '1';
-        const treatAsAuto = LAST_SCREEN_SOURCE === 'auto' && autoScreenRequested;
         if (!screensEqual(ADV.screen, screen)) {
           ADV.screen = screen;
-          rememberScreenState(screen, treatAsAuto ? 'auto' : 'manual');
+          rememberScreenState(screen, 'manual');
         }
         const input = document.getElementById('cfgScreen');
         if (input && document.activeElement !== input) {
@@ -5953,13 +5967,8 @@ function queueFunctionViewUpdate(screen) {
           if (input.value !== newValue) {
             input.value = newValue;
           }
-          if (treatAsAuto) {
-            input.classList.add('is-auto');
-            if (input.dataset) input.dataset.autoscreen = '1';
-          } else {
-            input.classList.remove('is-auto');
-            if (input.dataset) delete input.dataset.autoscreen;
-          }
+          input.classList.remove('is-auto');
+          if (input.dataset) delete input.dataset.autoscreen;
         }
         queueFunctionViewUpdate(screen);
       }
@@ -6576,7 +6585,7 @@ function setupSettingsForm() {
       if (normalized && normalized.length === 4) {
         ADV.screen = normalized.slice(0, 4);
         LAST_COMPUTED_SCREEN = ADV.screen.slice(0, 4);
-        LAST_SCREEN_SOURCE = exampleState.screenSource === 'manual' ? 'manual' : 'auto';
+        LAST_SCREEN_SOURCE = 'manual';
         syncScreenInputFromState();
         changed = true;
       }
@@ -6592,7 +6601,7 @@ function setupSettingsForm() {
     exampleState.screen = Array.isArray(LAST_COMPUTED_SCREEN) && LAST_COMPUTED_SCREEN.length === 4
       ? LAST_COMPUTED_SCREEN.slice(0, 4)
       : null;
-    exampleState.screenSource = LAST_SCREEN_SOURCE;
+    exampleState.screenSource = 'manual';
   };
   applyExampleStateToControls();
   let gliderSection = null;
@@ -8555,13 +8564,13 @@ function setupSettingsForm() {
     return row;
   };
   const resetScreenStateForExample = () => {
-    ADV.screen = null;
-    LAST_COMPUTED_SCREEN = null;
-    LAST_SCREEN_SOURCE = 'auto';
+    ADV.screen = DEFAULT_SCREEN.slice(0, 4);
+    LAST_COMPUTED_SCREEN = DEFAULT_SCREEN.slice(0, 4);
+    LAST_SCREEN_SOURCE = 'manual';
     if (screenInput) {
-      screenInput.value = '';
-      if (screenInput.dataset) screenInput.dataset.autoscreen = '1';
-      screenInput.classList.add('is-auto');
+      screenInput.value = formatScreenForInput(DEFAULT_SCREEN);
+      if (screenInput.dataset) delete screenInput.dataset.autoscreen;
+      screenInput.classList.remove('is-auto');
     }
   };
   const fillFormFromSimple = simple => {
@@ -8782,101 +8791,41 @@ function setupSettingsForm() {
     const currentSimple = syncSimpleFromForm();
     const simpleChanged = currentSimple !== prevSimple;
     let needsRebuild = simpleChanged;
-    const screenTrimmed = screenInput ? screenInput.value.trim() : '';
-    const manualScreenActive = Array.isArray(ADV.screen) && ADV.screen.length === 4 && LAST_SCREEN_SOURCE === 'manual';
-    const screenAutoTagged = !!(screenInput && screenInput.dataset && screenInput.dataset.autoscreen === '1');
-    const autoScreenActive = !manualScreenActive && LAST_SCREEN_SOURCE === 'auto';
-    let shouldAutoScreen = false;
-    if (!screenTrimmed) {
-      shouldAutoScreen = true;
-      if (screenInput && screenInput.dataset) screenInput.dataset.autoscreen = '1';
-      if (screenInput) screenInput.classList.add('is-auto');
-    } else if (screenAutoTagged && autoScreenActive) {
-      shouldAutoScreen = true;
-    } else if (screenAutoTagged && !autoScreenActive) {
-      if (screenInput && screenInput.dataset) delete screenInput.dataset.autoscreen;
-      if (screenInput) screenInput.classList.remove('is-auto');
-    }
-    if (!shouldAutoScreen && simpleChanged && autoScreenActive) {
-      shouldAutoScreen = true;
-      if (screenInput && screenInput.dataset) screenInput.dataset.autoscreen = '1';
-      if (screenInput) screenInput.classList.add('is-auto');
-    }
-    let screenRaw = screenTrimmed;
-    if (shouldAutoScreen) {
-      screenRaw = '';
-      appState.skipSnapshot = true;
-      ADV.screen = null;
-    }
-    let nextScreen = screenInput ? parseScreen(screenRaw) : null;
     const lockInput = g('cfgLock');
     const q1Input = g('cfgQ1');
     let q1Checked = !!(q1Input && q1Input.checked);
     let q1Changed = ADV.firstQuadrant !== q1Checked;
-    if (nextScreen && lockInput && lockInput.checked) {
+    const screenRaw = screenInput ? screenInput.value.trim() : '';
+    let nextScreen = normalizeAutoScreen(screenInput ? parseScreen(screenRaw) : null);
+    if (q1Input && q1Checked) {
+      const padded = applyFirstQuadrantPadding(nextScreen);
+      if (Array.isArray(padded) && !screensEqual(padded, nextScreen)) {
+        nextScreen = padded;
+      }
+    }
+    if (lockInput && lockInput.checked) {
       const expanded = expandScreenToLockAspect(nextScreen);
-      if (Array.isArray(expanded) && expanded.length === 4 && !screensEqual(expanded, nextScreen)) {
+      if (Array.isArray(expanded) && !screensEqual(expanded, nextScreen)) {
         nextScreen = expanded;
-        screenRaw = formatScreenForInput(expanded);
-        if (screenInput) {
-          screenInput.value = screenRaw;
-          if (screenInput.dataset) delete screenInput.dataset.autoscreen;
-          screenInput.classList.remove('is-auto');
-        }
       }
     }
-    if (nextScreen && q1Input && q1Checked && !screenSupportsFirstQuadrant(nextScreen)) {
-      const clamped = clampScreenToFirstQuadrant(nextScreen);
-      if (Array.isArray(clamped) && clamped.length === 4) {
-        nextScreen = clamped;
-        screenRaw = formatScreenForInput(clamped);
-        if (screenInput) {
-          screenInput.value = screenRaw;
-          if (screenInput.dataset) delete screenInput.dataset.autoscreen;
-          screenInput.classList.remove('is-auto');
-        }
-      } else {
-        q1Input.checked = false;
-        q1Checked = false;
-        q1Changed = ADV.firstQuadrant !== q1Checked;
-      }
-    }
-    if (q1Changed && q1Checked) {
-      const current = nextScreen || ADV.screen || LAST_COMPUTED_SCREEN;
-      const clamped = clampScreenToFirstQuadrant(current);
-      if (Array.isArray(clamped) && clamped.length === 4) {
-        nextScreen = clamped;
-        screenRaw = formatScreenForInput(clamped);
-        if (screenInput) {
-          screenInput.value = screenRaw;
-          if (screenInput.dataset) delete screenInput.dataset.autoscreen;
-          screenInput.classList.remove('is-auto');
-        }
-      } else {
-        shouldAutoScreen = true;
-        screenRaw = '';
-        nextScreen = null;
-        if (screenInput) {
-          screenInput.value = '';
-          if (screenInput.dataset) screenInput.dataset.autoscreen = '1';
-          screenInput.classList.add('is-auto');
-        }
-      }
+    const formattedScreen = formatScreenForInput(nextScreen);
+    if (screenInput && screenInput.value !== formattedScreen) {
+      screenInput.value = formattedScreen;
+      if (screenInput.dataset) delete screenInput.dataset.autoscreen;
+      screenInput.classList.remove('is-auto');
     }
     const screenChanged = !screensEqual(nextScreen, ADV.screen);
     if (screenChanged) {
       ADV.screen = nextScreen;
       if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
         EXAMPLE_STATE.screen = nextScreen ? nextScreen.slice(0, 4) : null;
-        EXAMPLE_STATE.screenSource = nextScreen ? 'manual' : 'auto';
+        EXAMPLE_STATE.screenSource = 'manual';
       }
       if (nextScreen && appState.board && typeof appState.board.setBoundingBox === 'function') {
         appState.board.setBoundingBox(toBB(nextScreen), true);
         rememberScreenState(nextScreen, 'manual');
       }
-      needsRebuild = true;
-    } else if (shouldAutoScreen) {
-      rememberScreenState(null, 'auto');
       needsRebuild = true;
     }
     const lockChecked = !!(lockInput && lockInput.checked);
