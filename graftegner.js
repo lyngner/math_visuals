@@ -224,15 +224,15 @@ const DEFAULT_GRAFTEGNER_TRIG_SIMPLE = {
 };
 
 const AXIS_ARROW_PIXEL_THICKNESS = 26;
-const AXIS_ARROW_ASPECT_RATIO = 17 / 30;
+const AXIS_ARROW_ASPECT_RATIO = 30 / 17;
 const AXIS_LABEL_OFFSET_PX = 10;
 const AXIS_LABEL_MARGIN_FRACTION = 0.005;
 const AXIS_LABEL_MARGINS = { x: AXIS_LABEL_MARGIN_FRACTION, y: AXIS_LABEL_MARGIN_FRACTION };
 
 const X_AXIS_ARROW_SVG_TEMPLATE =
-  '<svg width="17" height="30" viewBox="0 0 17 30" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1 L15 15 L1 29" stroke="{{COLOR}}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
+  '<svg width="30" height="17" viewBox="0 0 30 17" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1 L29 8.5 L1 16" stroke="{{COLOR}}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
 const Y_AXIS_ARROW_SVG_TEMPLATE =
-  '<svg width="30" height="17" viewBox="0 0 30 17" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 16 L15 2 L29 16" stroke="{{COLOR}}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
+  '<svg width="17" height="30" viewBox="0 0 17 30" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 29 L8.5 1 L16 29" stroke="{{COLOR}}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
 
 function axisArrowSvgData(axis, color) {
   const template = axis === 'y' ? Y_AXIS_ARROW_SVG_TEMPLATE : X_AXIS_ARROW_SVG_TEMPLATE;

@@ -107,9 +107,11 @@ const LEGACY_LEGEND_BACKGROUND = '#ffffff';
 const LEGACY_LEGEND_TEXT_COLOR = '#000000';
 
 const X_AXIS_ARROW_SVG_TEMPLATE =
-  '<svg width="17" height="30" viewBox="0 0 17 30" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1 L15 15 L1 29" stroke="{{COLOR}}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
+  '<svg width="30" height="17" viewBox="0 0 30 17" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1 L29 8.5 L1 16" stroke="{{COLOR}}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
 const Y_AXIS_ARROW_SVG_TEMPLATE =
-  '<svg width="30" height="17" viewBox="0 0 30 17" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 16 L15 2 L29 16" stroke="{{COLOR}}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
+  '<svg width="17" height="30" viewBox="0 0 17 30" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 29 L8.5 1 L16 29" stroke="{{COLOR}}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
+const X_AXIS_ARROW_SIZE = { width: 30, height: 17 };
+const Y_AXIS_ARROW_SIZE = { width: 17, height: 30 };
 
 function getAxisColor() {
   if (!svg || typeof getComputedStyle !== 'function') {
@@ -944,7 +946,7 @@ function drawAxesAndGrid() {
   // y-akse
   const yAxisGroup = addTo(gAxis, 'g', { class: 'axis-group axis-group--y' });
   const yArrowAnchor = M.t - 12;
-  const yLineStart = yArrowAnchor - 4; // Juster denne litt hvis pilen havner for langt ned/opp
+  const yLineStart = yArrowAnchor - 7; // Juster denne litt hvis pilen havner for langt ned/opp
   const axisColor = getAxisColor();
   addTo(yAxisGroup, 'line', {
     x1: M.l,
@@ -956,10 +958,10 @@ function drawAxesAndGrid() {
 
   addTo(yAxisGroup, 'image', {
     href: axisArrowSvgData('y', axisColor),
-    width: 30,
-    height: 17,
-    x: M.l - 15,
-    y: yArrowAnchor - 17,
+    width: Y_AXIS_ARROW_SIZE.width,
+    height: Y_AXIS_ARROW_SIZE.height,
+    x: M.l - Y_AXIS_ARROW_SIZE.width / 2,
+    y: yArrowAnchor - Y_AXIS_ARROW_SIZE.height,
     preserveAspectRatio: 'none',
     'data-axis-arrow': 'y'
   });
@@ -977,7 +979,7 @@ function drawAxesAndGrid() {
   const axisY = yPos(baseValue);
   const xAxisGroup = addTo(gAxis, 'g', { class: 'axis-group axis-group--x' });
   const xArrowAnchor = W - M.r + 4;
-  const xLineEnd = xArrowAnchor + 8;
+  const xLineEnd = xArrowAnchor + 14;
   addTo(xAxisGroup, 'line', {
     x1: M.l,
     y1: axisY,
@@ -988,10 +990,10 @@ function drawAxesAndGrid() {
 
   addTo(xAxisGroup, 'image', {
     href: axisArrowSvgData('x', axisColor),
-    width: 17,
-    height: 30,
+    width: X_AXIS_ARROW_SIZE.width,
+    height: X_AXIS_ARROW_SIZE.height,
     x: xArrowAnchor,
-    y: axisY - 15,
+    y: axisY - X_AXIS_ARROW_SIZE.height / 2,
     preserveAspectRatio: 'none',
     'data-axis-arrow': 'x'
   });
