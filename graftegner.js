@@ -8812,9 +8812,6 @@ function setupSettingsForm() {
           screenInput.classList.remove('is-auto');
         }
       }
-      if (!screenSupportsLockAspect(nextScreen)) {
-        lockInput.checked = false;
-      }
     }
     if (nextScreen && q1Input && q1Checked && !screenSupportsFirstQuadrant(nextScreen)) {
       const clamped = clampScreenToFirstQuadrant(nextScreen);
@@ -8865,6 +8862,9 @@ function setupSettingsForm() {
         appState.board.setBoundingBox(toBB(nextScreen), true);
         rememberScreenState(nextScreen, 'manual');
       }
+      needsRebuild = true;
+    } else if (shouldAutoScreen) {
+      rememberScreenState(null, 'auto');
       needsRebuild = true;
     }
     const lockChecked = !!(lockInput && lockInput.checked);
