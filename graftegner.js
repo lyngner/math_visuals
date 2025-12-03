@@ -5702,8 +5702,7 @@ function queueFunctionViewUpdate(screen) {
     updateAxisArrows();
     queueFunctionViewUpdate(currentScreen);
   }
-}
-function rememberManualScreenFromBoard() {
+  function rememberManualScreenFromBoard() {
   if (!appState.board) return;
   const currentBB = fromBoundingBox(appState.board.getBoundingBox());
   if (!currentBB || !currentBB.every(Number.isFinite)) return;
