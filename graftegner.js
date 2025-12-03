@@ -802,8 +802,8 @@ function expandScreenToLockAspect(screen) {
   if (!Array.isArray(screen) || screen.length !== 4) return screen;
   const [xmin, xmax, ymin, ymax] = screen;
   if (![xmin, xmax, ymin, ymax].every(Number.isFinite)) return screen;
-  const width = xmax - xmin;
-  const height = ymax - ymin;
+  const width = Math.max(1e-9, xmax - xmin);
+  const height = Math.max(1e-9, ymax - ymin);
   if (!(width > 0 && height > 0)) return screen;
   const scale = Math.max(Math.abs(width), Math.abs(height), 1);
   if (Math.abs(width - height) <= 1e-6 * scale) {
@@ -2518,8 +2518,8 @@ function screenSupportsLockAspect(screen) {
   if (!Array.isArray(screen) || screen.length !== 4) return false;
   const [xmin, xmax, ymin, ymax] = screen;
   if (![xmin, xmax, ymin, ymax].every(Number.isFinite)) return false;
-  const width = xmax - xmin;
-  const height = ymax - ymin;
+  const width = Math.max(1e-9, xmax - xmin);
+  const height = Math.max(1e-9, ymax - ymin);
   if (!(width > 0 && height > 0)) return false;
   const diff = Math.abs(width - height);
   const scale = Math.max(Math.abs(width), Math.abs(height), 1);
@@ -2550,22 +2550,28 @@ function clampScreenToFirstQuadrant(screen) {
     return screen.slice(0, 4);
   }
 
-  const width = xmax - xmin;
-  const height = ymax - ymin;
+  const width = Math.max(1e-9, xmax - xmin);
+  const height = Math.max(1e-9, ymax - ymin);
 
   // Hold oss i (eller rett ved) 1. kvadrant ved å skyve hele utsnittet opp og til høyre
   const HARD_MIN = 0;
 
   if (xmin < HARD_MIN) {
-    const delta = HARD_MIN - xmin;
-    xmin = HARD_MIN;
-    xmax += delta; // Beholder bredden, skyv mot høyre
+    if (xmax > HARD_MIN) {
+      xmin = HARD_MIN; // Behold maks når vi allerede ser noe av 1. kvadrant
+    } else {
+      xmin = HARD_MIN;
+      xmax = HARD_MIN + width; // Skyv inn i 1. kvadrant med opprinnelig bredde
+    }
   }
 
   if (ymin < HARD_MIN) {
-    const delta = HARD_MIN - ymin;
-    ymin = HARD_MIN;
-    ymax += delta; // Beholder høyden, skyv oppover
+    if (ymax > HARD_MIN) {
+      ymin = HARD_MIN; // Behold maks når vi allerede ser noe av 1. kvadrant
+    } else {
+      ymin = HARD_MIN;
+      ymax = HARD_MIN + height; // Skyv inn i 1. kvadrant med opprinnelig høyde
+    }
   }
 
   return [xmin, xmax, ymin, ymax];
