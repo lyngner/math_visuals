@@ -985,7 +985,8 @@ const appState = {
     lastRendered: '',
     pendingRebuild: null
   },
-  isRebuilding: false
+  isRebuilding: false,
+  skipSnapshot: false
 };
 if (typeof window !== 'undefined' && window.GRAF_ALT_TEXT && typeof window.GRAF_ALT_TEXT === 'object') {
   const existing = window.GRAF_ALT_TEXT;
@@ -6040,7 +6041,10 @@ function rebuildAll() {
   if (appState.isRebuilding) return;
   appState.isRebuilding = true;
   try {
-    rememberManualScreenFromBoard();
+    if (!appState.skipSnapshot) {
+      rememberManualScreenFromBoard();
+    }
+    appState.skipSnapshot = false;
     prepareSimpleState();
     configureBoardFromState();
     if (!renderBoardContent()) {
@@ -8801,6 +8805,8 @@ function setupSettingsForm() {
     let screenRaw = screenTrimmed;
     if (shouldAutoScreen) {
       screenRaw = '';
+      appState.skipSnapshot = true;
+      ADV.screen = null;
     }
     let nextScreen = screenInput ? parseScreen(screenRaw) : null;
     const lockInput = g('cfgLock');
