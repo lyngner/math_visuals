@@ -1187,6 +1187,13 @@ if (typeof MutationObserver !== "undefined" && typeof document !== "undefined") 
 
 scheduleThemeRefresh();
 
+const INITIAL_FIRST_QUADRANT = !!ADV.firstQuadrant;
+const INITIAL_LOCK_ASPECT = ADV.lockAspect !== false;
+const INITIAL_SHOW_AXIS_NUMBERS = !!(ADV.axis && ADV.axis.ticks && ADV.axis.ticks.showNumbers);
+const INITIAL_SHOW_GRID = !!(ADV.axis && ADV.axis.grid && ADV.axis.grid.show);
+const INITIAL_FORCE_TICKS = !!FORCE_TICKS_REQUESTED;
+const INITIAL_SNAP_ENABLED = !!(ADV.points && ADV.points.snap && ADV.points.snap.enabled);
+
 const EXAMPLE_STATE = (() => {
   const existing = typeof window !== 'undefined' && window.STATE && typeof window.STATE === 'object'
     ? window.STATE
@@ -1202,6 +1209,21 @@ const EXAMPLE_STATE = (() => {
   }
   if (!Object.prototype.hasOwnProperty.call(existing, 'lockAspect')) {
     existing.lockAspect = ADV.lockAspect !== false;
+  }
+  if (!Object.prototype.hasOwnProperty.call(existing, 'firstQuadrant')) {
+    existing.firstQuadrant = INITIAL_FIRST_QUADRANT;
+  }
+  if (!Object.prototype.hasOwnProperty.call(existing, 'showAxisNumbers')) {
+    existing.showAxisNumbers = INITIAL_SHOW_AXIS_NUMBERS;
+  }
+  if (!Object.prototype.hasOwnProperty.call(existing, 'showGrid')) {
+    existing.showGrid = INITIAL_SHOW_GRID;
+  }
+  if (!Object.prototype.hasOwnProperty.call(existing, 'forceTicks')) {
+    existing.forceTicks = INITIAL_FORCE_TICKS;
+  }
+  if (!Object.prototype.hasOwnProperty.call(existing, 'snapEnabled')) {
+    existing.snapEnabled = INITIAL_SNAP_ENABLED;
   }
   if (!Object.prototype.hasOwnProperty.call(existing, 'screen')) {
     existing.screen = Array.isArray(ADV.screen) ? ADV.screen.slice(0, 4) : null;
@@ -6539,6 +6561,7 @@ function setupSettingsForm() {
   const showAxisNumbersInput = g('cfgShowAxisNumbers');
   const showGridInput = g('cfgShowGrid');
   const forceTicksInput = g('cfgForceTicks');
+  const q1Input = g('cfgQ1');
   const screenInput = g('cfgScreen');
   const axisXInputElement = g('cfgAxisX');
   const axisYInputElement = g('cfgAxisY');
@@ -6583,6 +6606,49 @@ function setupSettingsForm() {
         changed = true;
       }
     }
+    if (Object.prototype.hasOwnProperty.call(exampleState, 'firstQuadrant')) {
+      const resolvedQ1 = resolveExampleStateFlag('firstQuadrant', INITIAL_FIRST_QUADRANT);
+      if (q1Input && q1Input.checked !== resolvedQ1) {
+        q1Input.checked = resolvedQ1;
+      }
+      if (ADV.firstQuadrant !== resolvedQ1) {
+        ADV.firstQuadrant = resolvedQ1;
+        changed = true;
+      }
+    }
+    const resolvedAxisNumbers = resolveExampleStateFlag('showAxisNumbers', INITIAL_SHOW_AXIS_NUMBERS);
+    if (showAxisNumbersInput && showAxisNumbersInput.checked !== resolvedAxisNumbers) {
+      showAxisNumbersInput.checked = resolvedAxisNumbers;
+    }
+    if (ADV.axis.ticks.showNumbers !== resolvedAxisNumbers) {
+      ADV.axis.ticks.showNumbers = resolvedAxisNumbers;
+      changed = true;
+    }
+    const resolvedGrid = resolveExampleStateFlag('showGrid', INITIAL_SHOW_GRID);
+    if (showGridInput && showGridInput.checked !== resolvedGrid) {
+      showGridInput.checked = resolvedGrid;
+    }
+    if (ADV.axis.grid.show !== resolvedGrid) {
+      ADV.axis.grid.show = resolvedGrid;
+      changed = true;
+    }
+    const resolvedForceTicks = resolveExampleStateFlag('forceTicks', INITIAL_FORCE_TICKS);
+    if (forceTicksInput && forceTicksInput.checked !== resolvedForceTicks && !forceTicksInput.disabled) {
+      forceTicksInput.checked = resolvedForceTicks;
+    }
+    if (FORCE_TICKS_REQUESTED !== resolvedForceTicks && !(forceTicksInput && forceTicksInput.disabled && FORCE_TICKS_LOCKED_FALSE)) {
+      FORCE_TICKS_REQUESTED = resolvedForceTicks;
+      changed = true;
+    }
+    const resolvedSnap = resolveExampleStateFlag('snapEnabled', INITIAL_SNAP_ENABLED);
+    if (snapCheckbox && !snapCheckbox.disabled && snapCheckbox.checked !== resolvedSnap) {
+      snapCheckbox.checked = resolvedSnap;
+    }
+    const effectiveSnap = resolvedSnap && !(snapCheckbox && snapCheckbox.disabled === true);
+    if (ADV.points.snap.enabled !== effectiveSnap) {
+      ADV.points.snap.enabled = effectiveSnap;
+      changed = true;
+    }
     if (Array.isArray(exampleState.screen) && exampleState.screen.length === 4) {
       const normalized = normalizeAutoScreen(exampleState.screen);
       if (normalized && normalized.length === 4) {
@@ -6601,6 +6667,11 @@ function setupSettingsForm() {
     exampleState.showNames = resolvedShowNames;
     exampleState.showExpression = resolvedShowExpr;
     exampleState.lockAspect = ADV.lockAspect !== false;
+    exampleState.firstQuadrant = q1Input ? !!q1Input.checked : !!ADV.firstQuadrant;
+    exampleState.showAxisNumbers = showAxisNumbersInput ? !!showAxisNumbersInput.checked : !!(ADV.axis && ADV.axis.ticks && ADV.axis.ticks.showNumbers);
+    exampleState.showGrid = showGridInput ? !!showGridInput.checked : !!(ADV.axis && ADV.axis.grid && ADV.axis.grid.show);
+    exampleState.forceTicks = forceTicksInput ? !!forceTicksInput.checked : !!FORCE_TICKS_REQUESTED;
+    exampleState.snapEnabled = snapCheckbox ? !!(snapCheckbox.checked && !snapCheckbox.disabled) : !!(ADV.points && ADV.points.snap && ADV.points.snap.enabled);
     exampleState.screen = Array.isArray(LAST_COMPUTED_SCREEN) && LAST_COMPUTED_SCREEN.length === 4
       ? LAST_COMPUTED_SCREEN.slice(0, 4)
       : null;
@@ -8575,6 +8646,23 @@ function setupSettingsForm() {
       if (screenInput.dataset) delete screenInput.dataset.autoscreen;
       screenInput.classList.remove('is-auto');
     }
+    const lockInput = g('cfgLock');
+    if (lockInput) lockInput.checked = INITIAL_LOCK_ASPECT;
+    ADV.lockAspect = INITIAL_LOCK_ASPECT;
+    const q1Checkbox = g('cfgQ1');
+    if (q1Checkbox) q1Checkbox.checked = INITIAL_FIRST_QUADRANT;
+    ADV.firstQuadrant = INITIAL_FIRST_QUADRANT;
+    if (showAxisNumbersInput) showAxisNumbersInput.checked = INITIAL_SHOW_AXIS_NUMBERS;
+    ADV.axis.ticks.showNumbers = INITIAL_SHOW_AXIS_NUMBERS;
+    if (showGridInput) showGridInput.checked = INITIAL_SHOW_GRID;
+    ADV.axis.grid.show = INITIAL_SHOW_GRID;
+    if (forceTicksInput && !forceTicksInput.disabled) forceTicksInput.checked = INITIAL_FORCE_TICKS;
+    FORCE_TICKS_REQUESTED = INITIAL_FORCE_TICKS;
+    const snapDefault = INITIAL_SNAP_ENABLED && !(snapCheckbox && snapCheckbox.disabled);
+    if (snapCheckbox && !snapCheckbox.disabled) {
+      snapCheckbox.checked = INITIAL_SNAP_ENABLED;
+    }
+    ADV.points.snap.enabled = snapDefault;
   };
   const fillFormFromSimple = simple => {
     const source = typeof simple === 'string' ? simple : typeof window !== 'undefined' ? window.SIMPLE : appState.simple.value;
