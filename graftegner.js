@@ -826,6 +826,32 @@ function applyFirstQuadrantPadding(screen) {
   return [xmin, xmax, ymin, ymax];
 }
 
+function clampScreenToFirstQuadrant(screen) {
+  if (!Array.isArray(screen) || screen.length !== 4) return screen;
+  let [xmin, xmax, ymin, ymax] = screen;
+  if (![xmin, xmax, ymin, ymax].every(Number.isFinite)) return screen;
+
+  // Tillat -0.5 for at aksene skal synes
+  const HARD_MIN = -0.5;
+
+  const width = xmax - xmin;
+  const height = ymax - ymin;
+
+  if (xmin < HARD_MIN) {
+    const w = width > 0 ? width : 10;
+    xmin = HARD_MIN;
+    xmax = xmin + w;
+  }
+
+  if (ymin < HARD_MIN) {
+    const h = height > 0 ? height : 10;
+    ymin = HARD_MIN;
+    ymax = ymin + h;
+  }
+
+  return [xmin, xmax, ymin, ymax];
+}
+
 function clampScreenToWholeGrid(screen) {
   if (!Array.isArray(screen) || screen.length !== 4) return screen;
   if (!ADV || !ADV.axis || !ADV.axis.forceIntegers || !ADV.axis.grid || !ADV.axis.grid.show) {
@@ -2276,6 +2302,15 @@ function sampleFeatures(fn, a, b, opts = {}) {
 }
 
 /* ===================== Autozoom ===================== */
+function computeAutoScreenFunctions() {
+  // Kun default. Ingen analyse.
+  return calculateCorrectedScreen(DEFAULT_SCREEN.slice());
+}
+
+function computeAutoScreenPoints() {
+  return calculateCorrectedScreen(DEFAULT_SCREEN.slice());
+}
+
 /**
  * Hovedhjernen for utsnitt.
  * Tar inn et ønsket utsnitt og korrigerer det basert på:
