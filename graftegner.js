@@ -5901,6 +5901,8 @@ function queueFunctionViewUpdate(screen) {
     }
     placeAxisNames();
     updateAxisArrows();
+    const screenInput = document.getElementById('cfgScreen');
+    const hasManualScreenValue = !!(screenInput && screenInput.value && screenInput.value.trim() && (!screenInput.dataset || screenInput.dataset.autoscreen !== '1'));
     if (appState.board && typeof appState.board.getBoundingBox === 'function') {
       const bb = appState.board.getBoundingBox();
       let screen = fromBoundingBox(bb);
@@ -5924,8 +5926,10 @@ function queueFunctionViewUpdate(screen) {
         }
       }
 
-      // 1. Først Grid Snap (hvis aktivert)
-      if (ADV.axis.forceIntegers && ADV.axis.grid && ADV.axis.grid.show) {
+      // 1. Først Grid Snap (hvis aktivert). Hopp over hvis brukeren har
+      // skrevet inn et eksplisitt utsnitt; da skal vi ikke klemme til
+      // heltallsrutenettet og endre grensene deres.
+      if (!hasManualScreenValue && ADV.axis.forceIntegers && ADV.axis.grid && ADV.axis.grid.show) {
         const clampedGrid = clampScreenToWholeGrid(screen);
         if (!screensEqual(screen, clampedGrid)) {
           screen = clampedGrid;
@@ -5956,7 +5960,6 @@ function queueFunctionViewUpdate(screen) {
       }
 
       if (screen) {
-        const screenInput = document.getElementById('cfgScreen');
         if (!screensEqual(ADV.screen, screen)) {
           ADV.screen = screen;
           rememberScreenState(screen, 'manual');
