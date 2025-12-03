@@ -2686,11 +2686,9 @@ function initBoard() {
       enabled: false, // Låst: Ingen zoom
       wheel: false,
       needShift: false
-    },
-    drag: {
-      enabled: false // Låst: Hindrer at man drar selve bakgrunnen (valgfritt, men trygt)
     }
   });
+  // Drag forblir aktivt slik at punkter kan flyttes; bakgrunnen er allerede låst via pan/zoom-innstillingene.
   appState.axes.x = appState.board.defaultAxes.x;
   appState.axes.y = appState.board.defaultAxes.y;
   applyAxisStyles();
