@@ -37,7 +37,8 @@
     default: '#534477',
     monster: '#534477',
     rectangles: '#534477',
-    klosser: '#534477'
+    klosser: '#534477',
+    blocks: '#534477'
   };
   function getThemeApi() {
     const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
@@ -60,6 +61,7 @@
   }
   applyThemeToDocument();
   let BRICK_SRC;
+  let BLOCK_SRC;
   let altTextManager = null;
   let autoAltText = '';
   const BRICK_TILE_WIDTH = 26;
@@ -69,6 +71,9 @@
   const BRICK_IMAGE_HEIGHT = 32.5;
   const BRICK_OFFSET_X = 0.5;
   const BRICK_OFFSET_Y = 25.75;
+  function getBrickSrcForType(type) {
+    return type === 'blocks' ? BLOCK_SRC : BRICK_SRC;
+  }
   const MONSTER_POINT_RADIUS_MIN = 1;
   const MONSTER_POINT_RADIUS_MAX = 60;
   const MONSTER_POINT_SPACING_MIN = 0;
@@ -222,7 +227,13 @@
   function getAltTextTitle() {
     const base = typeof document !== 'undefined' && document && document.title ? document.title : 'Kvikkbilder';
     if (!CFG) return base;
-    const suffix = CFG.type === 'monster' ? 'Numbervisuals' : CFG.type === 'rectangles' ? 'Rektangler' : 'Klosser';
+    const suffix = CFG.type === 'monster'
+      ? 'Numbervisuals'
+      : CFG.type === 'rectangles'
+      ? 'Rektangler'
+      : CFG.type === 'blocks'
+      ? 'Klosser'
+      : 'Klosser med knott';
     return `${base} – ${suffix}`;
   }
   function normalizeInteger(value) {
@@ -301,7 +312,7 @@
     const base = deepClone(DEFAULT_CFG) || {};
     const normalized = overrides && typeof overrides === 'object' ? overrides : {};
     if (typeof normalized.type === 'string') {
-      base.type = ['monster', 'rectangles'].includes(normalized.type) ? normalized.type : 'klosser';
+      base.type = ['monster', 'rectangles', 'blocks'].includes(normalized.type) ? normalized.type : 'klosser';
     }
     if (Object.prototype.hasOwnProperty.call(normalized, 'showExpression')) {
       base.showExpression = normalized.showExpression !== false;
@@ -329,8 +340,8 @@
       y: (x + y) * tileH / 2 - z * unitH
     };
   }
-  function createBrick(bredde, hoyde, dybde, layerGap) {
-    if (!BRICK_SRC) return document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  function createBrick(brickSrc, bredde, hoyde, dybde, layerGap) {
+    if (!brickSrc) return document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     const p = (x, y, z) => iso(x, y, z, BRICK_TILE_WIDTH, BRICK_TILE_HEIGHT, BRICK_UNIT_HEIGHT);
     const widthCount = Math.max(1, Math.trunc(bredde));
     const heightCount = normalizeBrickHeightCount(hoyde);
@@ -389,8 +400,8 @@
       pos
     }) => {
       const img = document.createElementNS(svg.namespaceURI, 'image');
-      img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', BRICK_SRC);
-      img.setAttribute('href', BRICK_SRC);
+      img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', brickSrc);
+      img.setAttribute('href', brickSrc);
       img.setAttribute('width', BRICK_IMAGE_WIDTH);
       img.setAttribute('height', BRICK_IMAGE_HEIGHT);
       img.setAttribute('x', pos.x - BRICK_OFFSET_X);
@@ -438,6 +449,7 @@
       hoyde = 0,
       dybde = 0
     } = CFG.klosser || {};
+    const brickSrc = getBrickSrcForType(CFG.type);
     const cols = Math.max(0, Math.trunc(antallX));
     const rows = Math.max(0, Math.trunc(antallY));
     const width = Math.max(1, Math.trunc(bredde));
@@ -463,9 +475,9 @@
     const autoText = buildKlosserAltText(rows, cols, width, height, depth);
     setAutoAltText(autoText);
     updateFigureAlt(brickContainer, 'render-klosser');
-    if (!BRICK_SRC) return;
+    if (!brickSrc) return;
     for (let i = 0; i < totalFigures; i++) {
-      const fig = createBrick(width, height, depth, layerGap);
+      const fig = createBrick(brickSrc, width, height, depth, layerGap);
       fig.setAttribute('aria-label', `${width}x${height}x${depth} kloss`);
       brickContainer.appendChild(fig);
     }
@@ -947,7 +959,7 @@
     }
   }
   function sanitizeCfg() {
-    if (!['monster', 'klosser', 'rectangles'].includes(CFG.type)) {
+    if (!['monster', 'klosser', 'rectangles', 'blocks'].includes(CFG.type)) {
       CFG.type = DEFAULT_CFG.type;
     }
     CFG.showExpression = CFG.showExpression !== false;
@@ -1071,7 +1083,7 @@
     if (cfgAntallWrapper) {
       cfgAntallWrapper.style.display = CFG.type === 'monster' ? 'flex' : 'none';
     }
-    if (CFG.type === 'klosser') {
+    if (CFG.type === 'klosser' || CFG.type === 'blocks') {
       if (klosserConfig) klosserConfig.style.display = 'block';
       if (monsterConfig) monsterConfig.style.display = 'none';
       if (rectangleConfig) rectangleConfig.style.display = 'none';
@@ -1183,7 +1195,7 @@
     });
   }
   cfgType === null || cfgType === void 0 || cfgType.addEventListener('change', () => {
-    CFG.type = cfgType.value === 'monster' || cfgType.value === 'rectangles' ? cfgType.value : 'klosser';
+    CFG.type = ['monster', 'rectangles', 'blocks'].includes(cfgType.value) ? cfgType.value : 'klosser';
     cfgType.value = CFG.type;
     renderView();
   });
@@ -1193,7 +1205,7 @@
   });
   playBtn.addEventListener('click', () => {
     sanitizeCfg();
-    if (CFG.type === 'klosser') {
+    if (CFG.type === 'klosser' || CFG.type === 'blocks') {
       const duration = Math.max(0, Number.isFinite(CFG.klosser.duration) ? CFG.klosser.duration : 0);
       renderKlosser();
       playBtn.style.display = 'none';
@@ -1223,7 +1235,7 @@
     }
   });
   function getActiveSvg() {
-    if (CFG.type === 'klosser') return brickContainer.querySelector('svg');
+    if (CFG.type === 'klosser' || CFG.type === 'blocks') return brickContainer.querySelector('svg');
     if (CFG.type === 'monster') return patternContainer.querySelector('svg');
     if (CFG.type === 'rectangles') return rectangleContainer ? rectangleContainer.querySelector('svg') : null;
     return brickContainer.querySelector('svg') || patternContainer.querySelector('svg') || (rectangleContainer ? rectangleContainer.querySelector('svg') : null);
@@ -1292,9 +1304,10 @@
         figRows: Number(r.rows)
       };
     }
+    const brickType = type === 'blocks' ? 'blocks' : 'klosser';
     const k = CFG.klosser || {};
     return {
-      type: 'klosser',
+      type: brickType,
       antallX: Number(k.antallX),
       antallY: Number(k.antallY),
       bredde: Number(k.bredde),
@@ -1403,8 +1416,14 @@
   }
   render();
   initAltTextManager();
-  fetch('images/brick1.svg').then(r => r.text()).then(txt => {
-    BRICK_SRC = `data:image/svg+xml;base64,${btoa(txt)}`;
+  Promise.allSettled([
+    fetch('images/brick1.svg').then(r => r.text()).then(txt => {
+      BRICK_SRC = `data:image/svg+xml;base64,${btoa(txt)}`;
+    }),
+    fetch('images/block1.svg').then(r => r.text()).then(txt => {
+      BLOCK_SRC = `data:image/svg+xml;base64,${btoa(txt)}`;
+    })
+  ]).then(() => {
     renderView();
   });
 })();
