@@ -2745,6 +2745,18 @@ function axisArrowHalfWidth() {
   return Math.max(half, span * 0.01);
 }
 
+function ensureAxisOverlayVisibility(image) {
+  if (!image || !appState.board || !appState.board.renderer) return;
+  try {
+    image.setAttribute({ visible: true });
+  } catch (_) {}
+  const node = image.rendNodeImage || image.rendNode || null;
+  const root = appState.board.renderer.svgRoot || null;
+  if (node && root && node.parentNode !== root) {
+    root.appendChild(node);
+  }
+}
+
 function ensureAxisArrowShapes() {
   if (!appState.board) return;
   const baseOptions = {
@@ -2799,10 +2811,12 @@ function updateAxisArrows() {
   if (appState.axes.arrows.x) {
     updateAxisArrowImage(appState.axes.arrows.x, axisArrowSvgData('x', axisColor), axisArrowLengthX(), axisArrowHalfHeight() * 2);
     tagAxisArrowNode(appState.axes.arrows.x, 'x');
+    ensureAxisOverlayVisibility(appState.axes.arrows.x);
   }
   if (appState.axes.arrows.y) {
     updateAxisArrowImage(appState.axes.arrows.y, axisArrowSvgData('y', axisColor), axisArrowHalfWidth() * 2, axisArrowLengthY());
     tagAxisArrowNode(appState.axes.arrows.y, 'y');
+    ensureAxisOverlayVisibility(appState.axes.arrows.y);
   }
 }
 
@@ -3252,6 +3266,27 @@ function ensureLabelFront(label) {
   if (node && node.parentNode) {
     node.parentNode.appendChild(node);
   }
+}
+function ensureCurveLabelVisibility(label) {
+  if (!label || !appState.board || !appState.board.renderer) return;
+  if (!ADV.curveName || (!ADV.curveName.showName && !ADV.curveName.showExpression)) return;
+  try {
+    label.setAttribute({ visible: true });
+  } catch (_) {}
+  ensureLabelFront(label);
+  const node = label.rendNode || null;
+  const root = appState.board.renderer.svgRoot || null;
+  if (node && root && node.parentNode !== root) {
+    root.appendChild(node);
+  }
+}
+function ensureGraphLabelsVisibility() {
+  if (!Array.isArray(appState.graphs) || !appState.graphs.length) return;
+  appState.graphs.forEach(g => {
+    if (g && g.labelElement) {
+      ensureCurveLabelVisibility(g.labelElement);
+    }
+  });
 }
 function updatePlate(label) {
   if (!label._plate) return;
@@ -4301,6 +4336,7 @@ function makeSmartCurveLabel(g, idx, content) {
   g.labelElement = label;
   label._plainText = content.text || '';
   ensurePlateFor(label);
+  ensureCurveLabelVisibility(label);
   g._labelManual = false;
   function finiteYAt(x) {
     let y = g.fn(x);
@@ -5735,6 +5771,7 @@ function queueFunctionViewUpdate(screen) {
     }
     placeAxisNames();
     updateAxisArrows();
+    ensureGraphLabelsVisibility();
     queueFunctionViewUpdate(currentScreen);
   }
   function rememberManualScreenFromBoard() {
