@@ -1086,12 +1086,12 @@ const ADV = {
   firstQuadrant: paramBool('q1'),
   interactions: {
     pan: {
-      enabled: false, // TVING DENNE TIL FALSE
+      enabled: false,
       needShift: false
     },
     zoom: {
-      enabled: params.has('zoom') ? paramBool('zoom') : false,
-      wheel: true,
+      enabled: false,
+      wheel: false,
       needShift: false,
       factorX: 1.2,
       factorY: 1.2
@@ -2657,15 +2657,16 @@ function initBoard() {
     showNavigation: false,
     showCopyright: false,
     pan: {
-      enabled: false, // TVINGES AV HER
+      enabled: false, // Låst: Ingen panorering
       needShift: false
     },
     zoom: {
-      enabled: ADV.interactions.zoom.enabled,
-      wheel: true,
-      needShift: false,
-      factorX: ADV.interactions.zoom.factorX,
-      factorY: ADV.interactions.zoom.factorY
+      enabled: false, // Låst: Ingen zoom
+      wheel: false,
+      needShift: false
+    },
+    drag: {
+      enabled: false // Låst: Hindrer at man drar selve bakgrunnen (valgfritt, men trygt)
     }
   });
   appState.axes.x = appState.board.defaultAxes.x;
@@ -8602,7 +8603,8 @@ function setupSettingsForm() {
   g('cfgAxisY').value = paramStr('yName', 'y');
   const zoomInputInit = g('cfgZoom');
   if (zoomInputInit) {
-    zoomInputInit.checked = ADV.interactions.zoom.enabled;
+    zoomInputInit.checked = false;
+    zoomInputInit.disabled = true;
   }
   const panInputInit = g('cfgPan');
   if (panInputInit) {
@@ -8697,8 +8699,7 @@ function setupSettingsForm() {
       ADV.axis.labels.y = axisYValue;
       needsRebuild = true;
     }
-    const zoomInput = g('cfgZoom');
-    const zoomChecked = !!(zoomInput && zoomInput.checked);
+    const zoomChecked = false; // Alltid avslått
     if (ADV.interactions.zoom.enabled !== zoomChecked) {
       ADV.interactions.zoom.enabled = zoomChecked;
       needsRebuild = true;
