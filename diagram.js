@@ -107,11 +107,11 @@ const LEGACY_LEGEND_BACKGROUND = '#ffffff';
 const LEGACY_LEGEND_TEXT_COLOR = '#000000';
 
 const X_AXIS_ARROW_SVG_TEMPLATE =
-  '<svg width="17" height="30" viewBox="0 0 17 30" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1 L15 15 L1 29" stroke="{{COLOR}}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
+  '<svg width="17" height="30" viewBox="0 0 17 30" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 2 L15 15 L2 28" stroke="{{COLOR}}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const Y_AXIS_ARROW_SVG_TEMPLATE =
-  '<svg width="17" height="30" viewBox="0 0 17 30" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 29 L8.5 1 L16 29" stroke="{{COLOR}}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
+  '<svg width="30" height="17" viewBox="0 0 30 17" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 15 L15 2 L28 15" stroke="{{COLOR}}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const X_AXIS_ARROW_SIZE = { width: 17, height: 30 };
-const Y_AXIS_ARROW_SIZE = { width: 17, height: 30 };
+const Y_AXIS_ARROW_SIZE = { width: 30, height: 17 };
 
 function getAxisColor() {
   if (!svg || typeof getComputedStyle !== 'function') {
