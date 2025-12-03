@@ -4,10 +4,10 @@
   --diagram-figure-border: #eef0f3;
   --diagram-canvas-background: #fff;
   --diagram-text-scale: 1;
-  --diagram-axis-color: #0f172a;
-  --diagram-axis-text-color: #0f172a;
+  --diagram-axis-color: #000000;
+  --diagram-axis-text-color: #000000;
   --diagram-grid-color: #999999;
-  --diagram-text-color: #333333;
+  --diagram-text-color: #000000;
   --diagram-bar-stroke: #000000;
   --diagram-series-0: #574595;
   --diagram-series-1: #d081a1;
@@ -18,7 +18,7 @@
   --diagram-focus-outline: #1e88e5;
   --diagram-pie-stroke: #ffffff;
   --diagram-pie-divider: #ffffff;
-  --diagram-pie-label-color: #333333;
+  --diagram-pie-label-color: #000000;
   --diagram-pie-label-inside-color: #ffffff;
   --diagram-value-color: #111111;
   --diagram-value-stroke: #ffffff;
