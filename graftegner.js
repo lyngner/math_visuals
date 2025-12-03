@@ -2306,247 +2306,13 @@ function sampleFeatures(fn, a, b, opts = {}) {
 
 /* ===================== Autozoom ===================== */
 function computeAutoScreenFunctions() {
-  const allUnbounded = appState.simple.parsed.funcs.every(f => !f.domain);
-
-  // samle features
-  const feats = [];
-  let domMin = Infinity,
-    domMax = -Infinity,
-    trimmedXMin = Infinity,
-    trimmedXMax = -Infinity,
-    coreYMin = Infinity,
-    coreYMax = -Infinity;
-  const domainSpan = appState.simple.parsed.funcs.length > 1 ? MULTI_FUNCTION_UNBOUNDED_DOMAIN_SPAN : DEFAULT_UNBOUNDED_DOMAIN_SPAN;
-  for (const f of appState.simple.parsed.funcs) {
-    const fn = parseFunctionSpec(`${f.name}(x)=${f.rhs}`);
-    if (f.domain) {
-      const [sampleMin, sampleMax] = resolveDomainSamplingBounds(f.domain, domainSpan);
-      const rangeMin = Number.isFinite(f.domain.min) ? f.domain.min : sampleMin;
-      const rangeMax = Number.isFinite(f.domain.max) ? f.domain.max : sampleMax;
-      domMin = Math.min(domMin, rangeMin);
-      domMax = Math.max(domMax, rangeMax);
-      const featureData = sampleFeatures(fn, sampleMin, sampleMax, {
-        includeLeftEnd: Number.isFinite(f.domain.min) && !!f.domain.leftClosed,
-        includeRightEnd: Number.isFinite(f.domain.max) && !!f.domain.rightClosed
-      });
-      if (Number.isFinite(featureData.xQuantileLow)) {
-        trimmedXMin = Math.min(trimmedXMin, featureData.xQuantileLow);
-      } else if (Number.isFinite(featureData.xFiniteMin)) {
-        trimmedXMin = Math.min(trimmedXMin, featureData.xFiniteMin);
-      }
-      if (Number.isFinite(featureData.xQuantileHigh)) {
-        trimmedXMax = Math.max(trimmedXMax, featureData.xQuantileHigh);
-      } else if (Number.isFinite(featureData.xFiniteMax)) {
-        trimmedXMax = Math.max(trimmedXMax, featureData.xFiniteMax);
-      }
-      coreYMin = Math.min(coreYMin, featureData.ymin);
-      coreYMax = Math.max(coreYMax, featureData.ymax);
-      feats.push({
-        hasDom: true,
-        fn,
-        a: sampleMin,
-        b: sampleMax,
-        ...featureData
-      });
-    } else {
-      const featureData = sampleFeatures(fn, -5, 5, {
-        includeEndVals: false
-      });
-      if (Number.isFinite(featureData.xQuantileLow)) {
-        trimmedXMin = Math.min(trimmedXMin, featureData.xQuantileLow);
-      } else if (Number.isFinite(featureData.xFiniteMin)) {
-        trimmedXMin = Math.min(trimmedXMin, featureData.xFiniteMin);
-      }
-      if (Number.isFinite(featureData.xQuantileHigh)) {
-        trimmedXMax = Math.max(trimmedXMax, featureData.xQuantileHigh);
-      } else if (Number.isFinite(featureData.xFiniteMax)) {
-        trimmedXMax = Math.max(trimmedXMax, featureData.xFiniteMax);
-      }
-      coreYMin = Math.min(coreYMin, featureData.ymin);
-      coreYMax = Math.max(coreYMax, featureData.ymax);
-      feats.push({
-        hasDom: false,
-        fn,
-        a: -5,
-        b: 5,
-        ...featureData
-      });
-    }
-  }
-  const hasTrimmedX = Number.isFinite(trimmedXMin) && Number.isFinite(trimmedXMax) && trimmedXMax - trimmedXMin > 1e-9;
-  let xmin, xmax, ymin, ymax;
-  const clampFeatureValue = v => {
-    const MAX_FEATURE_MAGNITUDE = 100;
-    if (!Number.isFinite(v)) return v;
-    return Math.max(-MAX_FEATURE_MAGNITUDE, Math.min(MAX_FEATURE_MAGNITUDE, v));
-  };
-  if (allUnbounded) {
-    // behold [-5,5] så lenge sentrale punkter ikke faller utenfor
-    if (hasTrimmedX) {
-      xmin = trimmedXMin;
-      xmax = trimmedXMax;
-    } else {
-      xmin = -5;
-      xmax = 5;
-    }
-    ymin = -5;
-    ymax = 5;
-    for (const F of feats) {
-      if (Number.isFinite(F.yIntercept)) {
-        const y = clampFeatureValue(F.yIntercept);
-        ymin = Math.min(ymin, y);
-        ymax = Math.max(ymax, y);
-      }
-      F.extrema.forEach(e => {
-        const y = clampFeatureValue(e.y);
-        ymin = Math.min(ymin, y);
-        ymax = Math.max(ymax, y);
-      });
-      if (Number.isFinite(F.ha)) {
-        const y = clampFeatureValue(F.ha);
-        ymin = Math.min(ymin, y);
-        ymax = Math.max(ymax, y);
-      }
-    }
-  } else {
-    // minst én avgrenset → vis hele domenet + sentrale punkter
-    if (hasTrimmedX) {
-      xmin = trimmedXMin;
-      xmax = trimmedXMax;
-    } else if (Number.isFinite(domMin) && Number.isFinite(domMax)) {
-      xmin = domMin;
-      xmax = domMax;
-    } else {
-      xmin = -5;
-      xmax = 5;
-    }
-    let ylo = [],
-      yhi = [];
-    feats.forEach(F => {
-      ylo.push(F.ymin);
-      yhi.push(F.ymax);
-    });
-    ymin = Math.min(...ylo, -5);
-    ymax = Math.max(...yhi, 5);
-    for (const F of feats) {
-      F.roots.forEach(r => {
-        xmin = Math.min(xmin, r);
-        xmax = Math.max(xmax, r);
-      });
-      if (Number.isFinite(F.yIntercept)) {
-        const y = clampFeatureValue(F.yIntercept);
-        ymin = Math.min(ymin, y);
-        ymax = Math.max(ymax, y);
-      }
-      F.extrema.forEach(e => {
-        const clampedY = clampFeatureValue(e.y);
-        xmin = Math.min(xmin, e.x);
-        xmax = Math.max(xmax, e.x);
-        ymin = Math.min(ymin, clampedY);
-        ymax = Math.max(ymax, clampedY);
-      });
-      (F.endVals || []).forEach(ev => {
-        const clampedY = clampFeatureValue(ev.y);
-        xmin = Math.min(xmin, ev.x);
-        xmax = Math.max(xmax, ev.x);
-        ymin = Math.min(ymin, clampedY);
-        ymax = Math.max(ymax, clampedY);
-      });
-      if (F.vas && F.vas.length) {
-        for (const a of F.vas) {
-          xmin = Math.min(xmin, a);
-          xmax = Math.max(xmax, a);
-        }
-      }
-      if (Number.isFinite(F.ha)) {
-        const y = clampFeatureValue(F.ha);
-        ymin = Math.min(ymin, y);
-        ymax = Math.max(ymax, y);
-      }
-    }
-  }
-
-  // Vern mot run-away-span: dersom vi har en tryggere kjerneutstrekning og
-  // gjeldende span er ekstremt mye større, fokuser på kjernen i stedet.
-  const safeXMin = Number.isFinite(trimmedXMin) ? trimmedXMin : xmin;
-  const safeXMax = Number.isFinite(trimmedXMax) ? trimmedXMax : xmax;
-  const safeXSpan = Number.isFinite(safeXMin) && Number.isFinite(safeXMax) && safeXMax > safeXMin ? safeXMax - safeXMin : null;
-  const safeYSpan = Number.isFinite(coreYMin) && Number.isFinite(coreYMax) && coreYMax > coreYMin ? coreYMax - coreYMin : null;
-  const spanX = xmax - xmin;
-  const spanY = ymax - ymin;
-  if (safeXSpan && spanX > AUTO_SPAN_SAFETY_MULTIPLIER * safeXSpan) {
-    const cx = (safeXMin + safeXMax) / 2;
-    const half = Math.max(safeXSpan / 2, 1) * AUTO_SPAN_RECENTER_FACTOR;
-    xmin = cx - half;
-    xmax = cx + half;
-  }
-  if (safeYSpan && spanY > AUTO_SPAN_SAFETY_MULTIPLIER * safeYSpan) {
-    const cy = (coreYMin + coreYMax) / 2;
-    const half = Math.max(safeYSpan / 2, 1) * AUTO_SPAN_RECENTER_FACTOR;
-    ymin = cy - half;
-    ymax = cy + half;
-  }
-
-  if (!Number.isFinite(xmin)) xmin = -5;
-  if (!Number.isFinite(xmax)) xmax = 5;
-  if (!Number.isFinite(ymin)) ymin = -5;
-  if (!Number.isFinite(ymax)) ymax = 5;
-
-  const spanXPad = xmax - xmin;
-  const spanYPad = ymax - ymin;
-  const padFactor = 0.1;
-
-  xmin -= spanXPad * padFactor;
-  xmax += spanXPad * padFactor;
-  ymin -= spanYPad * padFactor;
-  ymax += spanYPad * padFactor;
-
-  if (ADV.firstQuadrant) {
-    xmin = Math.max(0, xmin);
-    ymin = Math.max(0, ymin);
-    if (ymax < 1) ymax = 10;
-    if (xmax < 1) xmax = 10;
-  }
-
-  const MAX_VAL = 1000;
-  xmin = Math.max(-MAX_VAL, xmin);
-  xmax = Math.min(MAX_VAL, xmax);
-  ymin = Math.max(-MAX_VAL, ymin);
-  ymax = Math.min(MAX_VAL, ymax);
-
-  if (!ADV.firstQuadrant) {
-    if (xmin > 0) xmin = -0.5;
-    if (ymin > 0) ymin = -0.5;
-  }
-
-  if (xmax <= xmin) xmax = xmin + 10;
-  if (ymax <= ymin) ymax = ymin + 10;
-
-  const screen = [xmin, xmax, ymin, ymax];
-  return normalizeAutoScreen(screen);
+  // KRAV: Ingen analyse av funksjonen. 
+  // Bruk alltid standard [-5, 5, -5, 5] som utgangspunkt.
+  // normalizeAutoScreen tar seg av 1:1 og 1. kvadrant-reglene etterpå.
+  return normalizeAutoScreen(DEFAULT_SCREEN.slice());
 }
 function computeAutoScreenPoints() {
-  const pts = ADV.points.start.slice(0, 2);
-  const xs = pts.map(p => p[0]),
-    ys = pts.map(p => p[1]);
-  let xmin = Math.min(-5, ...xs),
-    xmax = Math.max(5, ...xs);
-  let ymin = Math.min(-5, ...ys),
-    ymax = Math.max(5, ...ys);
-  xmin = Math.min(xmin, 0);
-  xmax = Math.max(xmax, 0);
-  ymin = Math.min(ymin, 0);
-  ymax = Math.max(ymax, 0);
-  const cx = (xmin + xmax) / 2,
-    cy = (ymin + ymax) / 2;
-  let halfX = Math.max(xmax - xmin, 10) / 2 * 1.1;
-  let halfY = Math.max(ymax - ymin, 10) / 2 * 1.1;
-  if (shouldLockAspect()) {
-    const half = Math.max(halfX, halfY);
-    halfX = halfY = half;
-  }
-  const screen = [cx - halfX, cx + halfX, cy - halfY, cy + halfY];
-  return normalizeAutoScreen(screen);
+  return normalizeAutoScreen(DEFAULT_SCREEN.slice());
 }
 const toBB = scr => [scr[0], scr[3], scr[1], scr[2]];
 function fromBoundingBox(bb) {
@@ -2583,62 +2349,54 @@ function clampScreenToFirstQuadrant(screen) {
   }
   let [xmin, xmax, ymin, ymax] = screen;
 
-  // Sjekk gyldighet
-  if (![xmin, xmax, ymin, ymax].every(Number.isFinite)) {
-    return screen.slice(0, 4);
-  }
-
-  // Hvis 1. kvadrant ikke er aktivert globalt, returner uendret (sikkerhetsnett)
+  // Hvis 1. kvadrant ikke er aktivert, gjør ingenting
   if (!ADV || !ADV.firstQuadrant) {
     return screen.slice(0, 4);
   }
 
-  const width = Math.max(1e-9, xmax - xmin);
-  const height = Math.max(1e-9, ymax - ymin);
+  const width = xmax - xmin;
+  const height = ymax - ymin;
 
-  // Hold oss i (eller rett ved) 1. kvadrant ved å skyve hele utsnittet opp og til høyre
-  const HARD_MIN = 0;
+  // PADDING: Vi tillater at den går ned til -0.5 for å vise aksene
+  const ALLOWED_MIN = -0.5; 
 
-  if (xmin < HARD_MIN) {
-    if (xmax > HARD_MIN) {
-      xmin = HARD_MIN; // Behold maks når vi allerede ser noe av 1. kvadrant
-    } else {
-      xmin = HARD_MIN;
-      xmax = HARD_MIN + width; // Skyv inn i 1. kvadrant med opprinnelig bredde
-    }
+  // Sjekk X
+  if (xmin < ALLOWED_MIN) {
+    const diff = ALLOWED_MIN - xmin;
+    xmin = ALLOWED_MIN;
+    xmax += diff; // Skyv vinduet til høyre for å bevare bredden
   }
 
-  if (ymin < HARD_MIN) {
-    if (ymax > HARD_MIN) {
-      ymin = HARD_MIN; // Behold maks når vi allerede ser noe av 1. kvadrant
-    } else {
-      ymin = HARD_MIN;
-      ymax = HARD_MIN + height; // Skyv inn i 1. kvadrant med opprinnelig høyde
-    }
+  // Sjekk Y
+  if (ymin < ALLOWED_MIN) {
+    const diff = ALLOWED_MIN - ymin;
+    ymin = ALLOWED_MIN;
+    ymax += diff; // Skyv vinduet opp for å bevare høyden
   }
 
   return [xmin, xmax, ymin, ymax];
 }
 
 function normalizeAutoScreen(screen) {
+  // Start med det vi fikk (som nå alltid er default [-5,5,-5,5] fra punkt 1)
+  // eller det brukeren skrev i feltet.
   const base = Array.isArray(screen) && screen.length === 4 ? screen.slice(0, 4) : DEFAULT_SCREEN.slice(0, 4);
-  let [xmin, xmax, ymin, ymax] = base;
-  if (![xmin, xmax, ymin, ymax].every(Number.isFinite)) {
-    return DEFAULT_SCREEN.slice(0, 4);
-  }
-  if (xmax <= xmin) {
-    xmax = xmin + 10;
-  }
-  if (ymax <= ymin) {
-    ymax = ymin + 10;
-  }
-  let normalized = [xmin, xmax, ymin, ymax];
+
+  let normalized = base;
+
+  // 1. HVIS 1. KVADRANT: Tving startposisjonen til -0.5
   if (ADV && ADV.firstQuadrant) {
+    // Denne funksjonen (linje 1066 i filen din) setter xmin/ymin til -0.5
     normalized = applyFirstQuadrantPadding(normalized);
   }
+
+  // 2. HVIS LÅS 1:1: Utvid boksen basert på gjeldende anker
   if (shouldLockAspect()) {
+    // expandScreenToLockAspect (linje 1083) sjekker allerede ADV.firstQuadrant
+    // og vet at den skal utvide mot høyre/opp hvis det er på.
     normalized = expandScreenToLockAspect(normalized);
   }
+
   return normalized;
 }
 
