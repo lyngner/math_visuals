@@ -866,66 +866,25 @@ function getPaletteProjectResolver() {
   return null;
 }
 
-// Hjelper for å finne aktivt prosjekt (Robust sjekk)
+// Hjelper for å finne aktivt prosjekt (Single Source of Truth = DOM-attributter)
 function getActiveProjectName() {
-  const doc = typeof document !== "undefined" ? document : null;
-  const theme = getThemeApi();
-  const settings = getSettingsApi();
-  const resolver = getPaletteProjectResolver();
-
-  if (resolver && typeof resolver.resolvePaletteProject === "function") {
-    try {
-      const resolved = resolver.resolvePaletteProject({
-        document: doc || undefined,
-        root: doc && doc.documentElement ? doc.documentElement : undefined,
-        theme: theme || undefined,
-        settings: settings || undefined,
-        location: typeof window !== "undefined" ? window.location : undefined
-      });
-      if (typeof resolved === "string" && resolved.trim()) {
-        return resolved.trim().toLowerCase();
-      }
-    } catch (_) {}
-  }
-
-  if (doc && doc.documentElement) {
-    const root = doc.documentElement;
-    const direct =
-      (typeof root.getAttribute === "function" && root.getAttribute("data-project")) ||
-      (root.dataset && root.dataset.project);
-    if (typeof direct === "string" && direct.trim()) {
-      return direct.trim().toLowerCase();
-    }
-    const activeAttr =
+  // 1. Prioriter DOM-roten hvor theming styres
+  if (typeof document !== "undefined" && document.documentElement) {
+    const root = document.documentElement;
+    const attr =
       (typeof root.getAttribute === "function" && root.getAttribute("data-mv-active-project")) ||
-      (root.dataset && root.dataset.mvActiveProject);
-    if (typeof activeAttr === "string" && activeAttr.trim()) {
-      return activeAttr.trim().toLowerCase();
-    }
-    const themeAttr =
       (typeof root.getAttribute === "function" && root.getAttribute("data-theme-profile")) ||
-      (root.dataset && root.dataset.themeProfile);
-    if (typeof themeAttr === "string" && themeAttr.trim()) {
-      return themeAttr.trim().toLowerCase();
-    }
+      (typeof root.getAttribute === "function" && root.getAttribute("data-project"));
+
+    if (attr && attr.trim()) return attr.trim().toLowerCase();
   }
 
-  if (theme && typeof theme.getActiveProfileName === "function") {
-    try {
-      const val = theme.getActiveProfileName();
-      if (val) return val.trim().toLowerCase();
-    } catch (_) {}
-  }
-
+  // 2. Fallback til Settings API dersom DOM ikke er satt
+  const settings = getSettingsApi();
   if (settings && typeof settings.getActiveProject === "function") {
-    try {
-      const val = settings.getActiveProject();
-      if (val) return val.trim().toLowerCase();
-    } catch (_) {}
+    try { return settings.getActiveProject(); } catch (_) {}
   }
-  if (settings && typeof settings.activeProject === "string" && settings.activeProject.trim()) {
-    return settings.activeProject.trim().toLowerCase();
-  }
+
   return null;
 }
 
@@ -1001,7 +960,9 @@ async function refreshNkantTheme() {
 
 function setupNkantThemeSync() {
   const refresh = () => {
-    refreshNkantTheme();
+    setTimeout(() => {
+      refreshNkantTheme();
+    }, 50);
   };
 
   if (typeof MutationObserver === 'function' && typeof document !== 'undefined' && document.documentElement) {
@@ -1023,10 +984,11 @@ function setupNkantThemeSync() {
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
     window.addEventListener('math-visuals:settings-changed', refresh);
     window.addEventListener('math-visuals:profile-change', refresh);
+    window.addEventListener('math-visuals:project-change', refresh);
     window.addEventListener('message', event => {
       const data = event && event.data;
       const type = typeof data === 'string' ? data : data && data.type;
-      if (type === 'math-visuals:profile-change') {
+      if (type === 'math-visuals:profile-change' || type === 'math-visuals:project-change') {
         refresh();
       }
     });
