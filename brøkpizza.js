@@ -2455,9 +2455,7 @@ function applyExamplesConfig() {
 
 function handleThemePaletteChanged() {
   applyThemeToDocument();
-  if (typeof window !== 'undefined' && typeof window.render === 'function') {
-    window.render();
-  }
+  initFromHtml();
 }
 
 function handleThemeProfileMessage(event) {
