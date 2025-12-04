@@ -178,11 +178,42 @@ function ensureStateDefaults() {
   STATE.specsText = STATE.figures.map(fig => fig && typeof fig.specText === "string" ? fig.specText : "").join("\n");
   return STATE;
 }
-function syncSpecsTextFromFigures() {
-  if (!Array.isArray(STATE.figures)) return "";
-  STATE.specsText = STATE.figures.map(fig => fig && typeof fig.specText === "string" ? fig.specText : "").join("\n");
-  return STATE.specsText;
-}
+  function syncSpecsTextFromFigures() {
+    if (!Array.isArray(STATE.figures)) return "";
+    STATE.specsText = STATE.figures.map(fig => fig && typeof fig.specText === "string" ? fig.specText : "").join("\n");
+    return STATE.specsText;
+  }
+
+  let renderQueue = null;
+  function scheduleRender() {
+    if (!renderQueue) {
+      renderQueue = Promise.resolve().then(async () => {
+        try {
+          await renderCombined();
+        } finally {
+          renderQueue = null;
+        }
+      });
+    }
+    return renderQueue;
+  }
+
+  function updateState(mutator, options = {}) {
+    const { render = true, onUpdate } = options;
+    if (typeof mutator === "function") {
+      mutator(STATE);
+    } else if (mutator && typeof mutator === "object") {
+      Object.assign(STATE, mutator);
+    }
+    ensureStateDefaults();
+    if (typeof onUpdate === "function") {
+      onUpdate();
+    }
+    if (render) {
+      return scheduleRender();
+    }
+    return Promise.resolve();
+  }
 let altTextManager = null;
 let lastRenderSummary = {
   layoutMode: STATE.layout || 'grid',
@@ -842,11 +873,11 @@ function getPaletteApi() {
 function getSettingsApi() {
   return (typeof window !== "undefined" && window.MathVisualsSettings) || null;
 }
-function getPaletteProjectResolver() {
-  const scopes = [
-    typeof window !== "undefined" ? window : null,
-    typeof globalThis !== "undefined" ? globalThis : null,
-    typeof global !== "undefined" ? global : null
+  function getPaletteProjectResolver() {
+    const scopes = [
+      typeof window !== "undefined" ? window : null,
+      typeof globalThis !== "undefined" ? globalThis : null,
+      typeof global !== "undefined" ? global : null
   ];
   for (const scope of scopes) {
     if (!scope || typeof scope !== "object") continue;
@@ -866,27 +897,54 @@ function getPaletteProjectResolver() {
   return null;
 }
 
-// Hjelper for å finne aktivt prosjekt (Single Source of Truth = DOM-attributter)
-function getActiveProjectName() {
-  // 1. Prioriter DOM-roten hvor theming styres
-  if (typeof document !== "undefined" && document.documentElement) {
-    const root = document.documentElement;
-    const attr =
-      (typeof root.getAttribute === "function" && root.getAttribute("data-mv-active-project")) ||
-      (typeof root.getAttribute === "function" && root.getAttribute("data-theme-profile")) ||
-      (typeof root.getAttribute === "function" && root.getAttribute("data-project"));
-
-    if (attr && attr.trim()) return attr.trim().toLowerCase();
+  // Hjelper for å finne aktivt prosjekt (Single Source of Truth = DOM-attributter)
+  function normalizeProjectName(value) {
+    if (typeof value !== "string") return "";
+    const first = value.trim().split(/\s+/)[0];
+    return first ? first.toLowerCase() : "";
   }
 
-  // 2. Fallback til Settings API dersom DOM ikke er satt
-  const settings = getSettingsApi();
-  if (settings && typeof settings.getActiveProject === "function") {
-    try { return settings.getActiveProject(); } catch (_) {}
-  }
+  function getActiveProjectName() {
+    const resolver = getPaletteProjectResolver();
+    const resolveProject = value => {
+      const normalized = normalizeProjectName(value);
+      if (!normalized) return "";
+      if (resolver && typeof resolver.resolvePaletteProject === "function") {
+        try {
+          const resolved = resolver.resolvePaletteProject(normalized);
+          const resolvedName = normalizeProjectName(resolved || normalized);
+          if (resolvedName) return resolvedName;
+        } catch (_) {}
+      }
+      return normalized;
+    };
 
-  return null;
-}
+    // 1. Prioriter DOM-roten hvor theming styres
+    if (typeof document !== "undefined" && document.documentElement) {
+      const root = document.documentElement;
+      const attributes = [
+        typeof root.getAttribute === "function" ? root.getAttribute("data-mv-active-project") : null,
+        typeof root.getAttribute === "function" ? root.getAttribute("data-theme-profile") : null,
+        typeof root.getAttribute === "function" ? root.getAttribute("data-project") : null
+      ];
+
+      for (const value of attributes) {
+        const resolved = resolveProject(value);
+        if (resolved) return resolved;
+      }
+    }
+
+    // 2. Fallback til Settings API dersom DOM ikke er satt
+    const settings = getSettingsApi();
+    if (settings && typeof settings.getActiveProject === "function") {
+      try {
+        const resolved = resolveProject(settings.getActiveProject());
+        if (resolved) return resolved;
+      } catch (_) {}
+    }
+
+    return null;
+  }
 
 function getThemeColor(token, fallback) {
   const theme = getThemeApi();
@@ -953,49 +1011,70 @@ async function refreshNkantTheme() {
   });
 
   // 4. Tegn på nytt
-  if (typeof renderCombined === 'function') {
-    await renderCombined();
+    if (typeof renderCombined === 'function') {
+      await renderCombined();
+    }
   }
-}
 
-function setupNkantThemeSync() {
-  const refresh = () => {
-    setTimeout(() => {
-      refreshNkantTheme();
-    }, 50);
-  };
+  let themeRefreshTimer = null;
+  let themeRefreshInFlight = null;
+  let themeRefreshQueued = false;
+  function scheduleThemeRefresh(delay = 50) {
+    if (themeRefreshTimer) {
+      clearTimeout(themeRefreshTimer);
+    }
+    themeRefreshTimer = setTimeout(() => {
+      themeRefreshTimer = null;
+      if (themeRefreshInFlight) {
+        themeRefreshQueued = true;
+        return;
+      }
+      themeRefreshInFlight = refreshNkantTheme()
+        .catch(() => {})
+        .finally(() => {
+          themeRefreshInFlight = null;
+          if (themeRefreshQueued) {
+            themeRefreshQueued = false;
+            scheduleThemeRefresh(10);
+          }
+        });
+    }, delay);
+  }
 
-  if (typeof MutationObserver === 'function' && typeof document !== 'undefined' && document.documentElement) {
-    const observer = new MutationObserver(mutations => {
-      for (const mutation of mutations) {
-        if (mutation.type === 'attributes') {
-          refresh();
-          break;
+  function setupNkantThemeSync() {
+    const refresh = () => scheduleThemeRefresh();
+
+    if (typeof MutationObserver === 'function' && typeof document !== 'undefined' && document.documentElement) {
+      const observer = new MutationObserver(mutations => {
+        for (const mutation of mutations) {
+          if (mutation.type === 'attributes') {
+            refresh();
+            break;
+          }
         }
-      }
-    });
+      });
 
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['data-project', 'data-mv-active-project', 'data-theme-profile']
-    });
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-project', 'data-mv-active-project', 'data-theme-profile']
+      });
+    }
+
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('math-visuals:settings-changed', refresh);
+      window.addEventListener('math-visuals:profile-change', refresh);
+      window.addEventListener('math-visuals:project-change', refresh);
+      window.addEventListener('message', event => {
+        const data = event && event.data;
+        const type = typeof data === 'string' ? data : data && data.type;
+        if (type === 'math-visuals:profile-change' || type === 'math-visuals:project-change') {
+          refresh();
+        }
+      });
+    }
+
+    refresh();
   }
-
-  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-    window.addEventListener('math-visuals:settings-changed', refresh);
-    window.addEventListener('math-visuals:profile-change', refresh);
-    window.addEventListener('math-visuals:project-change', refresh);
-    window.addEventListener('message', event => {
-      const data = event && event.data;
-      const type = typeof data === 'string' ? data : data && data.type;
-      if (type === 'math-visuals:profile-change' || type === 'math-visuals:project-change') {
-        refresh();
-      }
-    });
-  }
-
-  refresh();
-}
 
 
 function sanitizeThemePaletteValue(value) {
@@ -3180,58 +3259,13 @@ async function parseSpecAI(str) {
   const quick = parseSpecFreeform(str);
   if (Object.keys(quick).length > 0) return quick;
   let data = null;
-  let backendFailed = false;
   try {
     data = await requestSpecFromBackend(str);
   } catch (error) {
-    backendFailed = true;
     if (error) console.warn('parseSpecAI backend fallback', error);
   }
   if (!data) {
-    try {
-      var _data$choices;
-      const apiKey = typeof window !== 'undefined' ? window.OPENAI_API_KEY : null;
-      if (!apiKey) throw new Error('missing api key');
-      const body = {
-        model: 'gpt-4o-mini',
-        response_format: {
-          type: 'json_object'
-        },
-        messages: [{
-          role: 'system',
-          content: 'Returner kun JSON med tall for a,b,c,d,A,B,C,D.'
-        }, {
-          role: 'user',
-          content: str
-        }]
-      };
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`
-        },
-        body: JSON.stringify(body)
-      });
-      data = await res.json();
-      const txt = (_data$choices = data.choices) === null || _data$choices === void 0 || (_data$choices = _data$choices[0]) === null || _data$choices === void 0 || (_data$choices = _data$choices.message) === null || _data$choices === void 0 ? void 0 : _data$choices.content;
-      if (!txt) throw new Error('no content');
-      const parsed = JSON.parse(txt);
-      const out = {};
-      Object.entries(parsed).forEach(([k, v]) => {
-        if (/^[abcdABCD]$/.test(k)) {
-          const n = parseFloat(String(v).replace(',', '.'));
-          if (isFinite(n)) out[k] = n;
-        }
-      });
-      if (Object.keys(out).length === 0) return parseSpec(str);
-      const detectedHint = detectShapeHintFromPrefix(str);
-      if (detectedHint) setSpecShapeHint(out, detectedHint);
-      return out;
-    } catch (err) {
-      if (!backendFailed) console.warn('parseSpecAI fallback', err);
-      return parseSpec(str);
-    }
+    return parseSpec(str);
   }
   try {
     var _data$choices2;
@@ -5259,38 +5293,38 @@ function bindUI() {
     const sideLabel = document.createElement("label");
     sideLabel.setAttribute("for", "globalDefaultSides");
     sideLabel.textContent = "Standard sider";
-    globalSideDefaultSel = createSelect(sideDefaults, defaults.sides, "Standard sider for alle figurer");
-    globalSideDefaultSel.id = "globalDefaultSides";
-    globalSideDefaultSel.addEventListener("change", () => {
-      STATE.defaults.sides = globalSideDefaultSel.value;
-      STATE.figures.forEach(fig => {
-        if (fig && fig.sides) {
-          fig.sides.default = STATE.defaults.sides;
-        }
+      globalSideDefaultSel = createSelect(sideDefaults, defaults.sides, "Standard sider for alle figurer");
+      globalSideDefaultSel.id = "globalDefaultSides";
+      globalSideDefaultSel.addEventListener("change", () => {
+        updateState(state => {
+          state.defaults.sides = globalSideDefaultSel.value;
+          state.figures.forEach(fig => {
+            if (fig && fig.sides) {
+              fig.sides.default = state.defaults.sides;
+            }
+          });
+        }, { onUpdate: renderFigureForms });
       });
-      renderFigureForms();
-      renderCombined();
-    });
-    globalDefaultSidesWrap.appendChild(sideLabel);
-    globalDefaultSidesWrap.appendChild(globalSideDefaultSel);
+      globalDefaultSidesWrap.appendChild(sideLabel);
+      globalDefaultSidesWrap.appendChild(globalSideDefaultSel);
 
     const angleLabel = document.createElement("label");
     angleLabel.setAttribute("for", "globalDefaultAngles");
     angleLabel.textContent = "Standard vinkler/punkter";
-    globalAngleDefaultSel = createSelect(angleDefaults, defaults.angles, "Standard vinkler/punkter for alle figurer");
-    globalAngleDefaultSel.id = "globalDefaultAngles";
-    globalAngleDefaultSel.addEventListener("change", () => {
-      STATE.defaults.angles = globalAngleDefaultSel.value;
-      STATE.figures.forEach(fig => {
-        if (fig && fig.angles) {
-          fig.angles.default = STATE.defaults.angles;
-        }
+      globalAngleDefaultSel = createSelect(angleDefaults, defaults.angles, "Standard vinkler/punkter for alle figurer");
+      globalAngleDefaultSel.id = "globalDefaultAngles";
+      globalAngleDefaultSel.addEventListener("change", () => {
+        updateState(state => {
+          state.defaults.angles = globalAngleDefaultSel.value;
+          state.figures.forEach(fig => {
+            if (fig && fig.angles) {
+              fig.angles.default = state.defaults.angles;
+            }
+          });
+        }, { onUpdate: renderFigureForms });
       });
-      renderFigureForms();
-      renderCombined();
-    });
-    globalDefaultAnglesWrap.appendChild(angleLabel);
-    globalDefaultAnglesWrap.appendChild(globalAngleDefaultSel);
+      globalDefaultAnglesWrap.appendChild(angleLabel);
+      globalDefaultAnglesWrap.appendChild(globalAngleDefaultSel);
   }
 
   function syncGlobalDefaultsUI() {
@@ -5314,19 +5348,19 @@ function bindUI() {
       legend.className = "legend";
       legend.textContent = `Figur ${idx + 1}`;
       header.appendChild(legend);
-      if (idx > 0) {
-        const removeBtn = document.createElement("button");
-        removeBtn.type = "button";
-        removeBtn.className = "btn btn--ghost figure-config__remove";
-        removeBtn.textContent = "Fjern";
-        removeBtn.addEventListener("click", () => {
-          STATE.figures.splice(idx, 1);
-          syncSpecsTextFromFigures();
-          renderFigureForms();
-          renderCombined();
-        });
-        header.appendChild(removeBtn);
-      }
+        if (idx > 0) {
+          const removeBtn = document.createElement("button");
+          removeBtn.type = "button";
+          removeBtn.className = "btn btn--ghost figure-config__remove";
+          removeBtn.textContent = "Fjern";
+          removeBtn.addEventListener("click", () => {
+            updateState(state => {
+              state.figures.splice(idx, 1);
+              syncSpecsTextFromFigures();
+            }, { onUpdate: renderFigureForms });
+          });
+          header.appendChild(removeBtn);
+        }
       wrapper.appendChild(header);
 
       const specLabel = document.createElement("label");
@@ -5345,16 +5379,17 @@ function bindUI() {
       });
       specRow.appendChild(specInput);
       const drawBtn = document.createElement("button");
-      drawBtn.type = "button";
-      drawBtn.className = "btn figure-config__draw";
-      drawBtn.textContent = "Tegn";
-      drawBtn.addEventListener("click", () => {
-        fig.specText = specInput.value;
-        syncSpecsTextFromFigures();
-        renderCombined();
-      });
-      specRow.appendChild(drawBtn);
-      wrapper.appendChild(specRow);
+        drawBtn.type = "button";
+        drawBtn.className = "btn figure-config__draw";
+        drawBtn.textContent = "Tegn";
+        drawBtn.addEventListener("click", () => {
+          updateState(() => {
+            fig.specText = specInput.value;
+            syncSpecsTextFromFigures();
+          });
+        });
+        specRow.appendChild(drawBtn);
+        wrapper.appendChild(specRow);
 
       const rows = document.createElement("div");
       rows.className = "form-row";
@@ -5374,13 +5409,15 @@ function bindUI() {
         };
         toggle();
         sel.addEventListener("change", () => {
-          fig.sides[letter] = sel.value;
           toggle();
-          renderCombined();
+          updateState(() => {
+            fig.sides[letter] = sel.value;
+          });
         });
         txt.addEventListener("input", () => {
-          fig.sides[`${letter}Text`] = txt.value;
-          renderCombined();
+          updateState(() => {
+            fig.sides[`${letter}Text`] = txt.value;
+          });
         });
         row.appendChild(txt);
         row.appendChild(sel);
@@ -5407,13 +5444,15 @@ function bindUI() {
         };
         toggle();
         sel.addEventListener("change", () => {
-          fig.angles[letter] = sel.value;
           toggle();
-          renderCombined();
+          updateState(() => {
+            fig.angles[letter] = sel.value;
+          });
         });
         txt.addEventListener("input", () => {
-          fig.angles[`${letter}Text`] = txt.value;
-          renderCombined();
+          updateState(() => {
+            fig.angles[`${letter}Text`] = txt.value;
+          });
         });
         row.appendChild(txt);
         row.appendChild(sel);
@@ -5431,34 +5470,35 @@ function bindUI() {
   syncGlobalDefaultsUI();
   syncGlobalDefaultsToUI = syncGlobalDefaultsUI;
   applyFigureSpecsToUI = renderFigureForms;
-  renderFigureForms();
-  if (textSizeSelect) {
-    textSizeSelect.value = STATE.textSize;
-    textSizeSelect.addEventListener('change', () => {
-      STATE.textSize = textSizeSelect.value;
-      applyTextSizePreference(STATE.textSize);
-      renderCombined();
-    });
-  }
+    renderFigureForms();
+    if (textSizeSelect) {
+      textSizeSelect.value = STATE.textSize;
+      textSizeSelect.addEventListener('change', () => {
+        updateState(state => {
+          state.textSize = textSizeSelect.value;
+        }, { onUpdate: () => applyTextSizePreference(STATE.textSize) });
+      });
+    }
 
-  if (rotateTextSelect) {
-    rotateTextSelect.value = STATE.rotateText === false ? 'no-rotate' : 'rotate';
-    rotateTextSelect.addEventListener('change', () => {
-      STATE.rotateText = rotateTextSelect.value === 'rotate';
-      renderCombined();
-    });
-  }
+    if (rotateTextSelect) {
+      rotateTextSelect.value = STATE.rotateText === false ? 'no-rotate' : 'rotate';
+      rotateTextSelect.addEventListener('change', () => {
+        updateState(state => {
+          state.rotateText = rotateTextSelect.value === 'rotate';
+        });
+      });
+    }
 
-  if (addFigureBtn) {
-    addFigureBtn.addEventListener("click", () => {
-      if (STATE.figures.length >= 4) return;
-      const newFig = createDefaultFigureState(STATE.figures.length, "", STATE.defaults);
-      STATE.figures.push(newFig);
-      syncSpecsTextFromFigures();
-      renderFigureForms();
-      renderCombined();
-    });
-  }
+    if (addFigureBtn) {
+      addFigureBtn.addEventListener("click", () => {
+        if (STATE.figures.length >= 4) return;
+        updateState(state => {
+          const newFig = createDefaultFigureState(state.figures.length, "", state.defaults);
+          state.figures.push(newFig);
+          syncSpecsTextFromFigures();
+        }, { onUpdate: renderFigureForms });
+      });
+    }
     if (btnDraw) {
       btnDraw.addEventListener("click", async () => {
         resetAllLabelRotations();
