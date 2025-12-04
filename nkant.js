@@ -922,10 +922,16 @@ function getSettingsApi() {
     // 1. Prioriter DOM-roten hvor theming styres
     if (typeof document !== "undefined" && document.documentElement) {
       const root = document.documentElement;
+      const readAttr = name => {
+        const direct = typeof root.getAttribute === "function" ? root.getAttribute(name) : null;
+        if (direct) return direct;
+        const ds = root.dataset && root.dataset[name.replace(/^data-/, "").replace(/-([a-z])/g, (_, c) => c.toUpperCase())];
+        return ds || null;
+      };
       const attributes = [
-        typeof root.getAttribute === "function" ? root.getAttribute("data-mv-active-project") : null,
-        typeof root.getAttribute === "function" ? root.getAttribute("data-theme-profile") : null,
-        typeof root.getAttribute === "function" ? root.getAttribute("data-project") : null
+        readAttr("data-mv-active-project"),
+        readAttr("data-theme-profile"),
+        readAttr("data-project")
       ];
 
       for (const value of attributes) {
@@ -1042,7 +1048,13 @@ async function refreshNkantTheme() {
   }
 
   function setupNkantThemeSync() {
-    const refresh = () => scheduleThemeRefresh();
+    const refresh = () => {
+      if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => scheduleThemeRefresh());
+      } else {
+        setTimeout(() => scheduleThemeRefresh(), 50);
+      }
+    };
 
     if (typeof MutationObserver === 'function' && typeof document !== 'undefined' && document.documentElement) {
       const observer = new MutationObserver(mutations => {
