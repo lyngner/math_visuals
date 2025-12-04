@@ -229,24 +229,23 @@ function getActiveThemeProjectName(theme = getThemeApi()) {
 }
 
 function resolvePaletteProjectName() {
+  // 1. Sjekk Resolver (hvis den finnes og er smart)
   const resolver = getPaletteProjectResolver();
   const doc = typeof document !== 'undefined' ? document : null;
-  const theme = getThemeApi();
-  const settings = getSettingsApi();
+
   if (resolver && typeof resolver.resolvePaletteProject === 'function') {
     try {
       const resolved = resolver.resolvePaletteProject({
         document: doc || undefined,
-        root: doc && doc.documentElement ? doc.documentElement : undefined,
-        theme: theme || undefined,
-        settings: settings || undefined,
-        location: typeof window !== 'undefined' ? window.location : undefined
+        root: doc && doc.documentElement ? doc.documentElement : undefined
       });
       if (typeof resolved === 'string' && resolved) {
         return resolved;
       }
     } catch (_) {}
   }
+
+  // 2. Sjekk DOM-roten (Fasiten for visning)
   if (doc && doc.documentElement) {
     const root = doc.documentElement;
     const direct =
@@ -264,19 +263,16 @@ function resolvePaletteProjectName() {
       return profileAttr.trim().toLowerCase();
     }
   }
+
+  // 3. Sjekk Theme API
+  const theme = getThemeApi();
   const activeThemeProject = getActiveThemeProjectName(theme);
   if (activeThemeProject) return activeThemeProject;
-  if (settings && typeof settings.getActiveProject === 'function') {
-    try {
-      const value = settings.getActiveProject();
-      if (typeof value === 'string' && value.trim()) {
-        return value.trim().toLowerCase();
-      }
-    } catch (_) {}
-  }
-  if (settings && typeof settings.activeProject === 'string' && settings.activeProject.trim()) {
-    return settings.activeProject.trim().toLowerCase();
-  }
+
+  // --- VIKTIG: FJERNET SJEKKENE MOT SETTINGS API HER ---
+  // Vi vil ikke at redigeringsmodus i Settings skal overstyre visningen
+  // hvis DOM-attributtet er forsinket.
+
   return null;
 }
 
@@ -2454,8 +2450,16 @@ function applyExamplesConfig() {
 }
 
 function handleThemePaletteChanged() {
-  applyThemeToDocument();
-  initFromHtml();
+  // Vent litt for å la DOM-attributtene oppdateres
+  setTimeout(() => {
+    applyThemeToDocument();
+    if (typeof window !== 'undefined' && typeof window.applyConfig === 'function') {
+      // Bruk applyConfig eller initFromHtml for å tegne på nytt
+      window.applyConfig();
+    } else {
+      initFromHtml();
+    }
+  }, 50);
 }
 
 function handleThemeProfileMessage(event) {
