@@ -94,6 +94,41 @@ const STATE = {
 };
 const DEFAULT_STATE = JSON.parse(JSON.stringify(STATE));
 
+function updateState(patch, options = {}) {
+  const { render = true, afterUpdate } = options;
+  const applyPatch = (target, delta) => {
+    if (!delta || typeof delta !== "object") return;
+    Object.entries(delta).forEach(([key, value]) => {
+      const current = target[key];
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        if (!current || typeof current !== "object" || Array.isArray(current)) {
+          target[key] = Array.isArray(value) ? value.slice() : { ...value };
+        } else {
+          applyPatch(current, value);
+        }
+      } else {
+        target[key] = Array.isArray(value) ? value.slice() : value;
+      }
+    });
+  };
+
+  if (typeof patch === "function") {
+    patch(STATE);
+  } else {
+    applyPatch(STATE, patch);
+  }
+
+  if (typeof afterUpdate === "function") {
+    afterUpdate(STATE);
+  }
+
+  if (render && typeof renderCombined === "function") {
+    renderCombined();
+  }
+
+  return STATE;
+}
+
 function getGlobalDefaults() {
   const fallback = DEFAULT_STATE && DEFAULT_STATE.defaults ? DEFAULT_STATE.defaults : DEFAULT_GLOBAL_DEFAULTS;
   const defaults = STATE && STATE.defaults ? STATE.defaults : null;
@@ -831,6 +866,7 @@ const STYLE_DEFAULTS = {
 const STYLE = { ...STYLE_DEFAULTS };
 const NKANT_GROUP_PALETTE_SIZE = 6; // Vi trenger ca 4-6 farger
 const SETTINGS_FALLBACK_PALETTE = ["#1F4DE2", "#475569", "#ef4444", "#0ea5e9", "#10b981", "#f59e0b"];
+const NKANT_THEME_REFRESH_DELAY_MS = 50;
 
 // Hjelpere for å finne API-er
 function getThemeApi() {
@@ -868,6 +904,12 @@ function getPaletteProjectResolver() {
 
 // Hjelper for å finne aktivt prosjekt (Robust sjekk)
 function getActiveProjectName() {
+  const normalizeProjectName = value => {
+    if (typeof value !== "string") return null;
+    const trimmed = value.trim();
+    return trimmed ? trimmed.toLowerCase() : null;
+  };
+
   const doc = typeof document !== "undefined" ? document : null;
   const theme = getThemeApi();
   const settings = getSettingsApi();
@@ -882,8 +924,13 @@ function getActiveProjectName() {
         settings: settings || undefined,
         location: typeof window !== "undefined" ? window.location : undefined
       });
-      if (typeof resolved === "string" && resolved.trim()) {
-        return resolved.trim().toLowerCase();
+      if (typeof resolved === "string") {
+        const normalized = normalizeProjectName(resolved);
+        if (normalized) return normalized;
+      }
+      if (resolved && typeof resolved === "object") {
+        const candidate = normalizeProjectName(resolved.project || resolved.name || resolved.id);
+        if (candidate) return candidate;
       }
     } catch (_) {}
   }
@@ -893,38 +940,43 @@ function getActiveProjectName() {
     const direct =
       (typeof root.getAttribute === "function" && root.getAttribute("data-project")) ||
       (root.dataset && root.dataset.project);
-    if (typeof direct === "string" && direct.trim()) {
-      return direct.trim().toLowerCase();
-    }
+    const directName = normalizeProjectName(direct);
+    if (directName) return directName;
+
     const activeAttr =
       (typeof root.getAttribute === "function" && root.getAttribute("data-mv-active-project")) ||
       (root.dataset && root.dataset.mvActiveProject);
-    if (typeof activeAttr === "string" && activeAttr.trim()) {
-      return activeAttr.trim().toLowerCase();
-    }
+    const activeName = normalizeProjectName(activeAttr);
+    if (activeName) return activeName;
+
     const themeAttr =
       (typeof root.getAttribute === "function" && root.getAttribute("data-theme-profile")) ||
       (root.dataset && root.dataset.themeProfile);
-    if (typeof themeAttr === "string" && themeAttr.trim()) {
-      return themeAttr.trim().toLowerCase();
-    }
+    const themeName = normalizeProjectName(themeAttr);
+    if (themeName) return themeName;
   }
 
   if (theme && typeof theme.getActiveProfileName === "function") {
     try {
-      const val = theme.getActiveProfileName();
-      if (val) return val.trim().toLowerCase();
+      const val = normalizeProjectName(theme.getActiveProfileName());
+      if (val) return val;
     } catch (_) {}
+  }
+
+  if (theme && typeof theme.activeProfileName === "string") {
+    const activeProfile = normalizeProjectName(theme.activeProfileName);
+    if (activeProfile) return activeProfile;
   }
 
   if (settings && typeof settings.getActiveProject === "function") {
     try {
-      const val = settings.getActiveProject();
-      if (val) return val.trim().toLowerCase();
+      const val = normalizeProjectName(settings.getActiveProject());
+      if (val) return val;
     } catch (_) {}
   }
   if (settings && typeof settings.activeProject === "string" && settings.activeProject.trim()) {
-    return settings.activeProject.trim().toLowerCase();
+    const normalized = normalizeProjectName(settings.activeProject);
+    if (normalized) return normalized;
   }
   return null;
 }
@@ -938,6 +990,8 @@ function getThemeColor(token, fallback) {
   }
   return fallback;
 }
+
+let nkantThemeRefreshTimer = null;
 
 // Hovedfunksjonen som oppdaterer alt
 async function refreshNkantTheme() {
@@ -1000,15 +1054,21 @@ async function refreshNkantTheme() {
 }
 
 function setupNkantThemeSync() {
-  const refresh = () => {
-    refreshNkantTheme();
+  const scheduleRefresh = () => {
+    if (nkantThemeRefreshTimer) {
+      clearTimeout(nkantThemeRefreshTimer);
+    }
+    nkantThemeRefreshTimer = setTimeout(() => {
+      nkantThemeRefreshTimer = null;
+      refreshNkantTheme();
+    }, NKANT_THEME_REFRESH_DELAY_MS);
   };
 
   if (typeof MutationObserver === 'function' && typeof document !== 'undefined' && document.documentElement) {
     const observer = new MutationObserver(mutations => {
       for (const mutation of mutations) {
         if (mutation.type === 'attributes') {
-          refresh();
+          scheduleRefresh();
           break;
         }
       }
@@ -1021,18 +1081,18 @@ function setupNkantThemeSync() {
   }
 
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-    window.addEventListener('math-visuals:settings-changed', refresh);
-    window.addEventListener('math-visuals:profile-change', refresh);
+    window.addEventListener('math-visuals:settings-changed', scheduleRefresh);
+    window.addEventListener('math-visuals:profile-change', scheduleRefresh);
     window.addEventListener('message', event => {
       const data = event && event.data;
       const type = typeof data === 'string' ? data : data && data.type;
       if (type === 'math-visuals:profile-change') {
-        refresh();
+        scheduleRefresh();
       }
     });
   }
 
-  refresh();
+  scheduleRefresh();
 }
 
 
@@ -3226,50 +3286,8 @@ async function parseSpecAI(str) {
     if (error) console.warn('parseSpecAI backend fallback', error);
   }
   if (!data) {
-    try {
-      var _data$choices;
-      const apiKey = typeof window !== 'undefined' ? window.OPENAI_API_KEY : null;
-      if (!apiKey) throw new Error('missing api key');
-      const body = {
-        model: 'gpt-4o-mini',
-        response_format: {
-          type: 'json_object'
-        },
-        messages: [{
-          role: 'system',
-          content: 'Returner kun JSON med tall for a,b,c,d,A,B,C,D.'
-        }, {
-          role: 'user',
-          content: str
-        }]
-      };
-      const res = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`
-        },
-        body: JSON.stringify(body)
-      });
-      data = await res.json();
-      const txt = (_data$choices = data.choices) === null || _data$choices === void 0 || (_data$choices = _data$choices[0]) === null || _data$choices === void 0 || (_data$choices = _data$choices.message) === null || _data$choices === void 0 ? void 0 : _data$choices.content;
-      if (!txt) throw new Error('no content');
-      const parsed = JSON.parse(txt);
-      const out = {};
-      Object.entries(parsed).forEach(([k, v]) => {
-        if (/^[abcdABCD]$/.test(k)) {
-          const n = parseFloat(String(v).replace(',', '.'));
-          if (isFinite(n)) out[k] = n;
-        }
-      });
-      if (Object.keys(out).length === 0) return parseSpec(str);
-      const detectedHint = detectShapeHintFromPrefix(str);
-      if (detectedHint) setSpecShapeHint(out, detectedHint);
-      return out;
-    } catch (err) {
-      if (!backendFailed) console.warn('parseSpecAI fallback', err);
-      return parseSpec(str);
-    }
+    if (!backendFailed) console.warn('parseSpecAI fallback: missing backend response');
+    return parseSpec(str);
   }
   try {
     var _data$choices2;
@@ -5473,26 +5491,25 @@ function bindUI() {
   if (textSizeSelect) {
     textSizeSelect.value = STATE.textSize;
     textSizeSelect.addEventListener('change', () => {
-      STATE.textSize = textSizeSelect.value;
-      applyTextSizePreference(STATE.textSize);
-      renderCombined();
+      updateState({ textSize: textSizeSelect.value });
     });
   }
 
   if (rotateTextSelect) {
     rotateTextSelect.value = STATE.rotateText === false ? 'no-rotate' : 'rotate';
     rotateTextSelect.addEventListener('change', () => {
-      STATE.rotateText = rotateTextSelect.value === 'rotate';
-      renderCombined();
+      updateState({ rotateText: rotateTextSelect.value === 'rotate' });
     });
   }
 
   if (addFigureBtn) {
     addFigureBtn.addEventListener("click", () => {
       if (STATE.figures.length >= 4) return;
-      const newFig = createDefaultFigureState(STATE.figures.length, "", STATE.defaults);
-      STATE.figures.push(newFig);
-      syncSpecsTextFromFigures();
+      updateState(state => {
+        const newFig = createDefaultFigureState(state.figures.length, "", state.defaults);
+        state.figures.push(newFig);
+        syncSpecsTextFromFigures();
+      }, { render: false });
       renderFigureForms();
       renderCombined();
     });
