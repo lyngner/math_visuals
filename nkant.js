@@ -905,49 +905,32 @@ function getSettingsApi() {
   }
 
   function getActiveProjectName() {
-    const resolver = getPaletteProjectResolver();
-    const resolveProject = value => {
-      const normalized = normalizeProjectName(value);
-      if (!normalized) return "";
-      if (resolver && typeof resolver.resolvePaletteProject === "function") {
-        try {
-          const resolved = resolver.resolvePaletteProject(normalized);
-          const resolvedName = normalizeProjectName(resolved || normalized);
-          if (resolvedName) return resolvedName;
-        } catch (_) {}
-      }
-      return normalized;
-    };
-
-    // 1. Prioriter DOM-roten hvor theming styres
+    // 1. Sjekk DOM-roten først. Dette er fasiten for hva som vises på siden.
     if (typeof document !== "undefined" && document.documentElement) {
       const root = document.documentElement;
-      const readAttr = name => {
-        const direct = typeof root.getAttribute === "function" ? root.getAttribute(name) : null;
-        if (direct) return direct;
-        const ds = root.dataset && root.dataset[name.replace(/^data-/, "").replace(/-([a-z])/g, (_, c) => c.toUpperCase())];
-        return ds || null;
-      };
-      const attributes = [
-        readAttr("data-mv-active-project"),
-        readAttr("data-theme-profile"),
-        readAttr("data-project")
-      ];
+      const attr =
+        root.getAttribute("data-mv-active-project") ||
+        root.getAttribute("data-theme-profile") ||
+        root.getAttribute("data-project");
 
-      for (const value of attributes) {
-        const resolved = resolveProject(value);
-        if (resolved) return resolved;
-      }
+      if (attr && attr.trim()) return attr.trim().toLowerCase();
     }
 
-    // 2. Fallback til Settings API dersom DOM ikke er satt
-    const settings = getSettingsApi();
-    if (settings && typeof settings.getActiveProject === "function") {
+    // 2. Sjekk Theme API (som er koblet til visningen)
+    const theme = getThemeApi();
+    if (theme && typeof theme.getActiveProfileName === "function") {
       try {
-        const resolved = resolveProject(settings.getActiveProject());
-        if (resolved) return resolved;
+        const val = theme.getActiveProfileName();
+        if (val) return val.trim().toLowerCase();
       } catch (_) {}
     }
+
+    // --- VIKTIG ENDRING HER ---
+    // Vi har FJERNET sjekken mot 'settings.activeProject' eller 'settings.getActiveProject()'.
+    // Grunnen er at disse ofte reflekterer hva du REDIGERER i innstillingspanelet,
+    // ikke nødvendigvis hvilket prosjekt figuren skal vises som.
+    // Ved å fjerne disse, tvinger vi nKant til å bruke default-farger eller vente til DOM-en
+    // er oppdatert med riktig attributt.
 
     return null;
   }
