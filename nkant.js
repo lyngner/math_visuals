@@ -940,7 +940,7 @@ function getThemeColor(token, fallback) {
 }
 
 // Hovedfunksjonen som oppdaterer alt
-function refreshNkantTheme() {
+async function refreshNkantTheme() {
   // 1. Finn prosjekt
   const project = getActiveProjectName();
 
@@ -995,8 +995,44 @@ function refreshNkantTheme() {
 
   // 4. Tegn på nytt
   if (typeof renderCombined === 'function') {
-    renderCombined();
+    await renderCombined();
   }
+}
+
+function setupNkantThemeSync() {
+  const refresh = () => {
+    refreshNkantTheme();
+  };
+
+  if (typeof MutationObserver === 'function' && typeof document !== 'undefined' && document.documentElement) {
+    const observer = new MutationObserver(mutations => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes') {
+          refresh();
+          break;
+        }
+      }
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-project', 'data-mv-active-project', 'data-theme-profile']
+    });
+  }
+
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('math-visuals:settings-changed', refresh);
+    window.addEventListener('math-visuals:profile-change', refresh);
+    window.addEventListener('message', event => {
+      const data = event && event.data;
+      const type = typeof data === 'string' ? data : data && data.type;
+      if (type === 'math-visuals:profile-change') {
+        refresh();
+      }
+    });
+  }
+
+  refresh();
 }
 
 
@@ -5581,7 +5617,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   initAltTextManager();
   applyTextSizePreference(STATE.textSize);
   syncLabelEditingAvailability();
-  await renderCombined();
+  setupNkantThemeSync();
 });
 
 window.addEventListener("examples:loaded", () => {
