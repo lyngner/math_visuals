@@ -5261,21 +5261,21 @@ function bindUI() {
     { value: "custom", label: "Egenvalgt" }
   ];
   const angleDefaults = [
-    { value: "custom+mark+value", label: "Egenvalgt + punkt + tall" },
-    { value: "custom+mark", label: "Egenvalgt + punkt" },
+    { value: "custom+mark+value", label: "Egenvalgt + markering + tall" },
+    { value: "custom+mark", label: "Egenvalgt + markering" },
     { value: "custom", label: "Egenvalgt" },
-    { value: "mark+value", label: "Punkt + tall" },
-    { value: "mark", label: "Punkt" },
+    { value: "mark+value", label: "Markering + tall" },
+    { value: "mark", label: "Markering" },
     { value: "none", label: "Ingen" }
   ];
   const angleOptions = [
     { value: "inherit", label: "Arver standard" },
     { value: "none", label: "Ingen" },
-    { value: "mark", label: "Punkt" },
-    { value: "mark+value", label: "Punkt + tall" },
+    { value: "mark", label: "Markering" },
+    { value: "mark+value", label: "Markering + tall" },
     { value: "custom", label: "Egenvalgt" },
-    { value: "custom+mark", label: "Egenvalgt + punkt" },
-    { value: "custom+mark+value", label: "Egenvalgt + punkt + tall" }
+    { value: "custom+mark", label: "Egenvalgt + markering" },
+    { value: "custom+mark+value", label: "Egenvalgt + markering + tall" }
   ];
 
   function createSelect(options, value, ariaLabel) {
@@ -5322,8 +5322,8 @@ function bindUI() {
 
     const angleLabel = document.createElement("label");
     angleLabel.setAttribute("for", "globalDefaultAngles");
-    angleLabel.textContent = "Standard vinkler/punkter";
-      globalAngleDefaultSel = createSelect(angleDefaults, defaults.angles, "Standard vinkler/punkter for alle figurer");
+    angleLabel.textContent = "Standard vinkler/markeringer";
+      globalAngleDefaultSel = createSelect(angleDefaults, defaults.angles, "Standard vinkler/markeringer for alle figurer");
       globalAngleDefaultSel.id = "globalDefaultAngles";
       globalAngleDefaultSel.addEventListener("change", () => {
         updateState(state => {
@@ -5447,7 +5447,7 @@ function bindUI() {
         txt.type = "text";
         txt.placeholder = letter;
         txt.value = fig.angles[`${letter}Text`] || letter;
-        const sel = createSelect(angleOptions, fig.angles[letter] || "inherit", `Standard for punkt ${letter}`);
+        const sel = createSelect(angleOptions, fig.angles[letter] || "inherit", `Standard for markering ${letter}`);
         const toggle = () => {
           const fallback = getDefaultAnglesMode();
           const raw = sel.value === "inherit" ? fallback : sel.value;
