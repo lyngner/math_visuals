@@ -905,15 +905,18 @@ function getSettingsApi() {
   }
 
   function getActiveProjectName() {
+    const doc = typeof document !== "undefined" ? document : null;
+    const root = doc && doc.documentElement ? doc.documentElement : null;
+
     // 1. Sjekk DOM-roten først. Dette er fasiten for hva som vises på siden.
-    if (typeof document !== "undefined" && document.documentElement) {
-      const root = document.documentElement;
+    if (root) {
       const attr =
         root.getAttribute("data-mv-active-project") ||
         root.getAttribute("data-theme-profile") ||
         root.getAttribute("data-project");
 
-      if (attr && attr.trim()) return attr.trim().toLowerCase();
+      const normalizedAttr = normalizeProjectName(attr);
+      if (normalizedAttr) return normalizedAttr;
     }
 
     // 2. Sjekk Theme API (som er koblet til visningen)
@@ -921,16 +924,40 @@ function getSettingsApi() {
     if (theme && typeof theme.getActiveProfileName === "function") {
       try {
         const val = theme.getActiveProfileName();
-        if (val) return val.trim().toLowerCase();
+        const normalizedTheme = normalizeProjectName(val);
+        if (normalizedTheme) return normalizedTheme;
       } catch (_) {}
     }
 
-    // --- VIKTIG ENDRING HER ---
-    // Vi har FJERNET sjekken mot 'settings.activeProject' eller 'settings.getActiveProject()'.
-    // Grunnen er at disse ofte reflekterer hva du REDIGERER i innstillingspanelet,
-    // ikke nødvendigvis hvilket prosjekt figuren skal vises som.
-    // Ved å fjerne disse, tvinger vi nKant til å bruke default-farger eller vente til DOM-en
-    // er oppdatert med riktig attributt.
+    const resolver = getPaletteProjectResolver();
+    const settings = getSettingsApi();
+
+    if (resolver && typeof resolver.resolvePaletteProject === "function") {
+      try {
+        const resolved = resolver.resolvePaletteProject({
+          document: doc || undefined,
+          root: root || undefined,
+          theme: theme || undefined,
+          settings: settings || undefined,
+          location: typeof window !== "undefined" ? window.location : undefined
+        });
+        const normalizedResolved = normalizeProjectName(resolved);
+        if (normalizedResolved) return normalizedResolved;
+      } catch (_) {}
+    }
+
+    if (settings && typeof settings.getActiveProject === "function") {
+      try {
+        const value = settings.getActiveProject();
+        const normalizedSettingsProject = normalizeProjectName(value);
+        if (normalizedSettingsProject) return normalizedSettingsProject;
+      } catch (_) {}
+    }
+
+    if (settings && typeof settings.activeProject === "string") {
+      const normalizedSettingsProject = normalizeProjectName(settings.activeProject);
+      if (normalizedSettingsProject) return normalizedSettingsProject;
+    }
 
     return null;
   }
