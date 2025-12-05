@@ -1104,12 +1104,19 @@ function drawData() {
   drawLegend();
 }
 function drawLegend() {
+  const hasSeries1 = Boolean(seriesNames[0]);
+  const hasSeries2 = Boolean(values2 && values2.length && seriesNames[1]);
   const names = [];
-  if (seriesNames[0]) {
-    names.push({ name: seriesNames[0], cls: 'series0' });
-  }
-  if (values2 && values2.length && seriesNames[1]) {
-    names.push({ name: seriesNames[1], cls: 'series1' });
+
+  if (CFG.type === 'stacked' && hasSeries1 && hasSeries2) {
+    names.push({ name: seriesNames[1], cls: 'series1' }, { name: seriesNames[0], cls: 'series0' });
+  } else {
+    if (hasSeries1) {
+      names.push({ name: seriesNames[0], cls: 'series0' });
+    }
+    if (hasSeries2) {
+      names.push({ name: seriesNames[1], cls: 'series1' });
+    }
   }
   if (!names.length) return;
 
