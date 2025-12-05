@@ -410,7 +410,11 @@ function syncSimpleConfigFromState() {
 function rebuildFromConfig() {
   ensureSimpleDefaults();
   applySimpleConfig();
-  if (S.board) JXG.JSXGraph.freeBoard(S.board);
+  if (S.board) {
+    var _S$board$stopResizeOb;
+    (_S$board$stopResizeOb = S.board.stopResizeObserver) === null || _S$board$stopResizeOb === void 0 ? void 0 : _S$board$stopResizeOb.call(S.board);
+    JXG.JSXGraph.freeBoard(S.board);
+  }
   createBoard();
 }
 function initFromHtml() {
