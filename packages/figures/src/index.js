@@ -481,6 +481,19 @@ function parseJsonResponse(response) {
     if (!normalizedText) {
       return {};
     }
+    const contentType = response && response.headers && typeof response.headers.get === 'function'
+      ? response.headers.get('content-type')
+      : '';
+    const isJsonContentType = typeof contentType === 'string' && /json/i.test(contentType);
+    const looksLikeHtml = /<html[\s>]/i.test(normalizedText) || /^<!doctype html>/i.test(normalizedText);
+    if (response.ok && looksLikeHtml && !isJsonContentType) {
+      const snippet = normalizedText.slice(0, 200);
+      const message = 'Figure library returned HTML instead of JSON';
+      const error = new Error(response.url ? `${message}: ${response.url}` : message);
+      error.response = response;
+      error.payload = { snippet };
+      throw error;
+    }
     try {
       return JSON.parse(normalizedText);
     } catch (error) {
