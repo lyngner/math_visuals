@@ -5555,12 +5555,38 @@ function pointLabelForIndex(index) {
 }
 function updateCoordsInputFromPoints(points, options = {}) {
   if (typeof document === 'undefined') return;
-  const { triggerInput = false, triggerChange = false } = options;
-  const firstGroup = document.querySelector('.func-group[data-index="1"]');
-  if (!firstGroup) return;
-  const input = firstGroup.querySelector('[data-fun]');
+  const { triggerInput = false, triggerChange = false, pointIndex = null } = options;
+  const rows = Array.isArray(appState.simple.parsed && appState.simple.parsed.rows)
+    ? appState.simple.parsed.rows
+    : [];
+  let targetRowIndex = null;
+  let rowSpec = null;
+  if (Number.isInteger(pointIndex) && pointIndex >= 0) {
+    for (let i = 0; i < rows.length; i += 1) {
+      const spec = rows[i];
+      if (!spec || spec.type !== 'coords') continue;
+      const start = Number.isFinite(spec.pointStart) ? spec.pointStart : 0;
+      const count = Number.isFinite(spec.pointCount) ? spec.pointCount : points.length;
+      const end = start + Math.max(0, count);
+      if (pointIndex >= start && pointIndex < end) {
+        targetRowIndex = i;
+        rowSpec = spec;
+        break;
+      }
+    }
+  }
+  const targetIndex = targetRowIndex != null ? targetRowIndex + 1 : 1;
+  const targetGroup = funcRows ? funcRows.querySelector(`.func-group[data-index="${targetIndex}"]`) : null;
+  if (!targetGroup) return;
+  const input = targetGroup.querySelector('[data-fun]');
   if (!input) return;
-  const nextValue = formatExtraPointsForInput(points);
+  let pointsForInput = points;
+  if (rowSpec && Array.isArray(points)) {
+    const start = Number.isFinite(rowSpec.pointStart) ? rowSpec.pointStart : 0;
+    const count = Number.isFinite(rowSpec.pointCount) ? rowSpec.pointCount : points.length - start;
+    pointsForInput = points.slice(start, start + Math.max(0, count));
+  }
+  const nextValue = formatExtraPointsForInput(pointsForInput);
   let currentValue = '';
   if ('value' in input) {
     currentValue = input.value != null ? String(input.value) : '';
@@ -5682,7 +5708,8 @@ function addFixedPoints() {
         appState.simple.parsed.extraPoints[idx] = [x, y];
         updateCoordsInputFromPoints(appState.simple.parsed.extraPoints, {
           triggerInput: true,
-          triggerChange: !!commit
+          triggerChange: !!commit,
+          pointIndex: idx
         });
       };
       const snapMode = ADV.points.snap.mode || 'up';
