@@ -740,15 +740,19 @@ function isDefaultPointMarker(value) {
   return markers.every(marker => sanitizePointMarkerValue(marker) === DEFAULT_POINT_MARKER);
 }
 function resolvePointMarkerStyle(rawMarker) {
-  const marker = sanitizePointMarkerValue(rawMarker) || DEFAULT_POINT_MARKER;
+  const sanitized = sanitizePointMarkerValue(rawMarker);
+  if (sanitized === '' && rawMarker === '') {
+    return { type: 'none' };
+  }
+  const marker = sanitized || DEFAULT_POINT_MARKER;
   if (marker === '0') {
     return { type: 'circle', size: POINT_MARKER_SIZE * 1.5, fillOpacity: 0, strokeOpacity: 1 };
   }
   if (marker === 'o' || marker === 'O') {
-    return { type: 'circle', size: POINT_MARKER_SIZE, fillOpacity: 0, strokeOpacity: 1 };
+    return { type: 'circle', size: POINT_MARKER_SIZE * 0.5, fillOpacity: 0, strokeOpacity: 1 };
   }
   if (marker === '.') {
-    return { type: 'circle', size: POINT_MARKER_SIZE * 0.85, fillOpacity: 1, strokeOpacity: 0 };
+    return { type: 'circle', size: POINT_MARKER_SIZE * 0.4, fillOpacity: 1, strokeOpacity: 0 };
   }
   return { type: 'text', text: marker };
 }
@@ -5937,6 +5941,13 @@ function addFixedPoints() {
       pointOptions.size = markerStyle.size;
       pointOptions.fillOpacity = markerStyle.fillOpacity;
       pointOptions.strokeOpacity = markerStyle.strokeOpacity;
+    } else if (markerStyle.type === 'none') {
+      pointOptions.strokeOpacity = 0;
+      pointOptions.fillOpacity = 0;
+      pointOptions.size = 0;
+      pointOptions.withLabel = false;
+      pointOptions.label = { visible: false };
+      pointOptions.visible = false;
     } else {
       pointOptions.strokeOpacity = 0;
       pointOptions.fillOpacity = 0;
@@ -7045,10 +7056,11 @@ function setupSettingsForm() {
     const fallback = options.fallback || DEFAULT_POINT_MARKER;
     const normalized = normalizePointMarkerValue(value);
     const stored = normalized || (allowEmpty ? '' : fallback);
+    const inputValue = stored === '' ? '' : stored || fallback;
     pointMarkerValues.set(row, stored);
     const control = pointMarkerControls.find(entry => entry && entry.row === row);
     if (control && control.input && options.updateInput !== false) {
-      control.input.value = stored || fallback;
+      control.input.value = inputValue;
     }
   };
   const getPointMarkerValueForRow = row => {
@@ -7635,13 +7647,21 @@ function setupSettingsForm() {
   };
   const syncPointMarkerValueFromInput = (input, row, opts = {}) => {
     if (!input) return;
-    const normalized = normalizePointMarkerValue(input.value);
+    const rawValue = typeof input.value === 'string' ? input.value : '';
+    const normalized = normalizePointMarkerValue(rawValue);
     const commit = !!opts.commit;
-    const allowEmpty = !commit;
-    const valueToStore = commit ? (normalized || DEFAULT_POINT_MARKER) : normalized || '';
-    setPointMarkerValueForRow(row, valueToStore, { allowEmpty, updateInput: commit });
-    if (commit && !normalized) {
-      input.value = DEFAULT_POINT_MARKER;
+    const isExplicitEmpty = rawValue.trim() === '';
+    const allowEmpty = !commit || isExplicitEmpty;
+    const valueToStore = commit
+      ? (isExplicitEmpty ? '' : (normalized || DEFAULT_POINT_MARKER))
+      : normalized || '';
+    setPointMarkerValueForRow(row, valueToStore, { allowEmpty, updateInput: commit && !isExplicitEmpty });
+    if (commit) {
+      if (isExplicitEmpty) {
+        input.value = '';
+      } else if (!normalized) {
+        input.value = DEFAULT_POINT_MARKER;
+      }
     }
   };
   const getPointMarkerValueForExport = row => {
@@ -7660,8 +7680,10 @@ function setupSettingsForm() {
       if (control.input) {
         control.input.disabled = !show;
         if (show) {
-          const markerValue = normalizePointMarkerValue(getPointMarkerValueForRow(control.row));
-          control.input.value = markerValue || DEFAULT_POINT_MARKER;
+          const storedValue = getPointMarkerValueForRow(control.row);
+          const markerValue = normalizePointMarkerValue(storedValue);
+          const explicitEmpty = storedValue === '';
+          control.input.value = explicitEmpty ? '' : (markerValue || DEFAULT_POINT_MARKER);
         }
       }
       if (control.lock && control.lock.container) {
