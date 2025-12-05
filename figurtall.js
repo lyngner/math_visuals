@@ -1486,11 +1486,14 @@ function isValidColor(value) {
       figurtallAiAbortController = null;
     }
     const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    controller.signal.addEventListener('abort', () => clearTimeout(timeoutId), { once: true });
     figurtallAiAbortController = controller;
     figurtallAiPendingSignature = signature;
     setAltTextStatusMessage('Forbedrer beskrivelsen med AI …');
     performFigurtallAltTextRequest(summary, controller.signal)
       .then(text => {
+        clearTimeout(timeoutId);
         if (controller.signal.aborted || figurtallAiAbortController !== controller) return;
         figurtallAiAbortController = null;
         figurtallAiPendingSignature = null;
@@ -1507,6 +1510,7 @@ function isValidColor(value) {
         setAltTextStatusMessage('Alternativ tekst forbedret automatisk.');
       })
       .catch(error => {
+        clearTimeout(timeoutId);
         if (controller.signal.aborted) return;
         figurtallAiPendingSignature = null;
         if (figurtallAiAbortController === controller) {
