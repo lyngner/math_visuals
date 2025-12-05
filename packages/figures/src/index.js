@@ -703,6 +703,13 @@ function normalizeMeasurementFigureOptions(options = {}) {
   return options;
 }
 
+function shouldRequireScaleLabel(options = {}, allowedApps = new Set()) {
+  if (options && typeof options.requireScaleLabel === 'boolean') {
+    return options.requireScaleLabel;
+  }
+  return allowedApps.has('maling');
+}
+
 function isCategoryAllowed(apps, allowedSet) {
   if (!allowedSet || !allowedSet.size) {
     return true;
@@ -717,15 +724,19 @@ function isCategoryAllowed(apps, allowedSet) {
 export function buildMeasurementFigureData(options = {}) {
   const resolvedOptions = normalizeMeasurementFigureOptions(options);
   const allowedApps = buildAllowedApps(resolvedOptions);
+  const requireScaleLabel = shouldRequireScaleLabel(resolvedOptions, allowedApps);
   const categories = createMeasurementFigureLibrary(resolvedOptions).map(category => ({
     id: category.id,
     label: category.label,
-    figures: category.figures.map(figure => ({
-      ...figure,
-      categoryId: category.id,
-      custom: !!figure.custom
-    }))
-  }));
+    figures: category.figures
+      .filter(figure => !requireScaleLabel || (figure && figure.scaleLabel))
+      .map(figure => ({
+        ...figure,
+        categoryId: category.id,
+        custom: !!figure.custom
+      }))
+  }))
+    .filter(category => category.figures.length > 0);
 
   const categoriesById = new Map();
   categories.forEach(category => {
@@ -796,7 +807,7 @@ export function buildMeasurementFigureData(options = {}) {
       }
       const categoryAllowed = isCategoryAllowed(categoryApps, allowedApps);
       const figureAllowed = isCategoryAllowed(figureApps, allowedApps);
-      if (!categoryAllowed && !figureAllowed) {
+      if ((!categoryAllowed && !figureAllowed) || (requireScaleLabel && !shaped.scaleLabel)) {
         return;
       }
       let category = categoriesById.get(targetCategoryId);
