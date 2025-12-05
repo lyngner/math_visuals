@@ -4372,7 +4372,15 @@ function makeSmartCurveLabel(g, idx, content) {
   ensureCurveLabelVisibility(label);
   g._labelManual = false;
   function finiteYAt(x) {
-    let y = g.fn(x);
+    const sample = t => {
+      try {
+        const val = g.fn(t);
+        return Number.isFinite(val) ? val : null;
+      } catch (_) {
+        return null;
+      }
+    };
+    let y = sample(x);
     if (Number.isFinite(y)) return y;
     const [xmin, ymax, xmax, ymin] = appState.board.getBoundingBox();
     const span = xmax - xmin,
@@ -4380,11 +4388,11 @@ function makeSmartCurveLabel(g, idx, content) {
     for (let k = 1; k <= 60; k++) {
       for (const s of [+1, -1]) {
         const xs = x + s * k * step / 6;
-        y = g.fn(xs);
+        y = sample(xs);
         if (Number.isFinite(y)) return y;
       }
     }
-    return 0;
+    return null;
   }
   function position(force) {
     const forced = force === true;
@@ -4406,22 +4414,31 @@ function makeSmartCurveLabel(g, idx, content) {
     if (!(R > L)) return;
     const fr = ADV.curveName.fractions,
       pad = 0.04 * (R - L);
-    let best = {
-      pen: 1e9,
-      pos: [(xmin + xmax) / 2, (ymin + ymax) / 2],
-      slope: 0
-    };
+    const prevPos = label && Number.isFinite(label.X()) && Number.isFinite(label.Y())
+      ? [label.X(), label.Y()]
+      : null;
+    let best = null;
     for (const f of fr) {
       let x = L + f * (R - L);
       x = Math.min(R - pad, Math.max(L + pad, x));
       const y = finiteYAt(x);
+      if (!Number.isFinite(y)) continue;
       const h = (xmax - xmin) / 600;
-      const y1 = g.fn(x - h),
+      let y1 = null,
+        y2 = null;
+      try {
+        y1 = g.fn(x - h);
+      } catch (_) {}
+      try {
         y2 = g.fn(x + h);
-      const m = Number.isFinite(y1) && Number.isFinite(y2) ? (y2 - y1) / (2 * h) : 0;
+      } catch (_) {}
+      if (!Number.isFinite(y1) || !Number.isFinite(y2)) continue;
+      const m = (y2 - y1) / (2 * h);
+      if (!Number.isFinite(m)) continue;
       let nx = -m,
         ny = 1;
-      const L2 = Math.hypot(nx, ny) || 1;
+      const L2 = Math.hypot(nx, ny);
+      if (!Number.isFinite(L2) || L2 === 0) continue;
       nx /= L2;
       ny /= L2;
       const rx = (xmax - xmin) / appState.board.canvasWidth,
@@ -4432,16 +4449,27 @@ function makeSmartCurveLabel(g, idx, content) {
       const xCl = Math.min(xmax - (xmax - xmin) * ADV.curveName.marginFracX, Math.max(xmin + (xmax - xmin) * ADV.curveName.marginFracX, X));
       const yCl = Math.min(ymax - (ymax - ymin) * ADV.curveName.marginFracY, Math.max(ymin + (ymax - ymin) * ADV.curveName.marginFracY, Y));
       const pen = Math.abs(xCl - X) / rx + Math.abs(yCl - Y) / ry;
-      if (pen < best.pen) best = {
+      if (!best || pen < best.pen) best = {
         pen,
         pos: [xCl, yCl],
         slope: m
       };
     }
+    if (!best && prevPos) {
+      best = {
+        pen: Infinity,
+        pos: prevPos,
+        slope: label._lastSlope || 0
+      };
+    }
+    if (!best) {
+      return;
+    }
     label.moveTo(best.pos);
     label.setAttribute({
       anchorX: best.slope >= 0 ? 'left' : 'right'
     });
+    label._lastSlope = best.slope;
     clampLabelToView(label);
     updatePlate(label);
     ensureLabelFront(label);
