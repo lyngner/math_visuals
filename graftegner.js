@@ -7416,12 +7416,8 @@ function setupSettingsForm() {
   };
   const isCoords = str => {
     if (typeof str !== 'string') return false;
-    const parts = str.split(';').map(part => part.trim()).filter(Boolean);
-    if (!parts.length) return false;
-    return parts.every(part => {
-      const withoutLabel = part.replace(/^[A-Za-z\u00C0-\u024F]+\w*\s*=\s*/, '');
-      return /^\s*(?:\(\s*-?\d+(?:[.,]\d+)?\s*,\s*-?\d+(?:[.,]\d+)?\s*\)|-?\d+(?:[.,]\d+)?\s*,\s*-?\d+(?:[.,]\d+)?\s*)\s*$/.test(withoutLabel);
-    });
+    const points = parsePointListString(str);
+    return points.length > 0;
   };
   const isExplicitFun = str => {
     const m = str.match(/^[a-zA-Z]\w*\s*\(\s*x\s*\)\s*=\s*(.+)$/) || str.match(/^y\s*=\s*(.+)$/i);
