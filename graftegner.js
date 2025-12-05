@@ -679,17 +679,13 @@ function paramNumber(id, def = null) {
   const n = Number.parseFloat(String(v).replace(',', '.'));
   return Number.isFinite(n) ? n : def;
 }
-const DEFAULT_POINT_MARKER = 'o';
+const DEFAULT_POINT_MARKER = '.';
 const DEFAULT_DOMAIN_VALUE = '-∞, ∞';
 const DEFAULT_UNBOUNDED_DOMAIN_SPAN = 10;
 const MULTI_FUNCTION_UNBOUNDED_DOMAIN_SPAN = 5;
 function sanitizePointMarkerValue(value) {
   if (typeof value !== 'string') return '';
-  const trimmed = value.trim();
-  if (trimmed === '.') {
-    return DEFAULT_POINT_MARKER;
-  }
-  return trimmed;
+  return value.trim();
 }
 function parsePointLockList(value) {
   if (typeof value !== 'string') return [];
@@ -742,6 +738,19 @@ function isDefaultPointMarker(value) {
   const markers = parsePointMarkerList(value);
   if (!markers.length) return true;
   return markers.every(marker => sanitizePointMarkerValue(marker) === DEFAULT_POINT_MARKER);
+}
+function resolvePointMarkerStyle(rawMarker) {
+  const marker = sanitizePointMarkerValue(rawMarker) || DEFAULT_POINT_MARKER;
+  if (marker === '0') {
+    return { type: 'circle', size: POINT_MARKER_SIZE * 1.5, fillOpacity: 0, strokeOpacity: 1 };
+  }
+  if (marker === 'o' || marker === 'O') {
+    return { type: 'circle', size: POINT_MARKER_SIZE, fillOpacity: 0, strokeOpacity: 1 };
+  }
+  if (marker === '.') {
+    return { type: 'circle', size: POINT_MARKER_SIZE * 0.85, fillOpacity: 1, strokeOpacity: 0 };
+  }
+  return { type: 'text', text: marker };
 }
 const FONT_LIMITS = {
   min: 6,
@@ -5815,6 +5824,10 @@ function addFixedPoints() {
     : parsePointMarkerList(ADV.points.marker);
   const lockList = Array.isArray(appState.simple.parsed.pointLocks) ? appState.simple.parsed.pointLocks : [];
   const showPointNames = !!(ADV.curveName && ADV.curveName.showName);
+  const pointObjects = [];
+  const coordRows = Array.isArray(appState.simple.parsed.rows)
+    ? appState.simple.parsed.rows.filter(row => row && row.type === 'coords')
+    : [];
   appState.simple.parsed.extraPoints.forEach((pt, idx) => {
     const customPointName = Array.isArray(appState.simple.parsed.pointNames)
       ? appState.simple.parsed.pointNames[idx]
@@ -5837,14 +5850,20 @@ function addFixedPoints() {
     };
     const markerCandidate = markerValueForIndex(markerList, idx);
     const markerValue = sanitizePointMarkerValue(markerCandidate);
-    const useCustomMarker = !isDefaultPointMarker(markerValue);
-    if (useCustomMarker) {
+    const markerStyle = resolvePointMarkerStyle(markerValue);
+    if (markerStyle.type === 'circle') {
+      pointOptions.face = 'o';
+      pointOptions.size = markerStyle.size;
+      pointOptions.fillOpacity = markerStyle.fillOpacity;
+      pointOptions.strokeOpacity = markerStyle.strokeOpacity;
+    } else {
       pointOptions.strokeOpacity = 0;
       pointOptions.fillOpacity = 0;
     }
     const P = appState.board.create('point', pt.slice(), pointOptions);
-    if (useCustomMarker) {
-      appState.board.create('text', [() => P.X(), () => P.Y(), markerValue], {
+    pointObjects.push(P);
+    if (markerStyle.type === 'text') {
+      appState.board.create('text', [() => P.X(), () => P.Y(), markerStyle.text], {
         anchorX: 'middle',
         anchorY: 'middle',
         fontSize: 24,
@@ -5923,6 +5942,25 @@ function addFixedPoints() {
       });
     }
   });
+  if (pointObjects.length >= 2 && coordRows.length) {
+    const segmentColor = DEFAULT_POINT_COLORS.line
+      || DEFAULT_POINT_COLORS.markerStroke
+      || DEFAULT_POINT_COLORS.fallbackMarkerStroke;
+    coordRows.forEach(row => {
+      const start = Number.isFinite(row.pointStart) ? row.pointStart : 0;
+      const count = Number.isFinite(row.pointCount) ? row.pointCount : 0;
+      if (count < 2) return;
+      const slice = pointObjects.slice(start, start + count).filter(Boolean);
+      for (let i = 1; i < slice.length; i += 1) {
+        appState.board.create('segment', [slice[i - 1], slice[i]], {
+          strokeColor: segmentColor,
+          strokeWidth: DEFAULT_LINE_THICKNESS,
+          fixed: true,
+          highlight: false
+        });
+      }
+    });
+  }
 }
 
 /* ================= bygg valgt modus ================= */
@@ -6884,13 +6922,16 @@ function setupSettingsForm() {
       applyColorManualClass(control.row, control.manual);
     });
   };
-  const setPointMarkerValueForRow = (row, value) => {
+  const setPointMarkerValueForRow = (row, value, options = {}) => {
     if (!row) return;
-    const normalized = normalizePointMarkerValue(value) || DEFAULT_POINT_MARKER;
-    pointMarkerValues.set(row, normalized);
+    const allowEmpty = !!options.allowEmpty;
+    const fallback = options.fallback || DEFAULT_POINT_MARKER;
+    const normalized = normalizePointMarkerValue(value);
+    const stored = normalized || (allowEmpty ? '' : fallback);
+    pointMarkerValues.set(row, stored);
     const control = pointMarkerControls.find(entry => entry && entry.row === row);
-    if (control && control.input) {
-      control.input.value = normalized;
+    if (control && control.input && options.updateInput !== false) {
+      control.input.value = stored || fallback;
     }
   };
   const getPointMarkerValueForRow = row => {
@@ -7475,11 +7516,16 @@ function setupSettingsForm() {
     const prefix = type === 'point' ? 'Punkt' : type === 'line' ? 'Linje' : 'Funksjon';
     legend.textContent = `${prefix} ${index}`;
   };
-  const syncPointMarkerValueFromInput = (input, row) => {
+  const syncPointMarkerValueFromInput = (input, row, opts = {}) => {
     if (!input) return;
     const normalized = normalizePointMarkerValue(input.value);
-    const displayValue = normalized || DEFAULT_POINT_MARKER;
-    setPointMarkerValueForRow(row, displayValue);
+    const commit = !!opts.commit;
+    const allowEmpty = !commit;
+    const valueToStore = commit ? (normalized || DEFAULT_POINT_MARKER) : normalized || '';
+    setPointMarkerValueForRow(row, valueToStore, { allowEmpty, updateInput: commit });
+    if (commit && !normalized) {
+      input.value = DEFAULT_POINT_MARKER;
+    }
   };
   const getPointMarkerValueForExport = row => {
     const normalized = normalizePointMarkerValue(getPointMarkerInputValue(row));
@@ -8549,8 +8595,9 @@ function setupSettingsForm() {
       markerInput.value = initialMarkerValue;
       setPointMarkerValueForRow(row, initialMarkerValue);
       const handleMarkerInput = event => {
-        syncPointMarkerValueFromInput(markerInput, row);
-        if (event && event.type === 'change') {
+        const commit = !!(event && event.type === 'change');
+        syncPointMarkerValueFromInput(markerInput, row, { commit });
+        if (commit) {
           flushSimpleFormChange();
         } else {
           scheduleSimpleFormChange();
