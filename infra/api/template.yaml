@@ -202,6 +202,20 @@ Resources:
       RouteKey: ANY /api/figure-library/raw/{proxy+}
       Target: !Sub integrations/${LambdaIntegration}
 
+  ApiRouteFigureLibraryRootApi:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: ANY /api/figure-library
+      Target: !Sub integrations/${LambdaIntegration}
+
+  ApiRouteFigureLibraryProxyApi:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: ANY /api/figure-library/{proxy+}
+      Target: !Sub integrations/${LambdaIntegration}
+
   ApiRouteSettingsRoot:
     Type: AWS::ApiGatewayV2::Route
     Properties:
