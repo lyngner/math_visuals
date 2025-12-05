@@ -4567,7 +4567,7 @@
 
           const absoluteTargetUrl = buildToolUrl(targetConfig.url, { entry });
 
-          const openRequest = {
+          let openRequest = {
             id: requestId,
             requestId,
             referenceId: requestId,
