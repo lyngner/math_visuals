@@ -31,12 +31,6 @@ function normalizeOptions(options = {}) {
 
 const amountCategoryDefinitions = [
   {
-    id: 'tierbrett',
-    type: 'amount',
-    label: 'Tierbrett',
-    matches: slug => slug.startsWith('tb')
-  },
-  {
     id: 'tallbrikker',
     type: 'amount',
     label: 'Tallbrikker',

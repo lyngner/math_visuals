@@ -33,21 +33,11 @@ try {
 
   const result = await seedFigures({ dryRun: false });
 
-  assert.ok(ensureCategoryCalls.length > 0, 'Forventet minst ett ensureCategory-kall');
-  assert.ok(setFigureCalls.length > 0, 'Forventet minst ett setFigure-kall');
-
-  const tierbrettCategory = ensureCategoryCalls.find((entry) => entry.id === 'tierbrett');
-  assert.ok(tierbrettCategory, 'Fant ikke mengdekategorien «tierbrett»');
-  assert.equal(tierbrettCategory.type, 'amount', 'Mengdekategorier skal markeres med type=amount');
-  assert.equal(tierbrettCategory.label, 'Tierbrett');
+  assert.equal(ensureCategoryCalls.length, 0, 'Forventer ingen forhåndsdefinerte mengdekategorier');
+  assert.equal(setFigureCalls.length, 0, 'Forventer ingen forhåndsdefinerte mengdefigurer');
 
   const measurementCategories = ensureCategoryCalls.filter((entry) => entry.type === 'measurement');
   assert.equal(measurementCategories.length, 0, 'Forventet ingen forhåndsbundne målekategorier');
-
-  const tierbrettFigureCall = setFigureCalls.find((entry) => entry.slug === 'tb1');
-  assert.ok(tierbrettFigureCall, 'Forventet at minst én tierbrett-figur blir skrevet');
-  assert.equal(tierbrettFigureCall.payload.category.id, 'tierbrett');
-  assert.match(tierbrettFigureCall.payload.svg, /^<svg[^>]*>/, 'SVG-markup mangler i payloaden');
 
   assert.equal(
     result.categories.ensured,
