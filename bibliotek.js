@@ -101,6 +101,8 @@ const categoryAppFormContexts = {
 };
 let categoryAppControlsReady = false;
 
+const figureLibraryUrlCache = new Map();
+
 ensureCategoryAppOption(DEFAULT_CATEGORY_APP, { label: 'Figurbibliotek', locked: true });
 DEFAULT_VISIBLE_CATEGORY_APPS.forEach((appId) => ensureCategoryAppOption(appId));
 
@@ -152,6 +154,29 @@ function formatCategoryAppLabel(appId) {
   const normalized = appId.replace(/[-_]+/g, ' ').trim();
   if (!normalized) return '';
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function buildAbsoluteFigureLibraryUrl(value) {
+  const key = typeof value === 'string' && value.trim() ? value.trim() : '';
+  if (!key) return '';
+
+  if (figureLibraryUrlCache.has(key)) {
+    return figureLibraryUrlCache.get(key);
+  }
+
+  let resolved = key;
+  const isAbsolute = /^https?:\/\//i.test(key) || key.startsWith('//');
+  if (!isAbsolute) {
+    const normalized = key.startsWith('/') ? key : `/${key}`;
+    try {
+      resolved = new URL(normalized, window.location.origin).toString();
+    } catch (error) {
+      resolved = normalized;
+    }
+  }
+
+  figureLibraryUrlCache.set(key, resolved);
+  return resolved;
 }
 
 function ensureCategoryAppOption(appId, options = {}) {
@@ -3558,7 +3583,15 @@ async function fetchFigureLibrary(method = 'GET', payload, requestConfig = {}) {
     }
   }
 
+  requestUrl = buildAbsoluteFigureLibraryUrl(requestUrl);
+
   const response = await fetch(requestUrl, options);
+  const contentTypeHeader = typeof response.headers?.get === 'function'
+    ? response.headers.get('content-type')
+    : '';
+  const isJsonResponse = typeof contentTypeHeader === 'string'
+    ? contentTypeHeader.toLowerCase().includes('application/json')
+    : false;
   let data = {};
   let text = '';
   try {
@@ -3568,11 +3601,23 @@ async function fetchFigureLibrary(method = 'GET', payload, requestConfig = {}) {
   }
   if (text) {
     try {
-      data = JSON.parse(text);
+      if (isJsonResponse) {
+        data = JSON.parse(text);
+      } else if (response.ok) {
+        const parsingError = new Error('Ugyldig JSON-respons fra figurbiblioteket');
+        parsingError.response = response;
+        parsingError.nonJsonResponse = true;
+        parsingError.responseContentType = contentTypeHeader || null;
+        parsingError.responseText = text;
+        throw parsingError;
+      }
     } catch (error) {
       if (response.ok) {
         const parsingError = new Error('Ugyldig JSON-respons fra figurbiblioteket');
         parsingError.response = response;
+        parsingError.nonJsonResponse = !isJsonResponse;
+        parsingError.responseContentType = contentTypeHeader || null;
+        parsingError.responseText = text;
         throw parsingError;
       }
       data = {};
@@ -3594,6 +3639,15 @@ function isFigureLibraryUnavailableError(error) {
   if (!error) return false;
   const status = error?.response?.status;
   if (status === 404) {
+    return true;
+  }
+  const contentTypeHeader = typeof error?.response?.headers?.get === 'function'
+    ? error.response.headers.get('content-type')
+    : null;
+  const responseIsNonJson = contentTypeHeader
+    ? !contentTypeHeader.toLowerCase().includes('application/json')
+    : false;
+  if (error?.nonJsonResponse || (responseIsNonJson && status === 200)) {
     return true;
   }
   if (!status && error.name === 'TypeError') {
