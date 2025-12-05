@@ -2483,13 +2483,14 @@ function setupThemeSync() {
   // 2. Lytt på events (backup, og for fargeendringer internt i et prosjekt)
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
     const onEvent = () => handleThemeChange();
-    
+
     window.addEventListener('math-visuals:settings-changed', onEvent);
     window.addEventListener('math-visuals:profile-change', onEvent);
+    window.addEventListener('math-visuals:project-change', onEvent);
     window.addEventListener('message', (event) => {
       const data = event && event.data;
       const type = typeof data === 'string' ? data : data && data.type;
-      if (type === 'math-visuals:profile-change') {
+      if (type === 'math-visuals:profile-change' || type === 'math-visuals:project-change') {
         onEvent();
       }
     });
