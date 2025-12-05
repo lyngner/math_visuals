@@ -4429,6 +4429,7 @@
   let descriptionInput = null;
   const descriptionInputsWithListeners = new WeakSet();
   const descriptionContainersWithListeners = new WeakSet();
+  const descriptionPlaceholdersWithListeners = new WeakSet();
   let descriptionContainer = null;
   let descriptionPreview = null;
   let descriptionRendererPromise = null;
@@ -5213,6 +5214,21 @@
     preview.setAttribute('aria-hidden', 'false');
     preview.tabIndex = 0;
     preview.setAttribute('role', 'button');
+
+    if (!descriptionPlaceholdersWithListeners.has(preview)) {
+      const activate = event => {
+        if (event && event.type === 'keydown') {
+          const key = event.key;
+          if (key !== 'Enter' && key !== ' ') return;
+        }
+        if (preview.dataset.placeholder !== 'true') return;
+        if (event && typeof event.preventDefault === 'function') event.preventDefault();
+        startTaskModeDescriptionEdit({ focus: true });
+      };
+      preview.addEventListener('click', activate);
+      preview.addEventListener('keydown', activate);
+      descriptionPlaceholdersWithListeners.add(preview);
+    }
   }
 
   function updateTaskCheckAvailability(preview) {
