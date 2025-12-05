@@ -107,7 +107,7 @@ function isValidColor(value) {
   let cols = 3;
   const colorCountInp = document.getElementById('colorCount');
   const colorInputs = [];
-  for (let i = 1;; i++) {
+  for (let i = 1; i < 100; i++) {
     const inp = document.getElementById('color_' + i);
     if (!inp) break;
     colorInputs.push(inp);
@@ -647,18 +647,6 @@ function isValidColor(value) {
       <div class="figure"><div class="box"></div></div>
       <input class="nameInput" type="text" placeholder="Navn" />
     `;
-    const boxEl = panel.querySelector('.box');
-    boxes.push(boxEl);
-    createGridForFigure(boxEl, index);
-    const nameInput = panel.querySelector('.nameInput');
-    const fig = STATE.figures[index];
-    const baseName = (fig === null || fig === void 0 ? void 0 : fig.name) || `Figur ${index + 1}`;
-    nameInput.value = baseName;
-    STATE.figures[index].name = baseName;
-    nameInput.addEventListener('input', () => {
-      STATE.figures[index].name = nameInput.value;
-      scheduleAltTextRefresh('name');
-    });
     const nameDisplay = document.createElement('div');
     nameDisplay.className = 'nameDisplay';
     nameDisplay.setAttribute('aria-hidden', 'true');
@@ -668,29 +656,64 @@ function isValidColor(value) {
     removeBtn.className = 'removeFigureBtn';
     removeBtn.setAttribute('data-edit-only', '');
     removeBtn.textContent = 'Fjern figur';
-    if (STATE.figures.length <= 1) {
-      removeBtn.disabled = true;
-      removeBtn.setAttribute('aria-disabled', 'true');
-    } else {
-      removeBtn.disabled = false;
-      removeBtn.removeAttribute('aria-disabled');
-    }
-    removeBtn.setAttribute('aria-label', `Fjern figur ${index + 1}`);
-    removeBtn.addEventListener('click', () => {
-      removeFigure(index);
-    });
     panel.appendChild(removeBtn);
     return panel;
+  }
+
+  function bindFigurePanel(panel, index) {
+    panel.dataset.index = String(index);
+    const boxEl = panel.querySelector('.box');
+    if (boxEl) {
+      createGridForFigure(boxEl, index);
+    }
+    const nameInput = panel.querySelector('.nameInput');
+    const fig = STATE.figures[index];
+    const baseName = (fig === null || fig === void 0 ? void 0 : fig.name) || `Figur ${index + 1}`;
+    if (nameInput) {
+      if (document.activeElement !== nameInput) {
+        nameInput.value = baseName;
+      }
+      nameInput.oninput = () => {
+        STATE.figures[index].name = nameInput.value;
+        scheduleAltTextRefresh('name');
+      };
+      if (typeof STATE.figures[index].name !== 'string' || !STATE.figures[index].name) {
+        STATE.figures[index].name = nameInput.value || baseName;
+      }
+    }
+    const removeBtn = panel.querySelector('.removeFigureBtn');
+    if (removeBtn) {
+      if (STATE.figures.length <= 1) {
+        removeBtn.disabled = true;
+        removeBtn.setAttribute('aria-disabled', 'true');
+      } else {
+        removeBtn.disabled = false;
+        removeBtn.removeAttribute('aria-disabled');
+      }
+      removeBtn.setAttribute('aria-label', `Fjern figur ${index + 1}`);
+      removeBtn.onclick = () => {
+        removeFigure(index);
+      };
+    }
   }
   const container = document.getElementById('figureContainer');
   const addBtn = document.getElementById('addFigure');
   function rebuildFigurePanels() {
     if (!container) return;
+    const existingPanels = Array.from(container.querySelectorAll('.figurePanel'));
+    for (let i = STATE.figures.length; i < existingPanels.length; i++) {
+      existingPanels[i].remove();
+    }
     boxes.length = 0;
-    container.querySelectorAll('.figurePanel').forEach(panel => panel.remove());
     STATE.figures.forEach((_, idx) => {
-      const panel = createPanelForFigure(idx);
-      container.insertBefore(panel, addBtn);
+      let panel = existingPanels[idx];
+      if (!panel || !container.contains(panel)) {
+        panel = createPanelForFigure(idx);
+        container.insertBefore(panel, addBtn);
+      }
+      bindFigurePanel(panel, idx);
+      const boxEl = panel.querySelector('.box');
+      if (boxEl) boxes.push(boxEl);
     });
     updateCellColors();
     updateGridVisibility();
