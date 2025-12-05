@@ -3302,7 +3302,14 @@ function ensurePlateFor(label) {
 }
 function ensureLabelFront(label) {
   const node = label && label.rendNode;
-  if (node && node.parentNode) {
+  if (!node) return;
+  const renderer = appState.board && appState.board.renderer;
+  const htmlContainer = renderer && renderer.container;
+  if (node.namespaceURI !== 'http://www.w3.org/2000/svg' && htmlContainer) {
+    htmlContainer.appendChild(node);
+    return;
+  }
+  if (node.parentNode) {
     node.parentNode.appendChild(node);
   }
 }
@@ -3315,7 +3322,7 @@ function ensureCurveLabelVisibility(label) {
   ensureLabelFront(label);
   const node = label.rendNode || null;
   const root = appState.board.renderer.svgRoot || null;
-  if (node && root && node.parentNode !== root) {
+  if (node && root && node.namespaceURI === 'http://www.w3.org/2000/svg' && node.parentNode !== root) {
     root.appendChild(node);
   }
 }
