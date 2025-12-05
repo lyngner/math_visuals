@@ -709,7 +709,7 @@ function isCategoryAllowed(apps, allowedSet) {
   }
   const normalized = normalizeAppList(apps);
   if (!normalized.length) {
-    return false;
+    return true;
   }
   return normalized.some(entry => allowedSet.has(entry.toLowerCase()));
 }
