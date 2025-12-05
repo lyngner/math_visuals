@@ -2593,16 +2593,16 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
         const options = figurePicker.buildFigureOptions(figure.categoryId);
         const hasOptions = options.length > 0;
         const isLoading = !!figureLibraryState.loading && !figureLibraryState.loaded;
-        const placeholderLabel = hasLibraryError
-          ? 'Kunne ikke laste figurer'
-          : !figureLibraryState.loaded && isLoading
-            ? 'Laster figurer …'
-            : hasOptions
-              ? 'Velg figur'
+        const placeholderLabel = hasOptions
+          ? 'Velg figur'
+          : hasLibraryError
+            ? 'Kunne ikke laste figurer'
+            : !figureLibraryState.loaded && isLoading
+              ? 'Laster figurer …'
               : figureLibraryState.loaded
                 ? 'Ingen figurer'
                 : 'Laster figurer …';
-        const shouldDisable = hasLibraryError || isLoading || !hasOptions;
+        const shouldDisable = isLoading || (!hasOptions && !figureLibraryState.loaded);
         const result = figurePicker.renderFigureSelect(figureSelect, figure.categoryId, figure.value, {
           placeholderLabel,
           disabled: shouldDisable,
@@ -2641,46 +2641,44 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
         commitFigureChanges();
       });
 
-      if (!hasLibraryError) {
-        figureSelect = doc.createElement('select');
-        figureSelect.className = 'sortering__item-editor-figure-select';
-        figureSelect.setAttribute('aria-label', 'Figur');
+      figureSelect = doc.createElement('select');
+      figureSelect.className = 'sortering__item-editor-figure-select';
+      figureSelect.setAttribute('aria-label', 'Figur');
 
-        figureSelect.addEventListener('change', () => {
-          const selectedValue = figurePicker.normalizeValue(figureSelect.value);
-          if (!selectedValue) {
-            figure.value = '';
-            lastRenderResult = renderFigureSelectForRow();
-            item.type = 'figure';
-            setManualTypeOverride(item, 'figure');
-            autoUpdateItemFigureLabels(item, '', { initialLabel, initialAlt });
-            markItemDirty(item);
-            commitFigureChanges();
-            return;
-          }
-          figure.value = selectedValue;
-          const selectedMatch = figurePicker.findOptionByValue(selectedValue);
-          if (selectedMatch) {
-            figure.categoryId = selectedMatch.categoryId;
-          } else {
-            figure.categoryId = figurePicker.resolveCategoryId(categorySelect.value, selectedValue);
-          }
-          if (categorySelect.value !== figure.categoryId) {
-            categorySelect.value = figure.categoryId;
-          }
+      figureSelect.addEventListener('change', () => {
+        const selectedValue = figurePicker.normalizeValue(figureSelect.value);
+        if (!selectedValue) {
+          figure.value = '';
           lastRenderResult = renderFigureSelectForRow();
-          const autoLabel = buildFigureDisplayLabel(
-            figure.value,
-            figure.categoryId,
-            lastRenderResult ? lastRenderResult.match : null
-          );
-          autoUpdateItemFigureLabels(item, autoLabel, { initialLabel, initialAlt });
           item.type = 'figure';
           setManualTypeOverride(item, 'figure');
+          autoUpdateItemFigureLabels(item, '', { initialLabel, initialAlt });
           markItemDirty(item);
           commitFigureChanges();
-        });
-      }
+          return;
+        }
+        figure.value = selectedValue;
+        const selectedMatch = figurePicker.findOptionByValue(selectedValue);
+        if (selectedMatch) {
+          figure.categoryId = selectedMatch.categoryId;
+        } else {
+          figure.categoryId = figurePicker.resolveCategoryId(categorySelect.value, selectedValue);
+        }
+        if (categorySelect.value !== figure.categoryId) {
+          categorySelect.value = figure.categoryId;
+        }
+        lastRenderResult = renderFigureSelectForRow();
+        const autoLabel = buildFigureDisplayLabel(
+          figure.value,
+          figure.categoryId,
+          lastRenderResult ? lastRenderResult.match : null
+        );
+        autoUpdateItemFigureLabels(item, autoLabel, { initialLabel, initialAlt });
+        item.type = 'figure';
+        setManualTypeOverride(item, 'figure');
+        markItemDirty(item);
+        commitFigureChanges();
+      });
 
       row.appendChild(categorySelect);
       if (figureSelect) {
