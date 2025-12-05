@@ -8,13 +8,13 @@ const categorySuggestionsList = document.querySelector('[data-category-suggestio
 const uploadForm = document.querySelector('[data-upload-form]');
 const uploadDialog = document.querySelector('[data-upload-dialog]');
 const uploadDialogCloseButton = uploadDialog?.querySelector('[data-upload-close]') || null;
+const uploadLaunchButton = document.querySelector('[data-upload-launch]');
 const addCategoryToggleButton = document.querySelector('[data-add-category-toggle]');
 const addCategoryForm = document.querySelector('[data-add-category-form]');
 const addCategoryInput = addCategoryForm?.querySelector('[data-add-category-input]') || null;
 const addCategoryCancelButton = addCategoryForm?.querySelector('[data-add-category-cancel]') || null;
 const addCategoryFeedback = document.querySelector('[data-add-category-feedback]');
 const uploadFileInput = uploadForm?.querySelector('[data-upload-file]') || null;
-const uploadNameInput = uploadForm?.querySelector('[data-upload-name]') || null;
 const uploadCategoryInput = uploadForm?.querySelector('[data-upload-category]') || null;
 const uploadStatusEl = uploadForm?.querySelector('[data-upload-status]') || null;
 const uploadStatusMessageEl = uploadStatusEl?.querySelector('[data-upload-status-message]') || null;
@@ -128,6 +128,7 @@ async function init() {
   refreshLibrary({ maintainFilter: false });
   filterInput?.addEventListener('input', handleFilterInput);
   categorySortSelect?.addEventListener('change', handleCategorySortChange);
+  setupUploadLauncher();
   setupAddCategoryForm();
   setupUploadForm();
   setupEditorDialog();
@@ -2513,6 +2514,8 @@ function openUploadDialog(options = {}) {
     uploadFileInput.value = '';
   }
 
+  updateCategorySuggestions();
+
   if (category && uploadCategoryInput) {
     const displayName = getCategoryDisplayName(category) || category.id || '';
     if (displayName) {
@@ -2534,16 +2537,19 @@ function openUploadDialog(options = {}) {
       uploadFileInput.focus();
       return;
     }
-    if (uploadNameInput) {
-      uploadNameInput.focus();
-      return;
-    }
     const fallback = uploadDialog.querySelector(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
     if (fallback instanceof HTMLElement) {
       fallback.focus();
     }
+  });
+}
+
+function setupUploadLauncher() {
+  if (!uploadLaunchButton) return;
+  uploadLaunchButton.addEventListener('click', () => {
+    openUploadDialog({ trigger: uploadLaunchButton });
   });
 }
 
@@ -2581,7 +2587,6 @@ function setupUploadForm() {
     uploadFileInput.multiple = true;
   }
   uploadForm.addEventListener('submit', handleUploadSubmit);
-  uploadFileInput?.addEventListener('change', handleUploadFileChange);
   if (uploadDialogCloseButton) {
     uploadDialogCloseButton.addEventListener('click', () => closeUploadDialog());
   }
@@ -3864,23 +3869,6 @@ function handleCategoryUploadClick() {
   openUploadDialog({ category, trigger });
 }
 
-function handleUploadFileChange() {
-  if (!uploadFileInput || !uploadFileInput.files || uploadFileInput.files.length === 0) {
-    return;
-  }
-  if (uploadFileInput.files.length === 1) {
-    const file = uploadFileInput.files[0];
-    if (!file) return;
-    if (uploadNameInput && !uploadNameInput.value) {
-      uploadNameInput.value = deriveNameFromFile(file.name) || '';
-    }
-    return;
-  }
-  if (uploadNameInput) {
-    uploadNameInput.value = '';
-  }
-}
-
 async function handleUploadSubmit(event) {
   event.preventDefault();
   if (!uploadFileInput || !uploadFileInput.files || uploadFileInput.files.length === 0) {
@@ -3894,7 +3882,6 @@ async function handleUploadSubmit(event) {
     return;
   }
 
-  const desiredName = uploadNameInput && uploadNameInput.value ? uploadNameInput.value.trim() : '';
   const categoryInputValue = uploadCategoryInput && uploadCategoryInput.value ? uploadCategoryInput.value : '';
   const results = [];
   const progressDetails = [];
@@ -3929,7 +3916,7 @@ async function handleUploadSubmit(event) {
       if (typeof svgText !== 'string' || !svgText.includes('<svg')) {
         throw new Error('Filen er ikke en gyldig SVG.');
       }
-      const name = determineUploadName(desiredName, files.length, index, file.name);
+      const name = determineUploadName(files.length, index, file.name);
       const categoryDetails = resolveCategoryDetails(categoryInputValue, null, name);
       const id = createCustomEntryId(name, reservedUploadIds);
       const entry = {
@@ -3985,16 +3972,15 @@ async function handleUploadSubmit(event) {
   showUploadStatus(summaryMessage, summaryState, { duration: summaryState === 'error' ? 8000 : 6000 });
 }
 
-function determineUploadName(desiredName, totalFiles, index, originalFileName) {
-  const trimmedDesired = typeof desiredName === 'string' ? desiredName.trim() : '';
+function determineUploadName(totalFiles, index, originalFileName) {
   const derived = deriveNameFromFile(originalFileName || '') || '';
   if (totalFiles <= 1) {
-    return trimmedDesired || derived || 'Egendefinert figur';
+    return derived || 'Egendefinert figur';
   }
-  if (trimmedDesired) {
-    return `${trimmedDesired} ${index + 1}`;
+  if (derived) {
+    return derived;
   }
-  return derived || `Egendefinert figur ${index + 1}`;
+  return `Egendefinert figur ${index + 1}`;
 }
 
 function showUploadStatus(message, state = 'info', options = {}) {
