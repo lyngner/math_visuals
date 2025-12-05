@@ -680,6 +680,18 @@ function sanitizePointMarkerValue(value) {
   if (typeof value !== 'string') return '';
   return value.trim();
 }
+function parsePointLockList(value) {
+  if (typeof value !== 'string') return [];
+  return value
+    .split(';')
+    .map(part => part.trim())
+    .filter(part => part.length > 0)
+    .map(part => !/^(?:0|false|nei|off|no)$/i.test(part));
+}
+function formatPointLockList(values) {
+  if (!Array.isArray(values) || values.length === 0) return '';
+  return values.map(val => (val ? 'true' : 'false')).join('; ');
+}
 function parsePointMarkerList(value) {
   if (typeof value !== 'string') return [];
   return value
@@ -705,6 +717,15 @@ function markerValueForIndex(markers, index) {
     return markers[index];
   }
   return markers[markers.length - 1];
+}
+function resolvePointMarkersForCount(markerValue, count) {
+  const markers = parsePointMarkerList(markerValue);
+  const resolved = [];
+  for (let i = 0; i < Math.max(0, count); i += 1) {
+    const marker = markers.length ? markerValueForIndex(markers, i) : markerValue;
+    resolved.push(marker || DEFAULT_POINT_MARKER);
+  }
+  return resolved;
 }
 function isDefaultPointMarker(value) {
   const markers = parsePointMarkerList(value);
@@ -1656,6 +1677,7 @@ function parseSimple(txt) {
     rows: [],
     pointMarker: '',
     pointMarkers: [],
+    pointLocks: [],
     lockExtraPoints: true,
     raw: txt
   };
@@ -1756,8 +1778,14 @@ function parseSimple(txt) {
     }
     const lockMatch = L.match(/^lockpoint\s*=\s*(.+)$/i);
     if (lockMatch) {
-      const value = lockMatch[1].trim().toLowerCase();
-      out.lockExtraPoints = !/^(?:0|false|nei|off|no)$/i.test(value);
+      const lockList = parsePointLockList(lockMatch[1]);
+      if (lockList.length) {
+        out.pointLocks = lockList;
+        out.lockExtraPoints = !lockList.some(val => val === false);
+      } else {
+        const value = lockMatch[1].trim().toLowerCase();
+        out.lockExtraPoints = !/^(?:0|false|nei|off|no)$/i.test(value);
+      }
       continue;
     }
     const lm = L.match(/^linepts\s*=\s*(.+)$/i);
@@ -1791,6 +1819,9 @@ function parseSimple(txt) {
   }
   if (out.pointMarkers.length > out.extraPoints.length) {
     out.pointMarkers = out.pointMarkers.slice(0, out.extraPoints.length);
+  }
+  if (out.pointLocks.length > out.extraPoints.length) {
+    out.pointLocks = out.pointLocks.slice(0, out.extraPoints.length);
   }
   if (!out.pointMarker && out.pointMarkers.length) {
     out.pointMarker = formatPointMarkerList(out.pointMarkers);
@@ -3985,7 +4016,8 @@ function appendExtraPointsAltText(parsed, sentences) {
   if (!points.length) return;
   const coords = points.map(formatCoordinateForAlt).filter(Boolean);
   if (!coords.length) return;
-  const locked = !(parsed && parsed.lockExtraPoints === false);
+  const locks = Array.isArray(parsed === null || parsed === void 0 ? void 0 : parsed.pointLocks) ? parsed.pointLocks : [];
+  const locked = locks.length ? locks.every(Boolean) : !(parsed && parsed.lockExtraPoints === false);
   if (coords.length === 1) {
     sentences.push(`${locked ? 'Et fast punkt' : 'Et punkt'} er markert i ${coords[0]}.`);
   } else {
@@ -5630,9 +5662,11 @@ function addFixedPoints() {
   const markerList = Array.isArray(appState.simple.parsed.pointMarkers) && appState.simple.parsed.pointMarkers.length
     ? appState.simple.parsed.pointMarkers
     : parsePointMarkerList(ADV.points.marker);
+  const lockList = Array.isArray(appState.simple.parsed.pointLocks) ? appState.simple.parsed.pointLocks : [];
   const showPointNames = !!(ADV.curveName && ADV.curveName.showName);
   appState.simple.parsed.extraPoints.forEach((pt, idx) => {
     const pointLabel = showPointNames ? pointLabelForIndex(idx) : '';
+    const pointLocked = lockList.length ? !!lockList[Math.min(idx, lockList.length - 1)] : !!ADV.points.lockExtraPoints;
     const pointOptions = {
       name: pointLabel,
       size: POINT_MARKER_SIZE,
@@ -5640,7 +5674,7 @@ function addFixedPoints() {
       fillColor: DEFAULT_POINT_COLORS.markerFill || DEFAULT_POINT_COLORS.fallbackMarkerFill,
       strokeColor: DEFAULT_POINT_COLORS.markerStroke || DEFAULT_POINT_COLORS.fallbackMarkerStroke,
       withLabel: true,
-      fixed: !!ADV.points.lockExtraPoints,
+      fixed: pointLocked,
       showInfobox: false,
       label: {
         visible: showPointNames,
@@ -5699,7 +5733,7 @@ function addFixedPoints() {
       });
       P.on('out', restorePointLabel);
     }
-    if (!ADV.points.lockExtraPoints) {
+    if (!pointLocked) {
       const updatePointState = commit => {
         if (!Array.isArray(appState.simple.parsed.extraPoints)) return;
         const x = typeof P.X === 'function' ? P.X() : NaN;
@@ -6550,7 +6584,8 @@ function setupSettingsForm() {
   let scheduleSimpleFormChange = () => {};
   let flushSimpleFormChange = () => {};
   const pointMarkerControls = [];
-  let pointLockControl = null;
+  const pointMarkerValues = new Map();
+  const pointLockStates = new Map();
   let pointLockEnabled = !(appState.simple.parsed && appState.simple.parsed.lockExtraPoints === false);
   ADV.points.lockExtraPoints = pointLockEnabled;
   const functionColorControls = [];
@@ -6572,6 +6607,13 @@ function setupSettingsForm() {
     pruneList(pointMarkerControls);
     pruneList(functionColorControls);
     pruneList(extraAnswerControls);
+    [pointMarkerValues, pointLockStates].forEach(store => {
+      Array.from(store.keys()).forEach(row => {
+        if (!row || !rowSet.has(row)) {
+          store.delete(row);
+        }
+      });
+    });
   };
   const updateFunctionActionButtons = () => {
     const rowCount = funcRows ? funcRows.querySelectorAll('.func-group').length : 0;
@@ -6685,6 +6727,35 @@ function setupSettingsForm() {
       }
       applyColorManualClass(control.row, control.manual);
     });
+  };
+  const setPointMarkerValueForRow = (row, value) => {
+    if (!row) return;
+    const normalized = normalizePointMarkerValue(value) || DEFAULT_POINT_MARKER;
+    pointMarkerValues.set(row, normalized);
+    const control = pointMarkerControls.find(entry => entry && entry.row === row);
+    if (control && control.input) {
+      control.input.value = normalized;
+    }
+  };
+  const getPointMarkerValueForRow = row => {
+    if (row && pointMarkerValues.has(row)) {
+      return pointMarkerValues.get(row);
+    }
+    return pointMarkerValue;
+  };
+  const setPointLockValueForRow = (row, locked) => {
+    if (!row) return;
+    pointLockStates.set(row, !!locked);
+    const control = pointMarkerControls.find(entry => entry && entry.row === row);
+    if (control && control.lock && control.lock.checkbox) {
+      control.lock.checkbox.checked = !!locked;
+    }
+  };
+  const getPointLockValueForRow = row => {
+    if (row && pointLockStates.has(row)) {
+      return !!pointLockStates.get(row);
+    }
+    return pointLockEnabled;
   };
   let pointMarkerValue = DEFAULT_POINT_MARKER;
   const MATHFIELD_TAG = 'MATH-FIELD';
@@ -7210,12 +7281,17 @@ function setupSettingsForm() {
     const firstRowInput = firstGroup ? firstGroup.querySelector('[data-fun]') : null;
     return firstRowInput ? getFunctionInputValue(firstRowInput) : '';
   };
-  const getPointMarkerInputValue = () => normalizePointMarkerValue(pointMarkerValue) || '';
-  const setPointMarkerInputValue = value => {
+  const getPointMarkerInputValue = row => normalizePointMarkerValue(getPointMarkerValueForRow(row)) || '';
+  const setPointMarkerInputValue = (value, targetRow = null) => {
+    if (targetRow) {
+      setPointMarkerValueForRow(targetRow, value);
+      return;
+    }
     const normalized = normalizePointMarkerValue(value);
     pointMarkerValue = normalized || DEFAULT_POINT_MARKER;
     pointMarkerControls.forEach(control => {
       if (!control || !control.input) return;
+      if (control.row && pointMarkerValues.has(control.row)) return;
       control.input.value = normalized || DEFAULT_POINT_MARKER;
     });
   };
@@ -7247,42 +7323,15 @@ function setupSettingsForm() {
     const prefix = type === 'point' ? 'Punkt' : type === 'line' ? 'Linje' : 'Funksjon';
     legend.textContent = `${prefix} ${index}`;
   };
-  const syncPointMarkerValueFromInput = input => {
+  const syncPointMarkerValueFromInput = (input, row) => {
     if (!input) return;
     const normalized = normalizePointMarkerValue(input.value);
-    pointMarkerValue = normalized || DEFAULT_POINT_MARKER;
     const displayValue = normalized || DEFAULT_POINT_MARKER;
-    pointMarkerControls.forEach(control => {
-      if (!control || !control.input) return;
-      if (control.input === input) {
-        if (control.input.value !== displayValue) {
-          control.input.value = displayValue;
-        }
-        return;
-      }
-      control.input.value = displayValue;
-    });
+    setPointMarkerValueForRow(row, displayValue);
   };
-  const getPointMarkerValueForExport = () => {
-    const normalized = normalizePointMarkerValue(pointMarkerValue);
+  const getPointMarkerValueForExport = row => {
+    const normalized = normalizePointMarkerValue(getPointMarkerInputValue(row));
     return normalized && !isDefaultPointMarker(normalized) ? normalized : '';
-  };
-  const updatePointLockVisibility = () => {
-    if (!pointLockControl) return;
-    const { container, checkbox } = pointLockControl;
-    const firstGroup = funcRows ? funcRows.querySelector('.func-group[data-index="1"]') : null;
-    const funInput = firstGroup ? firstGroup.querySelector('[data-fun]') : null;
-    const value = funInput ? getFunctionInputValue(funInput) : '';
-    const show = !!value && isCoords(value);
-    if (container) {
-      container.style.display = show ? '' : 'none';
-    }
-    if (checkbox) {
-      checkbox.disabled = !show;
-      if (show) {
-        checkbox.checked = !!pointLockEnabled;
-      }
-    }
   };
   const updatePointMarkerVisibility = () => {
     pointMarkerControls.forEach(control => {
@@ -7295,9 +7344,18 @@ function setupSettingsForm() {
       }
       if (control.input) {
         control.input.disabled = !show;
+        if (show) {
+          const markerValue = normalizePointMarkerValue(getPointMarkerValueForRow(control.row));
+          control.input.value = markerValue || DEFAULT_POINT_MARKER;
+        }
+      }
+      if (control.lock && control.lock.checkbox) {
+        control.lock.checkbox.disabled = !show;
+        if (show) {
+          control.lock.checkbox.checked = getPointLockValueForRow(control.row);
+        }
       }
     });
-    updatePointLockVisibility();
   };
   const determineForcedGliderCount = value => {
     if (!value) return null;
@@ -7723,7 +7781,7 @@ function setupSettingsForm() {
   const updateExtraAnswerControl = control => {
     if (!control || !control.label || !control.funInput) return;
     const value = getFunctionInputValue(control.funInput);
-    const allow = !!value && isCoords(value) && !pointLockEnabled;
+    const allow = !!value && isCoords(value) && !getPointLockValueForRow(control.row);
     if (control.currentAllowed === allow) return;
     control.currentAllowed = allow;
     const { label, input } = control;
@@ -7837,7 +7895,8 @@ function setupSettingsForm() {
   function updateAnswerPlacement() {
     if (!answerControl || !answerControl.label) return;
     const firstValue = getFirstFunctionValue();
-    if (firstValue && isCoords(firstValue) && pointLockEnabled) {
+    const firstRow = funcRows ? funcRows.querySelector('.func-group[data-index="1"]') : null;
+    if (firstValue && isCoords(firstValue) && getPointLockValueForRow(firstRow)) {
       placeAnswerField('hidden');
       return;
     }
@@ -7951,14 +8010,10 @@ function setupSettingsForm() {
     const firstVal = firstInput ? getFunctionInputValue(firstInput) : '';
     const lineSpec = interpretLineTemplateFromExpression(firstVal);
     const neededLinePoints = getLinePointCount(lineSpec);
-    const resolveMarkerValue = value => normalizePointMarkerValue(value) || '';
-    const markerInputValue = pointMarkerControls.length ? resolveMarkerValue(getPointMarkerInputValue()) : '';
-    const parsedMarkerValue = resolveMarkerValue(appState.simple.parsed.pointMarker);
-    const parsedMarkerListValue = Array.isArray(appState.simple.parsed.pointMarkers) && appState.simple.parsed.pointMarkers.length
-      ? resolveMarkerValue(formatPointMarkerList(appState.simple.parsed.pointMarkers))
-      : '';
     const lines = [];
     const answerLines = [];
+    const markerExports = [];
+    const lockExports = [];
     rows.forEach((row, idx) => {
       const funInput = row.querySelector('[data-fun]');
       const domInput = row.querySelector('input[data-dom]');
@@ -7967,9 +8022,8 @@ function setupSettingsForm() {
       const fun = getFunctionInputValue(funInput);
       if (!fun) return;
       const isCoordsRow = isCoords(fun);
-      const allowAnswer = idx === 0
-        ? !(isCoordsRow && pointLockEnabled)
-        : isCoordsRow && !pointLockEnabled;
+      const rowLocked = isCoordsRow ? getPointLockValueForRow(row) : false;
+      const allowAnswer = isCoordsRow ? !rowLocked : true;
       const rawAnswer = allowAnswer && answerInput && !answerInput.disabled && typeof answerInput.value === 'string'
         ? answerInput.value.trim()
         : '';
@@ -7987,6 +8041,11 @@ function setupSettingsForm() {
           if (coords.length) {
             lines.push(`coords=${coords.join('; ')}`);
           }
+          const markerValueForRow = getPointMarkerInputValue(row) || DEFAULT_POINT_MARKER;
+          const markersForRow = resolvePointMarkersForCount(markerValueForRow, parsedPoints.length);
+          markersForRow.forEach(marker => markerExports.push(sanitizePointMarkerValue(marker) || DEFAULT_POINT_MARKER));
+          const lockForRow = getPointLockValueForRow(row);
+          parsedPoints.forEach(() => lockExports.push(lockForRow));
         }
         return;
       }
@@ -8022,13 +8081,22 @@ function setupSettingsForm() {
       if (coords.length) {
         lines.push(`coords=${coords.join('; ')}`);
         hasCoordsLine = true;
+        if (Array.isArray(appState.simple.parsed.pointMarkers) && appState.simple.parsed.pointMarkers.length) {
+          markerExports.push(...appState.simple.parsed.pointMarkers.map(marker => sanitizePointMarkerValue(marker) || DEFAULT_POINT_MARKER));
+        }
+        if (Array.isArray(appState.simple.parsed.pointLocks) && appState.simple.parsed.pointLocks.length) {
+          lockExports.push(...appState.simple.parsed.pointLocks.map(val => !!val));
+        }
       }
     }
     if (!hasMarkerLine && hasCoordsLine) {
-      const markerForFallback = markerInputValue || parsedMarkerListValue || parsedMarkerValue;
-      if (markerForFallback && !isDefaultPointMarker(markerForFallback)) {
-        lines.push(`marker=${markerForFallback}`);
-        hasMarkerLine = true;
+      const hasCustomMarkers = markerExports.some(marker => !isDefaultPointMarker(marker));
+      if (hasCustomMarkers) {
+        const markerLineValue = formatPointMarkerList(markerExports.map(marker => marker || DEFAULT_POINT_MARKER));
+        if (markerLineValue) {
+          lines.push(`marker=${markerLineValue}`);
+          hasMarkerLine = true;
+        }
       }
     }
     if (!hasLinePtsLine && neededLinePoints > 0 && (linePointsEdited || Array.isArray(appState.simple.parsed.linePoints) && appState.simple.parsed.linePoints.length > 0)) {
@@ -8039,10 +8107,14 @@ function setupSettingsForm() {
     }
     const hasLockLine = lines.some(L => /^\s*lockpoint\s*=/i.test(L));
     if (hasCoordsLine) {
-      if (!pointLockEnabled) {
-        if (!hasLockLine) {
-          lines.push('lockpoint=false');
+      const anyUnlocked = lockExports.some(val => val === false);
+      if (!hasLockLine && anyUnlocked) {
+        const lockLineValue = formatPointLockList(lockExports.length ? lockExports : [false]);
+        if (lockLineValue) {
+          lines.push(`lockpoint=${lockLineValue}`);
         }
+      } else if (!pointLockEnabled && !hasLockLine) {
+        lines.push('lockpoint=false');
       }
     }
     answerLines.forEach(line => {
@@ -8191,7 +8263,7 @@ function setupSettingsForm() {
     updateLinePointControls({ silent: true });
     updateAnswerPlacement();
   };
-  const createRow = (index, funVal = '', domVal = '', colorVal = '', colorManual = false, answerVal = '') => {
+  const createRow = (index, funVal = '', domVal = '', colorVal = '', colorManual = false, answerVal = '', options = {}) => {
     const row = document.createElement('div');
     row.className = 'func-group';
     row.dataset.index = String(index);
@@ -8308,18 +8380,21 @@ function setupSettingsForm() {
         manual: isManualColor
       });
     }
+    const initialMarkerValue = normalizePointMarkerValue(options.pointMarkerValue) || pointMarkerValue || DEFAULT_POINT_MARKER;
+    const initialLockValue = options.pointLockValue != null ? !!options.pointLockValue : pointLockEnabled;
     const markerLabel = row.querySelector('[data-point-marker-container]');
     const markerContainer = markerLabel ? markerLabel.closest('.point-marker-row') || markerLabel : null;
     if (markerContainer) {
       markerContainer.style.display = 'none';
     }
     const markerInput = row.querySelector('input[data-point-marker]');
+    const markerControl = { row, input: markerInput, container: markerContainer, lock: null };
     if (markerInput) {
       markerInput.dataset.defaultValue = DEFAULT_POINT_MARKER;
-      markerInput.value = pointMarkerValue;
-      pointMarkerControls.push({ row, input: markerInput, container: markerContainer });
+      markerInput.value = initialMarkerValue;
+      setPointMarkerValueForRow(row, initialMarkerValue);
       const handleMarkerInput = event => {
-        syncPointMarkerValueFromInput(markerInput);
+        syncPointMarkerValueFromInput(markerInput, row);
         if (event && event.type === 'change') {
           flushSimpleFormChange();
         } else {
@@ -8329,26 +8404,28 @@ function setupSettingsForm() {
       markerInput.addEventListener('input', handleMarkerInput);
       markerInput.addEventListener('change', handleMarkerInput);
     }
-    if (index === 1) {
-      const lockLabel = row.querySelector('[data-point-lock-container]');
-      const lockCheckbox = lockLabel ? lockLabel.querySelector('input[data-point-lock]') : null;
-      if (lockLabel && lockCheckbox) {
-        pointLockControl = { container: lockLabel, checkbox: lockCheckbox };
-        lockLabel.style.display = 'none';
-        lockCheckbox.checked = !!pointLockEnabled;
-        lockCheckbox.disabled = true;
-        const handlePointLockChange = () => {
-          pointLockEnabled = !!lockCheckbox.checked;
-          ADV.points.lockExtraPoints = pointLockEnabled;
-          updateAnswerPlacement();
-          updateAllExtraAnswerControls();
-          syncSimpleFromForm();
-          scheduleSimpleRebuild();
-          updatePointLockVisibility();
-        };
-        lockCheckbox.addEventListener('change', handlePointLockChange);
-        lockCheckbox.addEventListener('input', handlePointLockChange);
-      }
+    const lockLabel = row.querySelector('[data-point-lock-container]');
+    const lockCheckbox = lockLabel ? lockLabel.querySelector('input[data-point-lock]') : null;
+    if (lockLabel && lockCheckbox) {
+      lockLabel.style.display = 'none';
+      lockCheckbox.checked = !!initialLockValue;
+      lockCheckbox.disabled = true;
+      setPointLockValueForRow(row, initialLockValue);
+      markerControl.lock = { container: lockLabel, checkbox: lockCheckbox };
+      const handlePointLockChange = () => {
+        const locked = !!lockCheckbox.checked;
+        setPointLockValueForRow(row, locked);
+        ADV.points.lockExtraPoints = locked;
+        updateAnswerPlacement();
+        updateAllExtraAnswerControls();
+        syncSimpleFromForm();
+        scheduleSimpleRebuild();
+      };
+      lockCheckbox.addEventListener('change', handlePointLockChange);
+      lockCheckbox.addEventListener('input', handlePointLockChange);
+    }
+    if ((markerInput || lockCheckbox || markerContainer) && !pointMarkerControls.includes(markerControl)) {
+      pointMarkerControls.push(markerControl);
     }
     let funInput = row.querySelector('[data-fun]');
     const answerInput = row.querySelector('input[data-answer]');
@@ -8616,14 +8693,20 @@ function setupSettingsForm() {
       linePointLabels = [];
       linePointVisibleCount = 0;
       pointMarkerControls.length = 0;
-      pointLockControl = null;
+      pointMarkerValues.clear();
+      pointLockStates.clear();
       clearFunctionColorControls();
       pointMarkerValue = DEFAULT_POINT_MARKER;
       answerControl = null;
       extraAnswerControls.length = 0;
       funcRows.innerHTML = '';
     }
-    pointLockEnabled = appState.simple.parsed && appState.simple.parsed.lockExtraPoints === false ? false : true;
+    const parsedRows = Array.isArray(appState.simple.parsed.rows) ? appState.simple.parsed.rows : [];
+    const parsedMarkers = Array.isArray(appState.simple.parsed.pointMarkers) ? appState.simple.parsed.pointMarkers : [];
+    const parsedLocks = Array.isArray(appState.simple.parsed.pointLocks) ? appState.simple.parsed.pointLocks : [];
+    pointLockEnabled = parsedLocks.length
+      ? !parsedLocks.some(val => val === false)
+      : !(appState.simple.parsed && appState.simple.parsed.lockExtraPoints === false);
     ADV.points.lockExtraPoints = pointLockEnabled;
     glidersVisible = false;
     forcedGliderCount = null;
@@ -8676,10 +8759,26 @@ function setupSettingsForm() {
         funcIndex++;
       }
       const answerVal = Array.isArray(appState.simple.parsed.answers) ? appState.simple.parsed.answers[idx] || '' : '';
-      createRow(idx + 1, funVal, domVal, colorVal, colorManualFlag, answerVal);
+      const rowSpec = parsedRows[idx] || null;
+      const pointStart = rowSpec && Number.isFinite(rowSpec.pointStart) ? rowSpec.pointStart : 0;
+      const inferredCount = parsePointListString(funVal)
+        .filter(pt => Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite)).length;
+      const pointCount = rowSpec && Number.isFinite(rowSpec.pointCount) && rowSpec.pointCount > 0
+        ? rowSpec.pointCount
+        : inferredCount;
+      const markersSlice = parsedMarkers.slice(pointStart, pointCount > 0 ? pointStart + pointCount : undefined);
+      const markerValForRow = markersSlice.length
+        ? formatPointMarkerList(markersSlice)
+        : appState.simple.parsed.pointMarker;
+      const lockValForRow = rowSpec && rowSpec.type === 'coords'
+        ? (parsedLocks.length ? parsedLocks[Math.min(pointStart, Math.max(0, parsedLocks.length - 1))] : pointLockEnabled)
+        : pointLockEnabled;
+      createRow(idx + 1, funVal, domVal, colorVal, colorManualFlag, answerVal, {
+        pointMarkerValue: markerValForRow,
+        pointLockValue: lockValForRow
+      });
     });
     refreshFunctionColorDefaultsLocal();
-    updatePointLockVisibility();
     if (gliderCountInput) {
       var _SIMPLE_PARSED;
       const count = Number.isFinite((_SIMPLE_PARSED = appState.simple.parsed) === null || _SIMPLE_PARSED === void 0 ? void 0 : _SIMPLE_PARSED.pointsCount) ? appState.simple.parsed.pointsCount : 0;
@@ -8704,7 +8803,7 @@ function setupSettingsForm() {
       ? formatPointMarkerList(appState.simple.parsed.pointMarkers)
       : appState.simple.parsed.pointMarker;
     const parsedMarker = normalizePointMarkerValue(parsedMarkerValueForInput);
-    setPointMarkerInputValue(parsedMarker);
+    pointMarkerValue = parsedMarker || DEFAULT_POINT_MARKER;
     updatePointMarkerVisibility();
     updateAllExtraAnswerControls();
     applyExampleStateToControls();
@@ -8986,7 +9085,7 @@ function setupSettingsForm() {
       if (rowIdx === 0 && isCoords(fun)) {
         p.set('coords', fun);
         const markerForParams = pointMarkerControls.length
-          ? getPointMarkerValueForExport()
+          ? getPointMarkerValueForExport(row)
           : (parsedMarkerNormalized && !isDefaultPointMarker(parsedMarkerNormalized) ? parsedMarkerNormalized : '');
         if (markerForParams) {
           p.set('marker', markerForParams);
