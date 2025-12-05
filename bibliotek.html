@@ -1214,25 +1214,11 @@
             </label>
           </div>
         </header>
-        <form class="categoryAddForm" data-add-category-form hidden>
-          <label>
-            <span>Kategorinavn</span>
-            <input
-              type="text"
-              class="categoryAddInput"
-              name="category-name"
-              placeholder="Skriv inn kategorinavn"
-              list="figure-category-suggestions"
-              data-add-category-input
-              autocomplete="off"
-            />
-          </label>
-          <p class="categoryAddMessage" data-add-category-feedback hidden></p>
+        <div class="categoryAddForm">
           <div class="categoryAddControls">
-            <button type="submit" class="categoryAddSubmit">Legg til kategori</button>
-            <button type="button" class="categoryAddCancel" data-add-category-cancel>Avbryt</button>
+            <button type="button" class="categoryAddSubmit" data-upload-launch>Last opp figurer</button>
           </div>
-        </form>
+        </div>
         <ul class="categoryGrid" data-category-grid></ul>
       </section>
     </div>
@@ -1254,10 +1240,6 @@
         <label>
           <span>SVG-fil</span>
           <input type="file" accept=".svg" data-upload-file required multiple />
-        </label>
-        <label>
-          <span>Navn (valgfritt)</span>
-          <input type="text" data-upload-name placeholder="F.eks. Tilpasset figur" autocomplete="off" />
         </label>
         <label>
           <span>Kategori</span>
