@@ -1077,11 +1077,6 @@ if (typeof window !== 'undefined') {
   window.SIMPLE = appState.simple.value;
 }
 
-const AXIS_LABEL_STATE = {
-  x: { manual: false, position: null },
-  y: { manual: false, position: null }
-};
-
 /* ====================== AVANSERT KONFIG ===================== */
 const INITIAL_POINT_MARKER_RAW = paramStr('marker', DEFAULT_POINT_MARKER);
 const INITIAL_POINT_MARKER_NORMALIZED = normalizePointMarkerValue(INITIAL_POINT_MARKER_RAW);
@@ -1268,6 +1263,19 @@ const EXAMPLE_STATE = (() => {
   }
   if (!Object.prototype.hasOwnProperty.call(existing, 'screenSource')) {
     existing.screenSource = INITIAL_SCREEN_SOURCE;
+  }
+  if (!Object.prototype.hasOwnProperty.call(existing, 'axisLabels')) {
+    existing.axisLabels = {
+      x: ADV.axis.labels.x,
+      y: ADV.axis.labels.y,
+      fontSize: ADV.axis.labels.fontSize
+    };
+  }
+  if (!Object.prototype.hasOwnProperty.call(existing, 'axisLabelPositions')) {
+    existing.axisLabelPositions = {
+      x: { manual: false, position: null },
+      y: { manual: false, position: null }
+    };
   }
   if (ADV.curveName) {
     const resolvedShowNames = !!existing.showNames;
@@ -3024,6 +3032,7 @@ function rememberAxisLabelPosition(axisKey, pos, manualOverride) {
   if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
     state.position = [pos.x, pos.y];
   }
+  syncAxisLabelStateToExample();
 }
 
 function manualAxisLabelPosition(axisKey) {
@@ -3034,6 +3043,61 @@ function manualAxisLabelPosition(axisKey) {
   const [x, y] = pos;
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
   return { x, y };
+}
+
+function hydrateAxisLabelStateFromExample() {
+  if (!EXAMPLE_STATE || typeof EXAMPLE_STATE !== 'object') return;
+  const positions = EXAMPLE_STATE.axisLabelPositions && typeof EXAMPLE_STATE.axisLabelPositions === 'object'
+    ? EXAMPLE_STATE.axisLabelPositions
+    : null;
+  if (!positions) return;
+  ['x', 'y'].forEach(axisKey => {
+    const source = positions[axisKey];
+    if (!source || typeof source !== 'object') return;
+    const state = axisLabelState(axisKey);
+    if (!state) return;
+    state.manual = !!source.manual;
+    state.position = Array.isArray(source.position) && source.position.length >= 2
+      ? source.position.slice(0, 2)
+      : null;
+  });
+}
+
+const AXIS_LABEL_STATE = (() => {
+  const resolve = axisKey => {
+    const fallback = { manual: false, position: null };
+    const source = EXAMPLE_STATE && EXAMPLE_STATE.axisLabelPositions && EXAMPLE_STATE.axisLabelPositions[axisKey];
+    if (!source || typeof source !== 'object') return { ...fallback };
+    const pos = Array.isArray(source.position) && source.position.length >= 2
+      ? source.position.slice(0, 2)
+      : null;
+    return {
+      manual: !!source.manual,
+      position: pos
+    };
+  };
+  return {
+    x: resolve('x'),
+    y: resolve('y')
+  };
+})();
+
+function syncAxisLabelStateToExample() {
+  if (!EXAMPLE_STATE || typeof EXAMPLE_STATE !== 'object') return;
+  EXAMPLE_STATE.axisLabelPositions = {
+    x: {
+      manual: !!(AXIS_LABEL_STATE.x && AXIS_LABEL_STATE.x.manual),
+      position: AXIS_LABEL_STATE.x && Array.isArray(AXIS_LABEL_STATE.x.position)
+        ? AXIS_LABEL_STATE.x.position.slice(0, 2)
+        : null
+    },
+    y: {
+      manual: !!(AXIS_LABEL_STATE.y && AXIS_LABEL_STATE.y.manual),
+      position: AXIS_LABEL_STATE.y && Array.isArray(AXIS_LABEL_STATE.y.position)
+        ? AXIS_LABEL_STATE.y.position.slice(0, 2)
+        : null
+    }
+  };
 }
 
 function computeAxisLabelWorldPosition(axisKey) {
@@ -6671,6 +6735,34 @@ function setupSettingsForm() {
       : !!fallback
   );
   const applyExampleStateToControls = () => {
+    hydrateAxisLabelStateFromExample();
+    const axisLabelConfig = exampleState && typeof exampleState.axisLabels === 'object'
+      ? exampleState.axisLabels
+      : null;
+    const axisXValue = axisLabelConfig && typeof axisLabelConfig.x === 'string'
+      ? axisLabelConfig.x
+      : ADV.axis.labels.x;
+    const axisYValue = axisLabelConfig && typeof axisLabelConfig.y === 'string'
+      ? axisLabelConfig.y
+      : ADV.axis.labels.y;
+    if (axisXInputElement && typeof axisXValue === 'string' && axisXInputElement.value !== axisXValue) {
+      axisXInputElement.value = axisXValue;
+    }
+    if (axisYInputElement && typeof axisYValue === 'string' && axisYInputElement.value !== axisYValue) {
+      axisYInputElement.value = axisYValue;
+    }
+    if ((ADV.axis.labels.x || '') !== axisXValue) {
+      ADV.axis.labels.x = axisXValue;
+    }
+    if ((ADV.axis.labels.y || '') !== axisYValue) {
+      ADV.axis.labels.y = axisYValue;
+    }
+    const nextFontSize = axisLabelConfig && Number.isFinite(axisLabelConfig.fontSize)
+      ? axisLabelConfig.fontSize
+      : null;
+    if (Number.isFinite(nextFontSize)) {
+      ADV.axis.labels.fontSize = nextFontSize;
+    }
     const resolvedShowNames = resolveExampleStateFlag('showNames', ADV.curveName && ADV.curveName.showName);
     const resolvedShowExpr = resolveExampleStateFlag('showExpression', ADV.curveName && ADV.curveName.showExpression);
     let changed = false;
@@ -6774,6 +6866,14 @@ function setupSettingsForm() {
       ? LAST_COMPUTED_SCREEN.slice(0, 4)
       : null;
     exampleState.screenSource = 'manual';
+    const axisLabelFontSize = Number.isFinite(ADV.axis.labels.fontSize)
+      ? ADV.axis.labels.fontSize
+      : null;
+    exampleState.axisLabels = {
+      x: axisXInputElement ? axisXInputElement.value : ADV.axis.labels.x,
+      y: axisYInputElement ? axisYInputElement.value : ADV.axis.labels.y,
+      fontSize: axisLabelFontSize
+    };
   };
   applyExampleStateToControls();
   let gliderSection = null;
