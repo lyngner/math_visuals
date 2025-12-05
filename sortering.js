@@ -1327,6 +1327,7 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     loaded: false,
     loading: null,
     error: false,
+    errorMessage: '',
     metadata: figureData ? figureData.metadata : null
   };
 
@@ -1351,6 +1352,7 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
       return figureLibraryState.loading;
     }
     figureLibraryState.error = false;
+    figureLibraryState.errorMessage = '';
     const request = loadMeasurementFigureLibrary({
       app: FIGURE_LIBRARY_APP_KEY,
       ...requestOptions,
@@ -1373,6 +1375,8 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
       .catch(error => {
         figureLibraryState.error = true;
         figureLibraryState.loaded = false;
+        const resolvedMessage = resolveFigureLibraryErrorMessage(error);
+        figureLibraryState.errorMessage = resolvedMessage;
         applyStorageWarningMetadata(figureData && figureData.metadata);
         throw error;
       })
@@ -1381,6 +1385,20 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
       });
     figureLibraryState.loading = request;
     return request;
+  }
+
+  function resolveFigureLibraryErrorMessage(error) {
+    if (!error) return '';
+    if (typeof error.message === 'string' && error.message.trim()) {
+      return error.message.trim();
+    }
+    if (typeof error.statusText === 'string' && error.statusText.trim()) {
+      return error.statusText.trim();
+    }
+    if (error.payload && typeof error.payload.error === 'string' && error.payload.error.trim()) {
+      return error.payload.error.trim();
+    }
+    return '';
   }
 
   function figureEntryHasContent(entry) {
@@ -2541,6 +2559,7 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
 
     const figures = ensureFigureArray(item);
     const hasLibraryError = !!figureLibraryState.error;
+    const libraryErrorMessage = figureLibraryState.errorMessage || '';
     const initialLabel = typeof item.label === 'string' ? item.label.trim() : '';
     const initialAlt = typeof item.alt === 'string' ? item.alt.trim() : '';
     if (typeof item[AUTO_LABEL_PROP] === 'string' && item[AUTO_LABEL_PROP] && initialLabel && initialLabel !== item[AUTO_LABEL_PROP]) {
@@ -2553,7 +2572,9 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     if (hasLibraryError) {
       const errorMessage = doc.createElement('p');
       errorMessage.className = 'sortering__item-editor-message sortering__item-editor-message--error';
-      errorMessage.textContent = 'Kunne ikke laste figurbiblioteket.';
+      errorMessage.textContent = libraryErrorMessage
+        ? `Kunne ikke laste figurbiblioteket: ${libraryErrorMessage}`
+        : 'Kunne ikke laste figurbiblioteket.';
       listEl.appendChild(errorMessage);
     }
     if (!figures.length) {
