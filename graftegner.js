@@ -97,12 +97,12 @@ const DEFAULT_FUNCTION_COLORS = {
 };
 const DEFAULT_POINT_COLORS = {
   fallbackMarkerStroke: '#111827',
-  fallbackMarkerFill: '#ffffff',
+  fallbackMarkerFill: '#111827',
   fallbackDomain: '#6b7280',
   fallbackGuide: '#64748b',
   line: GRAFTEGNER_FALLBACK_PALETTE[0],
   markerStroke: GRAFTEGNER_FALLBACK_PALETTE[0],
-  markerFill: '#ffffff',
+  markerFill: GRAFTEGNER_FALLBACK_PALETTE[0],
   domainMarker: '#6b7280',
   guideStroke: '#64748b'
 };
@@ -294,7 +294,7 @@ function updateAxisArrowImage(image, dataUrl, width, height) {
 
 const DEFAULT_AXIS_COLOR = '#000000';
 
-const POINT_MARKER_SIZE = 6;
+const POINT_MARKER_SIZE = 8;
 
 /* =================== THEME & STYLE HANDLING =================== */
 
@@ -626,7 +626,7 @@ function applyGraftegnerPalette(palette, options = {}) {
   const tertiary = resolved[2] || secondary || DEFAULT_POINT_COLORS.fallbackGuide;
   DEFAULT_POINT_COLORS.line = primary;
   DEFAULT_POINT_COLORS.markerStroke = primary || DEFAULT_POINT_COLORS.fallbackMarkerStroke;
-  DEFAULT_POINT_COLORS.markerFill = DEFAULT_POINT_COLORS.fallbackMarkerFill;
+  DEFAULT_POINT_COLORS.markerFill = DEFAULT_POINT_COLORS.markerStroke || DEFAULT_POINT_COLORS.fallbackMarkerFill;
   DEFAULT_POINT_COLORS.domainMarker = secondary || DEFAULT_POINT_COLORS.fallbackDomain;
   DEFAULT_POINT_COLORS.guideStroke = tertiary || DEFAULT_POINT_COLORS.fallbackGuide;
   try {
@@ -685,7 +685,11 @@ const DEFAULT_UNBOUNDED_DOMAIN_SPAN = 10;
 const MULTI_FUNCTION_UNBOUNDED_DOMAIN_SPAN = 5;
 function sanitizePointMarkerValue(value) {
   if (typeof value !== 'string') return '';
-  return value.trim();
+  const trimmed = value.trim();
+  if (trimmed === '.') {
+    return DEFAULT_POINT_MARKER;
+  }
+  return trimmed;
 }
 function parsePointLockList(value) {
   if (typeof value !== 'string') return [];
