@@ -5536,6 +5536,18 @@ function formatExtraPointsForInput(points) {
   if (!Array.isArray(points)) return '';
   return points.map(formatPointForInput).filter(Boolean).join('; ');
 }
+function pointLabelForIndex(index) {
+  if (!Number.isInteger(index) || index < 0) return '';
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const base = alphabet.length;
+  let n = index;
+  let label = '';
+  do {
+    label = `${alphabet[n % base]}${label}`;
+    n = Math.floor(n / base) - 1;
+  } while (n >= 0);
+  return label;
+}
 function updateCoordsInputFromPoints(points, options = {}) {
   if (typeof document === 'undefined') return;
   const { triggerInput = false, triggerChange = false } = options;
@@ -5587,16 +5599,22 @@ function addFixedPoints() {
   const markerList = Array.isArray(appState.simple.parsed.pointMarkers) && appState.simple.parsed.pointMarkers.length
     ? appState.simple.parsed.pointMarkers
     : parsePointMarkerList(ADV.points.marker);
+  const showPointNames = !!(ADV.curveName && ADV.curveName.showName);
   appState.simple.parsed.extraPoints.forEach((pt, idx) => {
+    const pointLabel = showPointNames ? pointLabelForIndex(idx) : '';
     const pointOptions = {
-      name: '',
+      name: pointLabel,
       size: POINT_MARKER_SIZE,
       face: 'o',
       fillColor: DEFAULT_POINT_COLORS.markerFill || DEFAULT_POINT_COLORS.fallbackMarkerFill,
       strokeColor: DEFAULT_POINT_COLORS.markerStroke || DEFAULT_POINT_COLORS.fallbackMarkerStroke,
       withLabel: true,
       fixed: !!ADV.points.lockExtraPoints,
-      showInfobox: false
+      showInfobox: false,
+      label: {
+        visible: showPointNames,
+        offset: [10, 10]
+      }
     };
     const markerCandidate = markerValueForIndex(markerList, idx);
     const markerValue = sanitizePointMarkerValue(markerCandidate);
@@ -5616,19 +5634,39 @@ function addFixedPoints() {
         layer: 9
       });
     }
-    if (ADV.points.showCoordsOnHover) {
+    const hasHoverCoords = !!ADV.points.showCoordsOnHover;
+    if (P.label && showPointNames) {
+      P.label.setText(pointLabel);
       P.label.setAttribute({
-        visible: false
+        visible: true
       });
+    }
+    if (hasHoverCoords) {
+      const restorePointLabel = () => {
+        if (!P.label) return;
+        if (showPointNames) {
+          P.label.setText(pointLabel);
+          P.label.setAttribute({
+            visible: true
+          });
+        } else {
+          P.label.setAttribute({
+            visible: false
+          });
+        }
+      };
+      if (P.label && !showPointNames) {
+        P.label.setAttribute({
+          visible: false
+        });
+      }
       P.on('over', () => {
         P.label.setText(() => fmtCoordsStatic(P));
         P.label.setAttribute({
           visible: true
         });
       });
-      P.on('out', () => P.label.setAttribute({
-        visible: false
-      }));
+      P.on('out', restorePointLabel);
     }
     if (!ADV.points.lockExtraPoints) {
       const updatePointState = commit => {
@@ -6313,9 +6351,14 @@ function setupSettingsForm() {
   if (!root) return;
   const funcRows = document.getElementById('funcRows');
   let addBtn = document.getElementById('addFunc');
+  let removeBtn = document.getElementById('removeFunc');
   if (!addBtn) {
     addBtn = document.createElement('button');
     addBtn.id = 'addFunc';
+  }
+  if (!removeBtn) {
+    removeBtn = document.createElement('button');
+    removeBtn.id = 'removeFunc';
   }
   addBtn.type = 'button';
   addBtn.textContent = '+';
@@ -6323,10 +6366,19 @@ function setupSettingsForm() {
   addBtn.setAttribute('data-edit-only', '');
   addBtn.classList.remove('btn');
   addBtn.classList.add('addFigureBtn');
+  removeBtn.type = 'button';
+  removeBtn.textContent = '−';
+  removeBtn.setAttribute('aria-label', 'Fjern funksjon');
+  removeBtn.setAttribute('data-edit-only', '');
+  removeBtn.classList.remove('btn');
+  removeBtn.classList.add('addFigureBtn');
   const functionActions = document.querySelector('.func-actions');
   const functionsHost = functionActions || document.querySelector('.function-controls');
   if (functionsHost && addBtn.parentElement !== functionsHost) {
     functionsHost.appendChild(addBtn);
+  }
+  if (functionsHost && removeBtn.parentElement !== functionsHost) {
+    functionsHost.appendChild(removeBtn);
   }
   const g = id => document.getElementById(id);
   const showNamesInput = g('cfgShowNames');
@@ -6472,6 +6524,29 @@ function setupSettingsForm() {
   const functionColorControls = [];
   let answerControl = null;
   const extraAnswerControls = [];
+  const pruneControlsForExistingRows = () => {
+    const rows = funcRows ? Array.from(funcRows.querySelectorAll('.func-group')) : [];
+    if (!rows.length) return;
+    const rowSet = new Set(rows);
+    const pruneList = list => {
+      for (let i = list.length - 1; i >= 0; i -= 1) {
+        const entry = list[i];
+        const row = entry && entry.row;
+        if (!row || !rowSet.has(row)) {
+          list.splice(i, 1);
+        }
+      }
+    };
+    pruneList(pointMarkerControls);
+    pruneList(functionColorControls);
+    pruneList(extraAnswerControls);
+  };
+  const updateFunctionActionButtons = () => {
+    const rowCount = funcRows ? funcRows.querySelectorAll('.func-group').length : 0;
+    if (removeBtn) {
+      removeBtn.style.display = rowCount > 1 ? '' : 'none';
+    }
+  };
   const DEFAULT_COLOR_FALLBACK = normalizeColorValue(getDefaultCurveColor(0))
     || DEFAULT_FUNCTION_COLORS.fallback[0]
     || GRAFTEGNER_FALLBACK_PALETTE[0];
@@ -8408,6 +8483,7 @@ function setupSettingsForm() {
     if (index === 1) {
       updateAnswerPlacement();
     }
+    updateFunctionActionButtons();
     return row;
   };
   const resetScreenStateForExample = () => {
@@ -8565,6 +8641,7 @@ function setupSettingsForm() {
     syncExampleStateFromControls();
     syncSimpleFromForm();
     updateSnapAvailability();
+    updateFunctionActionButtons();
     refreshAltText('form-fill');
   };
   fillFormFromSimple(appState.simple.value);
@@ -8574,6 +8651,26 @@ function setupSettingsForm() {
       createRow(index, '', '', '', false, '');
       syncSimpleFromForm();
       scheduleSimpleRebuild();
+      updateFunctionActionButtons();
+      updateSnapAvailability();
+    });
+  }
+  if (removeBtn) {
+    removeBtn.addEventListener('click', () => {
+      const rows = funcRows ? Array.from(funcRows.querySelectorAll('.func-group')) : [];
+      if (rows.length <= 1) return;
+      const lastRow = rows[rows.length - 1];
+      lastRow.remove();
+      pruneControlsForExistingRows();
+      refreshFunctionColorDefaultsLocal();
+      updateAllExtraAnswerControls();
+      updateFunctionActionButtons();
+      const currentSimple = syncSimpleFromForm();
+      if (typeof window !== 'undefined') {
+        window.SIMPLE = currentSimple;
+      }
+      scheduleSimpleRebuild();
+      updateSnapAvailability();
     });
   }
   if (typeof window !== 'undefined') {
