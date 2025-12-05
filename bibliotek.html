@@ -119,37 +119,26 @@
       gap: clamp(16px, 3vw, 28px);
     }
     .categoryPanel__header {
-      display: grid;
-      gap: clamp(14px, 2vw, 22px);
-    }
-    .categoryIntro { display: grid; gap: 6px; }
-    .categoryIntro h2 {
-      margin: 0;
-      font-size: clamp(20px, 4vw, 26px);
-      color: var(--heading-color);
-    }
-    .categoryIntro p {
-      margin: 0;
-      color: #475569;
-      font-size: 0.95rem;
-      max-width: 65ch;
-    }
-    .libraryControls {
       display: flex;
-      flex-wrap: wrap;
       align-items: center;
+      justify-content: space-between;
       gap: 12px;
+      flex-wrap: wrap;
+    }
+    .libraryActions {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      width: 100%;
+      justify-content: flex-start;
     }
     .libraryControls__group {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
       font-size: 14px;
       color: #1f2937;
-    }
-    .libraryControls__group--search {
-      flex: 1 1 220px;
-      min-width: min(260px, 100%);
     }
     .libraryControls__group--sort {
       flex: 0 0 auto;
@@ -169,69 +158,6 @@
       border-color: rgba(37, 99, 235, 0.5);
       box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
       outline: none;
-    }
-    .categoryAddButton {
-      border: 1px dashed rgba(148, 163, 184, 0.6);
-      border-radius: 999px;
-      background: rgba(248, 250, 252, 0.85);
-      color: #1d4ed8;
-      font-weight: 600;
-      font-size: 14px;
-      padding: 10px 18px;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
-    }
-    .categoryAddButton::before {
-      content: '+';
-      font-weight: 700;
-    }
-    .categoryAddButton:hover,
-    .categoryAddButton:focus-visible {
-      border-color: rgba(37, 99, 235, 0.5);
-      box-shadow: 0 10px 20px rgba(37, 99, 235, 0.2);
-      transform: translateY(-1px);
-      outline: none;
-    }
-    .categoryAddButton:focus-visible {
-      outline: 3px solid rgba(37, 99, 235, 0.45);
-      outline-offset: 2px;
-    }
-    .categoryAddForm {
-      border: 1px dashed rgba(148, 163, 184, 0.6);
-      border-radius: 12px;
-      background: rgba(248, 250, 252, 0.9);
-      padding: 16px;
-      display: grid;
-      gap: 12px;
-    }
-    .categoryAddForm label {
-      display: grid;
-      gap: 6px;
-      font-size: 14px;
-      color: #1f2937;
-    }
-    .categoryAddInput {
-      border: 1px solid rgba(148, 163, 184, 0.6);
-      border-radius: 8px;
-      padding: 8px 10px;
-      font-size: 14px;
-      background: #fff;
-      color: #111827;
-      transition: border-color 0.18s ease, box-shadow 0.18s ease;
-    }
-    .categoryAddInput:focus {
-      border-color: rgba(37, 99, 235, 0.5);
-      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
-      outline: none;
-    }
-    .categoryAddControls {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
     }
     .categoryAppsField {
       margin: 0;
@@ -1234,13 +1160,11 @@
     <div class="libraryLayout">
       <section class="card categoryPanel" aria-labelledby="category-heading">
         <header class="categoryPanel__header">
-          <div class="categoryIntro">
-            <h2 id="category-heading">Kategorier</h2>
-            <p>Bruk kategoriene for å filtrere figurene i oversikten.</p>
-          </div>
-          <div class="libraryControls" aria-label="Filtrering og alternativer">
+          <h2 id="category-heading" class="visuallyHidden">Kategorier</h2>
+          <div class="libraryActions" aria-label="Filtrering og alternativer">
+            <button type="button" class="categoryAddSubmit" data-upload-launch>Last opp figurer</button>
             <label class="libraryControls__group libraryControls__group--sort">
-              <span>Sorter</span>
+              <span class="visuallyHidden">Sorter</span>
               <select data-category-sort>
                 <option value="default">Standard</option>
                 <option value="alphabetical">A–Å</option>
@@ -1248,11 +1172,6 @@
             </label>
           </div>
         </header>
-        <div class="categoryAddForm">
-          <div class="categoryAddControls">
-            <button type="button" class="categoryAddSubmit" data-upload-launch>Last opp figurer</button>
-          </div>
-        </div>
         <ul class="categoryGrid" data-category-grid></ul>
       </section>
     </div>
