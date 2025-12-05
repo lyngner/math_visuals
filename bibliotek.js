@@ -3606,15 +3606,12 @@ async function fetchFigureLibrary(method = 'GET', payload, requestConfig = {}) {
       try {
         data = JSON.parse(trimmedText);
       } catch (error) {
-        if (response.ok) {
-          const parsingError = new Error('Ugyldig JSON-respons fra figurbiblioteket');
-          parsingError.response = response;
-          parsingError.nonJsonResponse = !isJsonResponse;
-          parsingError.responseContentType = contentTypeHeader || null;
-          parsingError.responseText = text;
-          throw parsingError;
-        }
-        data = {};
+        const parsingError = new Error('Ugyldig JSON-respons fra figurbiblioteket');
+        parsingError.response = response;
+        parsingError.nonJsonResponse = !isJsonResponse;
+        parsingError.responseContentType = contentTypeHeader || null;
+        parsingError.responseText = text;
+        throw parsingError;
       }
     } else if (response.ok) {
       const parsingError = new Error('Ugyldig JSON-respons fra figurbiblioteket');
