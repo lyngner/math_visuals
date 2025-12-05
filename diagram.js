@@ -946,7 +946,7 @@ function drawAxesAndGrid() {
   // y-akse
   const yAxisGroup = addTo(gAxis, 'g', { class: 'axis-group axis-group--y' });
   const yArrowAnchor = M.t - 12;
-  const yLineStart = yArrowAnchor - 7; // Juster denne litt hvis pilen havner for langt ned/opp
+  const yLineStart = yArrowAnchor - 1; // Juster denne litt hvis pilen havner for langt ned/opp
   const axisColor = getAxisColor();
   addTo(yAxisGroup, 'line', {
     x1: M.l,
@@ -956,13 +956,13 @@ function drawAxesAndGrid() {
     class: 'axis'
   });
 
-  addTo(yAxisGroup, 'image', {
-    href: axisArrowSvgData('y', axisColor),
-    width: Y_AXIS_ARROW_SIZE.width,
-    height: Y_AXIS_ARROW_SIZE.height,
-    x: M.l - Y_AXIS_ARROW_SIZE.width / 2,
-    y: yArrowAnchor - Y_AXIS_ARROW_SIZE.height,
-    preserveAspectRatio: 'none',
+  addTo(yAxisGroup, 'path', {
+    d: `M ${M.l - 13} ${yArrowAnchor - 2} L ${M.l} ${yArrowAnchor - 15} L ${M.l + 13} ${yArrowAnchor - 2}`,
+    fill: 'none',
+    stroke: axisColor,
+    'stroke-width': 3,
+    'stroke-linecap': 'round',
+    'stroke-linejoin': 'round',
     'data-axis-arrow': 'y'
   });
 
