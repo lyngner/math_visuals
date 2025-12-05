@@ -34,10 +34,10 @@
   const cfgAntallWrapper = document.getElementById('cfg-antall-wrapper');
   const exportCard = document.getElementById('exportCard');
   const DEFAULT_BRICK_PALETTE = {
-    stroke: '#af207a',
+    stroke: '#932464',
     left: '#cf3a8f',
-    right: '#df76ae',
-    top: '#eca7cb'
+    right: '#d75ba2',
+    top: '#df7cb4'
   };
   const DOT_FALLBACKS = {
     default: '#534477',
@@ -131,9 +131,9 @@
   function buildBrickPalette(baseColor) {
     const normalizedBase = normalizeHexColor(baseColor);
     if (!normalizedBase) return { ...DEFAULT_BRICK_PALETTE };
-    const stroke = adjustLightness(normalizedBase, -0.12) || DEFAULT_BRICK_PALETTE.stroke;
-    const right = adjustLightness(normalizedBase, 0.15) || DEFAULT_BRICK_PALETTE.right;
-    const top = adjustLightness(normalizedBase, 0.27) || DEFAULT_BRICK_PALETTE.top;
+    const stroke = adjustLightness(normalizedBase, -0.16) || DEFAULT_BRICK_PALETTE.stroke;
+    const right = adjustLightness(normalizedBase, 0.08) || DEFAULT_BRICK_PALETTE.right;
+    const top = adjustLightness(normalizedBase, 0.16) || DEFAULT_BRICK_PALETTE.top;
     return {
       stroke,
       left: normalizedBase,
