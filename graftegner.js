@@ -663,8 +663,15 @@ function paramStr(id, def = '') {
   const v = params.get(id);
   return v == null ? def : v;
 }
-function paramBool(id) {
-  return params.get(id) === '1';
+function paramBool(id, fallback = false) {
+  if (!params.has(id)) return !!fallback;
+  const raw = params.get(id);
+  if (raw == null) return !!fallback;
+  const normalized = String(raw).trim().toLowerCase();
+  if (!normalized) return true;
+  if (['1', 'true', 'yes', 'on', 'y', 't'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off', 'n', 'f'].includes(normalized)) return false;
+  return !!fallback;
 }
 function paramNumber(id, def = null) {
   const v = params.get(id);
