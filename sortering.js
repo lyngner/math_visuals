@@ -1800,15 +1800,15 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
 
   function resolveFigureAsset(figure) {
     if (!figure || typeof figure !== 'object') {
-      return '';
+      return { path: '', hasBasePath: false };
     }
     const imagePath = typeof figure.image === 'string' ? figure.image.trim() : '';
     if (imagePath) {
-      return imagePath;
+      return { path: imagePath, hasBasePath: imagePath.startsWith('/') };
     }
     const assetPath = typeof figure.asset === 'string' ? figure.asset.trim() : '';
     if (assetPath) {
-      return assetPath;
+      return { path: assetPath, hasBasePath: assetPath.startsWith('/') };
     }
     const fileName = typeof figure.fileName === 'string' ? figure.fileName.trim() : '';
     if (fileName) {
@@ -1819,12 +1819,23 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
           : '';
       const basePath = ensureTrailingSlash(baseCandidate);
       const prefix = basePath || '';
-      return prefix ? encodeURI(`${prefix}${fileName}`) : encodeURI(fileName);
+      return { path: prefix ? encodeURI(`${prefix}${fileName}`) : encodeURI(fileName), hasBasePath: !!prefix };
     }
-    return '';
+    return { path: '', hasBasePath: false };
   }
 
+  function isAbsoluteAssetPath(value) {
+    if (typeof value !== 'string' || !value) return false;
+    return /^https?:\/\//i.test(value) || value.startsWith('//') || value.startsWith('data:') || value.startsWith('/') || /^blob:/i.test(value) || /^file:/i.test(value);
+  }
+
+  // Raw endpoint used to fetch figure assets when no absolute path is provided.
   const FIGURE_LIBRARY_RAW_ENDPOINT = '/api/figure-library/raw';
+
+  function buildRawAssetUrl(slug) {
+    const params = new URLSearchParams({ slug });
+    return `${FIGURE_LIBRARY_RAW_ENDPOINT}?${params.toString()}`;
+  }
 
   function buildFigureAssetPath(value) {
     if (typeof value !== 'string') return '';
@@ -1834,28 +1845,31 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     const option = figurePicker.findOptionByValue(trimmed);
     if (option && option.figure) {
       const resolved = resolveFigureAsset(option.figure);
-      if (resolved) {
-        return resolved;
+      if (resolved.path) {
+        if (isAbsoluteAssetPath(resolved.path)) {
+          return resolved.path;
+        }
+        return buildRawAssetUrl(resolved.path);
       }
     }
 
     const fallbackFigure = findFigureInData(trimmed) || findFigureInManifest(trimmed);
     if (fallbackFigure) {
       const resolved = resolveFigureAsset(fallbackFigure);
-      if (resolved) {
-        return resolved;
+      if (resolved.path) {
+        if (isAbsoluteAssetPath(resolved.path)) {
+          return resolved.path;
+        }
+        return buildRawAssetUrl(resolved.path);
       }
     }
 
-    if (/^https?:\/\//i.test(trimmed)) {
-      return trimmed;
-    }
-    if (trimmed.startsWith('/') || trimmed.includes('/') || trimmed.startsWith('data:')) {
+    if (isAbsoluteAssetPath(trimmed)) {
       return trimmed;
     }
 
-    const params = new URLSearchParams({ slug: trimmed });
-    return `${FIGURE_LIBRARY_RAW_ENDPOINT}?${params.toString()}`;
+    // Use the raw endpoint when the resolved asset path is missing or not absolute.
+    return buildRawAssetUrl(trimmed);
   }
 
   function ensureFigureArray(item) {
