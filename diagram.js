@@ -946,7 +946,7 @@ function drawAxesAndGrid() {
   // y-akse
   const yAxisGroup = addTo(gAxis, 'g', { class: 'axis-group axis-group--y' });
   const yArrowAnchor = M.t - 12;
-  const yLineStart = yArrowAnchor - 8; // Juster denne litt hvis pilen havner for langt ned/opp
+  const yLineStart = yArrowAnchor - 14; // Juster denne litt hvis pilen havner for langt ned/opp
   const axisColor = getAxisColor();
   addTo(yAxisGroup, 'line', {
     x1: M.l,
