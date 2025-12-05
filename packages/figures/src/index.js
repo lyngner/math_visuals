@@ -362,6 +362,7 @@ function normalizeLibraryFigure(entry, categoryLabels = new Map()) {
       ? image
       : '';
   const categoryApps = normalizeAppList(entry.category && entry.category.apps);
+  const apps = normalizeAppList(entry.apps);
   return {
     id: `remote:${idSource}`,
     slug: idSource,
@@ -379,6 +380,7 @@ function normalizeLibraryFigure(entry, categoryLabels = new Map()) {
     createdAt,
     updatedAt,
     categoryApps,
+    apps,
     storageMode: normalizeStorageMode(entry.storageMode || entry.mode || entry.storage)
   };
 }
@@ -533,6 +535,35 @@ function resolveFigureLibraryFallbackEndpoints(url) {
   return Array.from(fallbackEndpoints);
 }
 
+function extractScaleLabelFromFileName(fileName) {
+  if (typeof fileName !== 'string') {
+    return '';
+  }
+  const stripped = fileName.replace(/\.[^.]*$/, '');
+  let decoded = stripped;
+  try {
+    decoded = decodeURI(stripped);
+  } catch (_) {}
+  const normalized = decoded
+    .replace(/[_\s]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!normalized) {
+    return '';
+  }
+  const match = normalized.match(/(?:^|\D)1\s*[:xX\-_/\\]?\s*([0-9]+(?:[.,][0-9]+)?)(?:\b|$)/);
+  if (!match) {
+    return '';
+  }
+  const raw = match[1].replace(',', '.');
+  const parsed = Number.parseFloat(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return '';
+  }
+  const clean = Number.isInteger(parsed) ? String(parsed) : String(parsed).replace(/\.0+$/, '');
+  return `1:${clean}`;
+}
+
 function shapeRemoteMeasurementFigure(remoteFigure, options = {}) {
   if (!remoteFigure || typeof remoteFigure !== 'object') {
     return null;
@@ -547,9 +578,10 @@ function shapeRemoteMeasurementFigure(remoteFigure, options = {}) {
   const description = typeof remoteFigure.description === 'string' && remoteFigure.description.trim()
     ? remoteFigure.description.trim()
     : '';
-  const scaleLabel = typeof remoteFigure.scaleLabel === 'string' && remoteFigure.scaleLabel.trim()
+  const fileName = typeof remoteFigure.fileName === 'string' ? remoteFigure.fileName : '';
+  let scaleLabel = typeof remoteFigure.scaleLabel === 'string' && remoteFigure.scaleLabel.trim()
     ? remoteFigure.scaleLabel.trim()
-    : '';
+    : extractScaleLabelFromFileName(fileName);
   const summaryParts = [];
   if (summarySource) {
     summaryParts.push(summarySource);
@@ -571,15 +603,17 @@ function shapeRemoteMeasurementFigure(remoteFigure, options = {}) {
   const tags = Array.isArray(remoteFigure.tags) ? remoteFigure.tags.slice() : [];
   const categoryApps = Array.isArray(remoteFigure.categoryApps)
     ? normalizeAppList(remoteFigure.categoryApps)
-    : Array.isArray(remoteFigure.apps)
-      ? normalizeAppList(remoteFigure.apps)
-      : [];
+    : [];
+  const figureApps = Array.isArray(remoteFigure.apps)
+    ? normalizeAppList(remoteFigure.apps)
+    : [];
+  const combinedApps = categoryApps.length ? categoryApps : figureApps;
   return {
     id: remoteFigure.id,
     slug: remoteFigure.slug,
     name: remoteFigure.name,
     image: remoteFigure.image,
-    fileName: remoteFigure.fileName || null,
+    fileName: fileName || null,
     dimensions,
     scaleLabel,
     summary,
@@ -594,7 +628,9 @@ function shapeRemoteMeasurementFigure(remoteFigure, options = {}) {
     source: 'api',
     custom: true,
     remote: true,
-    apps: categoryApps
+    apps: combinedApps,
+    categoryApps,
+    figureApps
   };
 }
 
@@ -673,7 +709,7 @@ function isCategoryAllowed(apps, allowedSet) {
   }
   const normalized = normalizeAppList(apps);
   if (!normalized.length) {
-    return true;
+    return false;
   }
   return normalized.some(entry => allowedSet.has(entry.toLowerCase()));
 }
@@ -742,14 +778,25 @@ export function buildMeasurementFigureData(options = {}) {
       const existingAppList = remoteCategoryApps.has(targetCategoryId)
         ? remoteCategoryApps.get(targetCategoryId)
         : null;
-      const categoryAppsSource = existingAppList != null ? existingAppList : shaped.apps;
+      const figureApps = Array.isArray(shaped.figureApps) && shaped.figureApps.length
+        ? cloneAppList(shaped.figureApps)
+        : Array.isArray(shaped.apps)
+          ? cloneAppList(shaped.apps)
+          : [];
+      const categoryAppsSource = existingAppList != null
+        ? existingAppList
+        : shaped.categoryApps && shaped.categoryApps.length
+          ? shaped.categoryApps
+          : shaped.apps;
       const categoryApps = Array.isArray(categoryAppsSource)
         ? cloneAppList(categoryAppsSource)
         : [];
       if (existingAppList == null) {
         remoteCategoryApps.set(targetCategoryId, categoryApps.slice());
       }
-      if (!isCategoryAllowed(categoryApps, allowedApps)) {
+      const categoryAllowed = isCategoryAllowed(categoryApps, allowedApps);
+      const figureAllowed = isCategoryAllowed(figureApps, allowedApps);
+      if (!categoryAllowed && !figureAllowed) {
         return;
       }
       let category = categoriesById.get(targetCategoryId);
