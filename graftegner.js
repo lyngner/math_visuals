@@ -1378,7 +1378,10 @@ applyLinePointStart(appState.simple.parsed);
 
 function parsePointListString(str) {
   if (typeof str !== 'string') return [];
-  return str.split(';').map(part => {
+  const normalized = str
+    .replace(/\)\s*,\s*(?=\()/g, ');')
+    .replace(/;+/g, ';');
+  return normalized.split(';').map(part => {
     const cleaned = part
       .trim()
       .replace(/^[A-Za-z\u00C0-\u024F]+\w*\s*=\s*/, '')
