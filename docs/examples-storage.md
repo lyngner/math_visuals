@@ -179,6 +179,9 @@ Standardfeltet `EXAMPLES_SEED_JSON` fungerer som felles default på tvers av mil
 
 ### Avvikle den gamle Vercel-instansen
 
+Vercel-prosjektet er nå stengt, så AWS-stackene er eneste kilde for `/api/examples`. Runbooken under er beholdt for historikk og
+auditering dersom du trenger å verifisere at DNS/data ble flyttet riktig:
+
 Når AWS-stacken er bekreftet i drift bør Vercel-miljøet fjernes for å unngå misvisende klienter og ekstra kostnader:
 
 1. Sett produksjonsdomenet til å peke på CloudFront-distribusjonen i stedet for Vercel og bekreft at `/api/examples` svarer med `mode: "kv"` (som betyr Redis i denne konteksten).
