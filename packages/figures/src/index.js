@@ -477,8 +477,12 @@ function parseJsonResponse(response) {
     if (!text) {
       return {};
     }
+    const normalizedText = text.replace(/^\ufeff/, '').trim();
+    if (!normalizedText) {
+      return {};
+    }
     try {
-      return JSON.parse(text);
+      return JSON.parse(normalizedText);
     } catch (error) {
       if (response.ok) {
         const parsingError = new Error('Invalid JSON response from figure library');
