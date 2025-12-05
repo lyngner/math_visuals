@@ -216,14 +216,23 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     app: FIGURE_LIBRARY_APP_KEY,
     extractRealWorldSizeFromText
   });
+  const figurePickerData = {
+    ...figureData,
+    categories: Array.isArray(figureData.categories)
+      ? figureData.categories.filter(category => category && category.id !== CUSTOM_CATEGORY_ID)
+      : []
+  };
   if (!storageWarningMessage) {
     storageWarningMessage = resolveStorageWarningMessage(figureData.metadata);
   }
   const figurePicker = createFigurePickerHelpers({
     doc,
-    figureData,
+    figureData: figurePickerData,
     getFigureValue: figure => (figure && figure.id != null ? String(figure.id) : ''),
-    fallbackCategoryId: CUSTOM_CATEGORY_ID
+    fallbackCategoryId:
+      figurePickerData.categories && figurePickerData.categories.length
+        ? figurePickerData.categories[0].id
+        : CUSTOM_CATEGORY_ID
   });
   function findDefaultPreset() {
     if (!figureData || !Array.isArray(figureData.categories)) {
