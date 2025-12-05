@@ -1291,20 +1291,23 @@ const EXAMPLE_STATE = (() => {
   return existing;
 })();
 
-const CURVE_LABEL_STATE = (() => {
+const CURVE_LABEL_STATE = [];
+function hydrateCurveLabelStateFromExample() {
+  CURVE_LABEL_STATE.length = 0;
   const source = EXAMPLE_STATE && Array.isArray(EXAMPLE_STATE.curveLabels)
     ? EXAMPLE_STATE.curveLabels
     : [];
-  return source.map(entry => {
-    if (!entry || typeof entry !== 'object') {
-      return { manual: false, position: null };
-    }
-    const pos = Array.isArray(entry.position) && entry.position.length >= 2
+  source.forEach((entry, idx) => {
+    const pos = entry && Array.isArray(entry.position) && entry.position.length >= 2
       ? entry.position.slice(0, 2)
       : null;
-    return { manual: !!entry.manual, position: pos };
+    CURVE_LABEL_STATE[idx] = {
+      manual: !!(entry && entry.manual),
+      position: pos
+    };
   });
-})();
+}
+hydrateCurveLabelStateFromExample();
 
 function curveLabelState(index) {
   const idx = Number.isInteger(index) && index >= 0 ? index : 0;
@@ -6750,6 +6753,7 @@ function setupSettingsForm() {
       : !!fallback
   );
   const applyExampleStateToControls = () => {
+    hydrateCurveLabelStateFromExample();
     hydrateAxisLabelStateFromExample();
     const axisLabelConfig = exampleState && typeof exampleState.axisLabels === 'object'
       ? exampleState.axisLabels
@@ -9184,6 +9188,7 @@ function setupSettingsForm() {
   }
   if (typeof window !== 'undefined') {
     window.addEventListener('examples:loaded', () => {
+      hydrateCurveLabelStateFromExample();
       resetScreenStateForExample();
       fillFormFromSimple(window.SIMPLE);
       apply();
