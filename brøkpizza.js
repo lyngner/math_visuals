@@ -229,49 +229,28 @@ function getActiveThemeProjectName(theme = getThemeApi()) {
 }
 
 function resolvePaletteProjectName() {
-  // 1. Sjekk Resolver (hvis den finnes og er smart)
-  const resolver = getPaletteProjectResolver();
-  const doc = typeof document !== 'undefined' ? document : null;
+  // 1. Sjekk DOM-roten (HTML-taggen). Dette er den ENESTE sannheten for visning.
+  if (typeof document !== 'undefined' && document.documentElement) {
+    const root = document.documentElement;
 
-  if (resolver && typeof resolver.resolvePaletteProject === 'function') {
-    try {
-      const resolved = resolver.resolvePaletteProject({
-        document: doc || undefined,
-        root: doc && doc.documentElement ? doc.documentElement : undefined
-      });
-      if (typeof resolved === 'string' && resolved) {
-        return resolved;
-      }
-    } catch (_) {}
-  }
+    // Sjekk de ulike måtene prosjektet kan være definert på i DOM
+    const attr =
+      root.getAttribute('data-mv-active-project') ||
+      root.getAttribute('data-theme-profile') ||
+      root.getAttribute('data-project');
 
-  // 2. Sjekk DOM-roten (Fasiten for visning)
-  if (doc && doc.documentElement) {
-    const root = doc.documentElement;
-    const direct =
-      (typeof root.getAttribute === 'function' && root.getAttribute('data-project')) ||
-      (root.dataset && root.dataset.project);
-    if (typeof direct === 'string' && direct.trim()) {
-      return direct.trim().toLowerCase();
-    }
-    const activeAttr = root.getAttribute && root.getAttribute('data-mv-active-project');
-    if (typeof activeAttr === 'string' && activeAttr.trim()) {
-      return activeAttr.trim().toLowerCase();
-    }
-    const profileAttr = root.getAttribute && root.getAttribute('data-theme-profile');
-    if (typeof profileAttr === 'string' && profileAttr.trim()) {
-      return profileAttr.trim().toLowerCase();
+    if (attr && typeof attr === 'string' && attr.trim()) {
+      return attr.trim().toLowerCase();
     }
   }
 
-  // 3. Sjekk Theme API
+  // 2. Sjekk Theme API hvis det er tilgjengelig (det leser ofte også fra DOM)
   const theme = getThemeApi();
   const activeThemeProject = getActiveThemeProjectName(theme);
   if (activeThemeProject) return activeThemeProject;
 
-  // --- VIKTIG: FJERNET SJEKKENE MOT SETTINGS API HER ---
-  // Vi vil ikke at redigeringsmodus i Settings skal overstyre visningen
-  // hvis DOM-attributtet er forsinket.
+  // VIKTIG: Vi har FJERNET sjekken mot 'settings.getActiveProject()'.
+  // Det er den som gjorde at fargen "smitter" fra det du redigerer til det du viser.
 
   return null;
 }
@@ -2449,12 +2428,23 @@ function applyExamplesConfig() {
   initFromHtml();
 }
 
+let themeRefreshTimer = null;
+
 function handleThemePaletteChanged() {
-  // Vent litt for å la DOM-attributtene oppdateres
-  setTimeout(() => {
+  // Hvis en oppdatering allerede er planlagt, avlys den (stopp flimring)
+  if (themeRefreshTimer) {
+    clearTimeout(themeRefreshTimer);
+  }
+
+  // Vent 50ms for å la alle systemer (DOM, Settings, API) bli enige
+  themeRefreshTimer = setTimeout(() => {
+    themeRefreshTimer = null;
+    
+    // Nå oppdaterer vi CSS-variablene
     applyThemeToDocument();
+    
+    // Og tegner pizzaen på nytt med de nye verdiene
     if (typeof window !== 'undefined' && typeof window.applyConfig === 'function') {
-      // Bruk applyConfig eller initFromHtml for å tegne på nytt
       window.applyConfig();
     } else {
       initFromHtml();
