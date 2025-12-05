@@ -1527,6 +1527,9 @@ function createCategoryDialogListItem(item) {
   const slug = getFigureSlug(item);
   if (!slug) return null;
   const name = typeof item.data?.name === 'string' && item.data.name.trim() ? item.data.name.trim() : slug;
+  const entryId = typeof item.data?.entryId === 'string' && item.data.entryId.trim()
+    ? item.data.entryId.trim()
+    : '';
 
   const li = document.createElement('li');
   li.className = 'categoryDialog__item';
@@ -1535,6 +1538,9 @@ function createCategoryDialogListItem(item) {
   li.dataset.name = name;
   if (item.data?.custom) {
     li.dataset.custom = 'true';
+  }
+  if (entryId) {
+    li.dataset.entryId = entryId;
   }
 
   const toggle = document.createElement('button');
@@ -1571,6 +1577,26 @@ function createCategoryDialogListItem(item) {
   toggle.appendChild(indicator);
 
   li.appendChild(toggle);
+
+  const nameContainer = document.createElement('div');
+  nameContainer.className = 'categoryDialog__name';
+
+  if (item.data?.custom) {
+    const nameButton = document.createElement('button');
+    nameButton.type = 'button';
+    nameButton.className = 'categoryDialog__nameButton';
+    nameButton.dataset.categoryNameEdit = 'true';
+    nameButton.textContent = name;
+    nameButton.title = 'Rediger navn';
+    nameContainer.appendChild(nameButton);
+  } else {
+    const nameLabel = document.createElement('p');
+    nameLabel.className = 'categoryDialog__nameLabel';
+    nameLabel.textContent = name;
+    nameContainer.appendChild(nameLabel);
+  }
+
+  li.appendChild(nameContainer);
   return li;
 }
 
@@ -1752,6 +1778,18 @@ function toggleCategoryFigureSelection(slug, itemElement) {
 
 function handleCategoryDialogFigureClick(event) {
   if (!categoryDialogFigures) return;
+  const editButton = event.target?.closest?.('[data-category-name-edit]');
+  if (editButton && categoryDialogFigures.contains(editButton)) {
+    event.preventDefault();
+    const item = editButton.closest('[data-category-item]');
+    if (!item) return;
+    if (item.dataset.custom !== 'true') return;
+    const entryId = item.dataset.entryId || item.dataset.slug || '';
+    if (entryId) {
+      openCustomEditor(entryId, editButton);
+    }
+    return;
+  }
   const toggle = event.target?.closest?.('[data-category-toggle]');
   if (!toggle || !categoryDialogFigures.contains(toggle)) {
     return;
