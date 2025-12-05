@@ -4556,9 +4556,11 @@ function buildCurveLabelContent(fun) {
   const showName = !!(ADV !== null && ADV !== void 0 && (_ADV$curveName = ADV.curveName) !== null && _ADV$curveName !== void 0 && _ADV$curveName.showName);
   const showExpr = !!(ADV !== null && ADV !== void 0 && (_ADV$curveName2 = ADV.curveName) !== null && _ADV$curveName2 !== void 0 && _ADV$curveName2.showExpression);
   if (!showName && !showExpr) return null;
-  const nameTextRaw = typeof (fun === null || fun === void 0 ? void 0 : fun.label) === 'string' ? fun.label : '';
+  const labelRaw = typeof (fun === null || fun === void 0 ? void 0 : fun.label) === 'string' ? fun.label : '';
+  const nameRaw = typeof (fun === null || fun === void 0 ? void 0 : fun.name) === 'string' ? fun.name : '';
+  const nameTextRaw = labelRaw || nameRaw;
   const exprTextRaw = typeof (fun === null || fun === void 0 ? void 0 : fun.rhs) === 'string' ? fun.rhs : '';
-  const nameText = normalizeExpressionText(nameTextRaw);
+  const nameText = normalizeExpressionText(nameTextRaw || nameRaw);
   const exprText = normalizeExpressionText(exprTextRaw);
   let plain = '';
   if (showName && showExpr) {
