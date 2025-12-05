@@ -1829,6 +1829,8 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     return '';
   }
 
+  const FIGURE_LIBRARY_RAW_ENDPOINT = '/api/figure-library/raw';
+
   function buildFigureAssetPath(value) {
     if (typeof value !== 'string') return '';
     const trimmed = value.trim();
@@ -1856,7 +1858,9 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     if (trimmed.startsWith('/') || trimmed.includes('/') || trimmed.startsWith('data:')) {
       return trimmed;
     }
-    return `${FIGURE_LIBRARY_BASE_PATH}${trimmed}`;
+
+    const params = new URLSearchParams({ slug: trimmed });
+    return `${FIGURE_LIBRARY_RAW_ENDPOINT}?${params.toString()}`;
   }
 
   function ensureFigureArray(item) {
