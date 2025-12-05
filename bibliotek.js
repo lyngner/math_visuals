@@ -3612,9 +3612,13 @@ async function fetchFigureLibrary(method = 'GET', payload, requestConfig = {}) {
           parsingError.nonJsonResponse = !isJsonResponse;
           parsingError.responseContentType = contentTypeHeader || null;
           parsingError.responseText = text;
-          throw parsingError;
+          if (typeof console !== 'undefined' && console && typeof console.warn === 'function') {
+            console.warn('Ignorerer ugyldig JSON fra figurbiblioteket og bruker lokal data.', parsingError);
+          }
+          data = {};
+        } else {
+          data = {};
         }
-        data = {};
       }
     } else if (response.ok) {
       const parsingError = new Error('Ugyldig JSON-respons fra figurbiblioteket');
@@ -3622,7 +3626,10 @@ async function fetchFigureLibrary(method = 'GET', payload, requestConfig = {}) {
       parsingError.nonJsonResponse = true;
       parsingError.responseContentType = contentTypeHeader || null;
       parsingError.responseText = text;
-      throw parsingError;
+      if (typeof console !== 'undefined' && console && typeof console.warn === 'function') {
+        console.warn('Ignorerer ugyldig JSON fra figurbiblioteket og bruker lokal data.', parsingError);
+      }
+      data = {};
     }
   }
   if (!response.ok) {
