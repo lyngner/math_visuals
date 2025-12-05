@@ -79,7 +79,7 @@ For utviklingsmiljøet finnes nå en egen GitHub Actions-pipeline [`deploy-infra
 
 Dev-URL (oppdater med domenet fra første `deploy-infra-dev`-kjøring): `https://<cloudfront-domain-for-math-visuals-static-site-dev>`.
 
-> **Avvikle Vercel:** Produksjonen kjøres allerede i AWS, men når de siste etterkontrollene er ferdige kan den gamle Vercel-instansen fjernes. Følg sjekklisten i `docs/examples-storage.md` (flytt DNS til CloudFront, eksporter eventuelle resterende data via AWS-stacken, slett Upstash/KV i Vercel og steng prosjektet).
+> **Vercel er avviklet:** Produksjonen kjører nå kun i AWS (CloudFront + API Gateway/Lambda + Redis). Vercel-prosjektet er stengt, så alle nye deployer og feilrettinger må rulles ut via AWS-stackene. Sjekk `docs/examples-storage.md` hvis du trenger historikk over dekommisjoneringen eller vil bekrefte DNS-/dataflyttingen.
 
 ### Manuell opplasting
 
