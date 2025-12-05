@@ -3600,27 +3600,29 @@ async function fetchFigureLibrary(method = 'GET', payload, requestConfig = {}) {
     text = '';
   }
   if (text) {
-    try {
-      if (isJsonResponse) {
-        data = JSON.parse(text);
-      } else if (response.ok) {
-        const parsingError = new Error('Ugyldig JSON-respons fra figurbiblioteket');
-        parsingError.response = response;
-        parsingError.nonJsonResponse = true;
-        parsingError.responseContentType = contentTypeHeader || null;
-        parsingError.responseText = text;
-        throw parsingError;
+    const trimmedText = text.trim();
+    const shouldAttemptParsing = isJsonResponse || trimmedText.startsWith('{') || trimmedText.startsWith('[');
+    if (shouldAttemptParsing) {
+      try {
+        data = JSON.parse(trimmedText);
+      } catch (error) {
+        if (response.ok) {
+          const parsingError = new Error('Ugyldig JSON-respons fra figurbiblioteket');
+          parsingError.response = response;
+          parsingError.nonJsonResponse = !isJsonResponse;
+          parsingError.responseContentType = contentTypeHeader || null;
+          parsingError.responseText = text;
+          throw parsingError;
+        }
+        data = {};
       }
-    } catch (error) {
-      if (response.ok) {
-        const parsingError = new Error('Ugyldig JSON-respons fra figurbiblioteket');
-        parsingError.response = response;
-        parsingError.nonJsonResponse = !isJsonResponse;
-        parsingError.responseContentType = contentTypeHeader || null;
-        parsingError.responseText = text;
-        throw parsingError;
-      }
-      data = {};
+    } else if (response.ok) {
+      const parsingError = new Error('Ugyldig JSON-respons fra figurbiblioteket');
+      parsingError.response = response;
+      parsingError.nonJsonResponse = true;
+      parsingError.responseContentType = contentTypeHeader || null;
+      parsingError.responseText = text;
+      throw parsingError;
     }
   }
   if (!response.ok) {
