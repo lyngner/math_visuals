@@ -1738,6 +1738,7 @@ function parseSimple(txt) {
     pointsCount: 0,
     startX: [],
     extraPoints: [],
+    pointNames: [],
     linePoints: [],
     answer: null,
     answers: [],
@@ -1822,9 +1823,23 @@ function parseSimple(txt) {
     const cm = L.match(/^coords\s*=\s*(.+)$/i);
     if (cm) {
       const startIndex = out.extraPoints.length;
-      const pts = cm[1].split(';').map(s => s.trim().replace(/^\(|\)$/g, '')).filter(Boolean).map(p => p.split(',').map(t => +t.trim()).filter(Number.isFinite));
-      for (const pt of pts) {
-        if (pt.length === 2) out.extraPoints.push(pt);
+      const pts = cm[1].split(';')
+        .map(s => s.trim())
+        .filter(Boolean)
+        .map(entry => {
+          const nameMatch = entry.match(/^([A-Za-z\u00C0-\u024F]+\w*)\s*=/);
+          const name = nameMatch ? nameMatch[1] : null;
+          const coords = entry.replace(/^([A-Za-z\u00C0-\u024F]+\w*)\s*=\s*/, '').replace(/^\(|\)$/g, '')
+            .split(',')
+            .map(t => +t.trim())
+            .filter(Number.isFinite);
+          return { name, coords };
+        });
+      for (const { name, coords } of pts) {
+        if (coords.length === 2) {
+          out.extraPoints.push(coords);
+          out.pointNames.push(name || null);
+        }
       }
       const count = out.extraPoints.length - startIndex;
       if (count > 0) {
@@ -1889,6 +1904,9 @@ function parseSimple(txt) {
   }
   if (out.pointLocks.length > out.extraPoints.length) {
     out.pointLocks = out.pointLocks.slice(0, out.extraPoints.length);
+  }
+  if (out.pointNames.length > out.extraPoints.length) {
+    out.pointNames = out.pointNames.slice(0, out.extraPoints.length);
   }
   if (!out.pointMarker && out.pointMarkers.length) {
     out.pointMarker = formatPointMarkerList(out.pointMarkers);
@@ -5791,7 +5809,10 @@ function addFixedPoints() {
   const lockList = Array.isArray(appState.simple.parsed.pointLocks) ? appState.simple.parsed.pointLocks : [];
   const showPointNames = !!(ADV.curveName && ADV.curveName.showName);
   appState.simple.parsed.extraPoints.forEach((pt, idx) => {
-    const pointLabel = showPointNames ? pointLabelForIndex(idx) : '';
+    const customPointName = Array.isArray(appState.simple.parsed.pointNames)
+      ? appState.simple.parsed.pointNames[idx]
+      : null;
+    const pointLabel = showPointNames ? (customPointName || pointLabelForIndex(idx)) : '';
     const pointLocked = lockList.length ? !!lockList[Math.min(idx, lockList.length - 1)] : !!ADV.points.lockExtraPoints;
     const pointOptions = {
       name: pointLabel,
