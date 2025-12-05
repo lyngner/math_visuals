@@ -966,32 +966,9 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
   );
 
   function resolveFigureLibraryBasePath() {
-    if (!FIGURE_LIBRARY_RELATIVE_BASE_PATH) {
-      return '';
-    }
-    const relativeWithDot = `./${FIGURE_LIBRARY_RELATIVE_BASE_PATH}`;
-    if (typeof import.meta !== 'undefined' && import.meta && import.meta.url) {
-      try {
-        return ensureTrailingSlash(new URL(relativeWithDot, import.meta.url).href);
-      } catch (_) {
-        /* noop */
-      }
-    }
-    if (doc && doc.currentScript && doc.currentScript.src) {
-      try {
-        return ensureTrailingSlash(new URL(relativeWithDot, doc.currentScript.src).href);
-      } catch (_) {
-        /* noop */
-      }
-    }
-    if (globalObj && globalObj.location && globalObj.location.href) {
-      try {
-        return ensureTrailingSlash(new URL(relativeWithDot, globalObj.location.href).href);
-      } catch (_) {
-        /* noop */
-      }
-    }
-    return ensureTrailingSlash(FIGURE_LIBRARY_RELATIVE_BASE_PATH);
+    // VIKTIG: Vi hardkoder stien for å unngå problemer med
+    // "doble URL-er" og ruting-feil i nettleseren.
+    return '/figure-library/';
   }
 
   const FIGURE_LIBRARY_BASE_PATH = resolveFigureLibraryBasePath();
