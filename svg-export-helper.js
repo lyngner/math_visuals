@@ -6,6 +6,7 @@
   let toastStyleInjected = false;
   let toastContainer = null;
   let archiveEntriesPromise = null;
+  const ARCHIVE_ENTRIES_TIMEOUT_MS = 2000;
 
   function ensureToastStyle(doc) {
     if (toastStyleInjected) return;
@@ -64,6 +65,31 @@
     toastContainer.className = 'mathvis-toast-container';
     doc.body.appendChild(toastContainer);
     return toastContainer;
+  }
+
+  function fetchWithTimeout(url, options, timeoutMs) {
+    if (typeof global.fetch !== 'function') {
+      return Promise.reject(new Error('fetch is not available'));
+    }
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || typeof global.AbortController !== 'function') {
+      return global.fetch(url, options);
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const mergedOptions = options ? { ...options, signal: controller.signal } : { signal: controller.signal };
+
+    return global
+      .fetch(url, mergedOptions)
+      .finally(() => {
+        clearTimeout(timer);
+      })
+      .catch(error => {
+        if (error && error.name === 'AbortError') {
+          return Promise.reject(new Error('timeout'));
+        }
+        return Promise.reject(error);
+      });
   }
 
   function showToast(message, type = 'info', options = {}) {
@@ -438,11 +464,15 @@
       archiveEntriesPromise = Promise.resolve([]);
       return archiveEntriesPromise;
     }
-    archiveEntriesPromise = global.fetch('/api/svg', {
-      headers: {
-        Accept: 'application/json'
-      }
-    })
+    archiveEntriesPromise = fetchWithTimeout(
+      '/api/svg',
+      {
+        headers: {
+          Accept: 'application/json'
+        }
+      },
+      ARCHIVE_ENTRIES_TIMEOUT_MS
+    )
       .then(response => {
         if (!response || !response.ok) {
           return [];
