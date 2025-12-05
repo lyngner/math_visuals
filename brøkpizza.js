@@ -1138,6 +1138,15 @@ class Pizza {
       if (cfg.lockDenominator) return;
       this.setN(this.n + this.cfg.stepN);
     });
+    const onHandleDragMove = e => {
+      if (!this._dragging || cfg.lockNumerator || this.fullyLocked) return;
+      const {
+        x,
+        y
+      } = this._pt(e);
+      const a = norm(Math.atan2(y, x));
+      this._setTheta(a, true);
+    };
     this.handle.addEventListener('pointerdown', e => {
       if (cfg.lockNumerator || this.fullyLocked) return;
       this._dragging = true;
@@ -1162,19 +1171,12 @@ class Pizza {
       this._dragging = false;
       this.handle.classList.remove('is-grabbing');
     });
+    this.handle.addEventListener('pointermove', onHandleDragMove);
     this.svg.addEventListener("pointerleave", () => {
       this._dragging = false;
       this.handle.classList.remove('is-grabbing');
     });
-    this.svg.addEventListener("pointermove", e => {
-      if (!this._dragging || cfg.lockNumerator || this.fullyLocked) return;
-      const {
-        x,
-        y
-      } = this._pt(e);
-      const a = norm(Math.atan2(y, x));
-      this._setTheta(a, true);
-    });
+    this.svg.addEventListener("pointermove", onHandleDragMove);
     this.svg.addEventListener("click", e => {
       if (e.target === this.handle) return;
       if (cfg.lockNumerator || this.fullyLocked) return;
