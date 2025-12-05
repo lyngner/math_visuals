@@ -39,7 +39,7 @@ function configureJXGOptions(jxg) {
       jxg.Options.showCopyright = false;
       jxg.Options.showNavigation = false;
       if (jxg.Options.text) {
-        jxg.Options.text.display = 'internal';
+        jxg.Options.text.display = 'html';
       }
     } catch (_) {}
   }
