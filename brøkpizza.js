@@ -229,11 +229,11 @@ function getActiveThemeProjectName(theme = getThemeApi()) {
 }
 
 function resolvePaletteProjectName() {
-  // 1. Sjekk DOM-roten (HTML-taggen). Dette er den ENESTE sannheten for visning.
+  // 1. Sjekk DOM-roten (HTML-taggen). Dette er FASITEN for visning.
   if (typeof document !== 'undefined' && document.documentElement) {
     const root = document.documentElement;
 
-    // Sjekk de ulike måtene prosjektet kan være definert på i DOM
+    // Sjekk alle mulige attributter rammeverket bruker
     const attr =
       root.getAttribute('data-mv-active-project') ||
       root.getAttribute('data-theme-profile') ||
@@ -249,9 +249,8 @@ function resolvePaletteProjectName() {
   const activeThemeProject = getActiveThemeProjectName(theme);
   if (activeThemeProject) return activeThemeProject;
 
-  // VIKTIG: Vi har FJERNET sjekken mot 'settings.getActiveProject()'.
-  // Det er den som gjorde at fargen "smitter" fra det du redigerer til det du viser.
-
+  // VIKTIG ENDRING: Vi returnerer NULL her.
+  // Vi spør IKKE settingsApi. Det var det som forårsaket "fargesmitte".
   return null;
 }
 
@@ -2428,22 +2427,26 @@ function applyExamplesConfig() {
   initFromHtml();
 }
 
+/* =======================
+   SETUP & SYNC (ANTI-FLIMMER & DOM-OVERVÅKNING)
+   ======================= */
+
 let themeRefreshTimer = null;
 
-function handleThemePaletteChanged() {
-  // Hvis en oppdatering allerede er planlagt, avlys den (stopp flimring)
+function handleThemeChange() {
+  // Hvis en oppdatering allerede venter, avbryt den (stopp flimring)
   if (themeRefreshTimer) {
     clearTimeout(themeRefreshTimer);
   }
 
-  // Vent 50ms for å la alle systemer (DOM, Settings, API) bli enige
+  // Vent 50ms for å la alle systemer (DOM, Settings, API) bli ferdige
   themeRefreshTimer = setTimeout(() => {
     themeRefreshTimer = null;
     
-    // Nå oppdaterer vi CSS-variablene
+    // 1. Oppdater CSS-variablene basert på gjeldende prosjekt
     applyThemeToDocument();
     
-    // Og tegner pizzaen på nytt med de nye verdiene
+    // 2. Tegn pizzaen på nytt
     if (typeof window !== 'undefined' && typeof window.applyConfig === 'function') {
       window.applyConfig();
     } else {
@@ -2452,41 +2455,20 @@ function handleThemePaletteChanged() {
   }, 50);
 }
 
-function handleThemeProfileMessage(event) {
-  const data = event && event.data;
-  const type = typeof data === 'string' ? data : data && data.type;
-  if (type !== 'math-visuals:profile-change') return;
-  handleThemePaletteChanged();
-}
-
-function handleThemeProfileChangeEvent(event) {
-  if (!event || event.type !== 'math-visuals:profile-change') return;
-  handleThemePaletteChanged();
-}
-
-function handleThemeSettingsChanged(event) {
-  if (!event || event.type !== 'math-visuals:settings-changed') return;
-  handleThemePaletteChanged();
-}
-
-/* =======================
-   SETUP & SYNC
-   ======================= */
-
 function setupThemeSync() {
-  // Denne funksjonen kalles når noe endres
-  const refresh = () => {
-    handleThemePaletteChanged();
-  };
-
-  // 1. Overvåk HTML-taggen for endringer i attributter (FASITEN)
+  // 1. Overvåk HTML-taggen direkte. Dette er den mest pålitelige metoden.
+  // Når 'data-theme-profile' endres, vet vi at prosjektet er byttet.
   if (typeof MutationObserver === 'function' && typeof document !== 'undefined' && document.documentElement) {
-    const observer = new MutationObserver(mutations => {
+    const observer = new MutationObserver((mutations) => {
+      let shouldRefresh = false;
       for (const mutation of mutations) {
         if (mutation.type === 'attributes') {
-          refresh(); // Attributtet er endret -> tegn på nytt med en gang!
+          shouldRefresh = true; // Attributtet er endret -> planlegg oppdatering
           break;
         }
+      }
+      if (shouldRefresh) {
+        handleThemeChange();
       }
     });
 
@@ -2496,28 +2478,29 @@ function setupThemeSync() {
     });
   }
 
-  // 2. Lytt på events (som backup og for settings-endringer)
+  // 2. Lytt på events (backup, og for fargeendringer internt i et prosjekt)
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-    window.addEventListener('math-visuals:settings-changed', refresh);
-    window.addEventListener('math-visuals:profile-change', refresh);
-    window.addEventListener('message', event => {
+    const onEvent = () => handleThemeChange();
+    
+    window.addEventListener('math-visuals:settings-changed', onEvent);
+    window.addEventListener('math-visuals:profile-change', onEvent);
+    window.addEventListener('message', (event) => {
       const data = event && event.data;
       const type = typeof data === 'string' ? data : data && data.type;
       if (type === 'math-visuals:profile-change') {
-        refresh();
+        onEvent();
       }
     });
   }
 
-  // Kjør en gang ved oppstart
-  refresh();
+  // Kjør en gang ved oppstart for å sikre riktig farge
+  handleThemeChange();
 }
 
-// Eksponer funksjoner og start sync
+// Start oppsettet
 if (typeof window !== 'undefined') {
   window.applyConfig = applyExamplesConfig;
   window.render = applyExamplesConfig;
-
-  // Start overvåkningen
+  
   setupThemeSync();
 }
