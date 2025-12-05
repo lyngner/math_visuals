@@ -2468,12 +2468,56 @@ function handleThemeSettingsChanged(event) {
   if (!event || event.type !== 'math-visuals:settings-changed') return;
   handleThemePaletteChanged();
 }
+
+/* =======================
+   SETUP & SYNC
+   ======================= */
+
+function setupThemeSync() {
+  // Denne funksjonen kalles når noe endres
+  const refresh = () => {
+    handleThemePaletteChanged();
+  };
+
+  // 1. Overvåk HTML-taggen for endringer i attributter (FASITEN)
+  if (typeof MutationObserver === 'function' && typeof document !== 'undefined' && document.documentElement) {
+    const observer = new MutationObserver(mutations => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes') {
+          refresh(); // Attributtet er endret -> tegn på nytt med en gang!
+          break;
+        }
+      }
+    });
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-project', 'data-mv-active-project', 'data-theme-profile']
+    });
+  }
+
+  // 2. Lytt på events (som backup og for settings-endringer)
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+    window.addEventListener('math-visuals:settings-changed', refresh);
+    window.addEventListener('math-visuals:profile-change', refresh);
+    window.addEventListener('message', event => {
+      const data = event && event.data;
+      const type = typeof data === 'string' ? data : data && data.type;
+      if (type === 'math-visuals:profile-change') {
+        refresh();
+      }
+    });
+  }
+
+  // Kjør en gang ved oppstart
+  refresh();
+}
+
+// Eksponer funksjoner og start sync
 if (typeof window !== 'undefined') {
   window.applyConfig = applyExamplesConfig;
   window.render = applyExamplesConfig;
-  if (typeof window.addEventListener === 'function') {
-    window.addEventListener('message', handleThemeProfileMessage);
-    window.addEventListener('math-visuals:profile-change', handleThemeProfileChangeEvent);
-    window.addEventListener('math-visuals:settings-changed', handleThemeSettingsChanged);
-  }
+
+  // Start overvåkningen
+  setupThemeSync();
 }
