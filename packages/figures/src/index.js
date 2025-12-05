@@ -508,6 +508,31 @@ function parseJsonResponse(response) {
   });
 }
 
+function isHtmlResponseError(error) {
+  if (!error) return false;
+  if (typeof error.message === 'string' && error.message.includes('Figure library returned HTML')) {
+    return true;
+  }
+  if (error.payload && typeof error.payload.snippet === 'string' && /<html/i.test(error.payload.snippet)) {
+    return true;
+  }
+  return false;
+}
+
+function resolveFigureLibraryFallbackEndpoints(url) {
+  const normalized = typeof url === 'string' ? url.trim() : '';
+  const fallbackEndpoints = new Set();
+  if (!normalized) return [];
+  const base = normalized.replace(/\/$/, '');
+  if (base === '/api/figure-library') {
+    fallbackEndpoints.add('/figure-library');
+  }
+  if (!/\/raw$/i.test(base)) {
+    fallbackEndpoints.add(`${base}/raw`);
+  }
+  return Array.from(fallbackEndpoints);
+}
+
 function shapeRemoteMeasurementFigure(remoteFigure, options = {}) {
   if (!remoteFigure || typeof remoteFigure !== 'object') {
     return null;
@@ -898,42 +923,55 @@ export function loadMeasurementFigureLibrary(options = {}) {
     cache: 'no-store',
     ...fetchOptions
   };
-  const request = fetchImpl(url, requestInit)
-    .then(response => parseJsonResponse(response).then(data => ({ response, data })))
-    .then(({ response, data }) => {
-      if (!response || typeof response.ok !== 'boolean') {
-        throw new Error('loadMeasurementFigureLibrary: invalid response');
-      }
-      if (!response.ok) {
-        const message = typeof data.error === 'string' && data.error.trim()
-          ? data.error.trim()
-          : `HTTP ${response.status}`;
-        const error = new Error(message);
-        error.response = response;
-        error.payload = data;
+  const endpoints = [url, ...resolveFigureLibraryFallbackEndpoints(url)];
+
+  const attemptLoad = currentIndex => {
+    const targetUrl = endpoints[currentIndex];
+    return fetchImpl(targetUrl, requestInit)
+      .then(response => parseJsonResponse(response).then(data => ({ response, data })))
+      .then(({ response, data }) => {
+        if (!response || typeof response.ok !== 'boolean') {
+          throw new Error('loadMeasurementFigureLibrary: invalid response');
+        }
+        if (!response.ok) {
+          const message = typeof data.error === 'string' && data.error.trim()
+            ? data.error.trim()
+            : `HTTP ${response.status}`;
+          const error = new Error(message);
+          error.response = response;
+          error.payload = data;
+          throw error;
+        }
+        const normalized = normalizeMeasurementFigureLibraryPayload(data, response);
+        measurementFigureLibraryState.categories = normalized.categories;
+        measurementFigureLibraryState.figures = normalized.figures;
+        measurementFigureLibraryState.categoryAppsById = cloneCategoryAppsMap(normalized.categoryApps);
+        measurementFigureLibraryState.metadata = cloneFigureLibraryMetadata(normalized.metadata);
+        measurementFigureLibraryState.loaded = true;
+        measurementFigureLibraryState.loadingPromise = null;
+        return {
+          categories: Array.isArray(measurementFigureLibraryState.categories)
+            ? measurementFigureLibraryState.categories.slice()
+            : [],
+          figures: Array.isArray(measurementFigureLibraryState.figures)
+            ? measurementFigureLibraryState.figures.slice()
+            : [],
+          metadata: cloneFigureLibraryMetadata(measurementFigureLibraryState.metadata)
+        };
+      })
+      .catch(error => {
+        const nextIndex = currentIndex + 1;
+        if (isHtmlResponseError(error) && nextIndex < endpoints.length) {
+          return attemptLoad(nextIndex);
+        }
         throw error;
-      }
-      const normalized = normalizeMeasurementFigureLibraryPayload(data, response);
-      measurementFigureLibraryState.categories = normalized.categories;
-      measurementFigureLibraryState.figures = normalized.figures;
-      measurementFigureLibraryState.categoryAppsById = cloneCategoryAppsMap(normalized.categoryApps);
-      measurementFigureLibraryState.metadata = cloneFigureLibraryMetadata(normalized.metadata);
-      measurementFigureLibraryState.loaded = true;
-      measurementFigureLibraryState.loadingPromise = null;
-      return {
-        categories: Array.isArray(measurementFigureLibraryState.categories)
-          ? measurementFigureLibraryState.categories.slice()
-          : [],
-        figures: Array.isArray(measurementFigureLibraryState.figures)
-          ? measurementFigureLibraryState.figures.slice()
-          : [],
-        metadata: cloneFigureLibraryMetadata(measurementFigureLibraryState.metadata)
-      };
-    })
-    .catch(error => {
-      measurementFigureLibraryState.loadingPromise = null;
-      throw error;
-    });
+      });
+  };
+
+  const request = attemptLoad(0).catch(error => {
+    measurementFigureLibraryState.loadingPromise = null;
+    throw error;
+  });
   measurementFigureLibraryState.loadingPromise = request;
   return request;
 }
