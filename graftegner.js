@@ -7179,6 +7179,34 @@ function setupSettingsForm() {
       control.input.value = normalized || DEFAULT_POINT_MARKER;
     });
   };
+  const getFunctionRowIndex = row => {
+    if (!row) return null;
+    if (row.dataset && row.dataset.index && Number.isFinite(+row.dataset.index)) {
+      return Number.parseInt(row.dataset.index, 10);
+    }
+    if (!funcRows) return null;
+    const rows = Array.from(funcRows.querySelectorAll('.func-group'));
+    const idx = rows.indexOf(row);
+    return idx >= 0 ? idx + 1 : null;
+  };
+  const classifyFunctionLabel = value => {
+    const trimmed = typeof value === 'string' ? value.trim() : '';
+    if (!trimmed) return 'function';
+    if (isCoords(trimmed)) return 'point';
+    if (/^y\s*=/i.test(trimmed)) return 'line';
+    return 'function';
+  };
+  const updateFunctionLegend = row => {
+    if (!row) return;
+    const legend = row.querySelector('legend');
+    const index = getFunctionRowIndex(row);
+    if (!legend || !index) return;
+    const funInput = row.querySelector('[data-fun]');
+    const value = funInput ? getFunctionInputValue(funInput) : '';
+    const type = classifyFunctionLabel(value);
+    const prefix = type === 'point' ? 'Punkt' : type === 'line' ? 'Linje' : 'Funksjon';
+    legend.textContent = `${prefix} ${index}`;
+  };
   const syncPointMarkerValueFromInput = input => {
     if (!input) return;
     const normalized = normalizePointMarkerValue(input.value);
@@ -8356,6 +8384,7 @@ function setupSettingsForm() {
         toggleDomain(funInput);
         updateLinePointControls();
         updatePointMarkerVisibility();
+        updateFunctionLegend(row);
         if (extraAnswerControl) {
           updateExtraAnswerControl(extraAnswerControl);
         }
@@ -8394,6 +8423,7 @@ function setupSettingsForm() {
           }
         }
       });
+      updateFunctionLegend(row);
     }
     if (domInput) {
       domInput.value = domVal || '';
