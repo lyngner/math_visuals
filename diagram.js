@@ -59,6 +59,26 @@ function sanitizeGridFlag(value, defaultValue) {
   return defaultValue;
 }
 
+const GUIDELINE_OPTIONS = {
+  none: { horizontal: false, vertical: false },
+  vertical: { horizontal: false, vertical: true },
+  horizontal: { horizontal: true, vertical: false },
+  both: { horizontal: true, vertical: true }
+};
+
+function normalizeGuidelineSelection(value) {
+  if (typeof value !== 'string') return 'horizontal';
+  const normalized = value.trim().toLowerCase();
+  return GUIDELINE_OPTIONS[normalized] ? normalized : 'horizontal';
+}
+
+function getGuidelineSelectionFromFlags(horizontal, vertical) {
+  if (horizontal && vertical) return 'both';
+  if (horizontal) return 'horizontal';
+  if (vertical) return 'vertical';
+  return 'none';
+}
+
 function getFilenameSanitizer(defaultName = 'figur') {
   const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
   if (helper && typeof helper.sanitizeFilename === 'function') {
@@ -669,8 +689,7 @@ const removeSeriesBtn = document.getElementById('removeSeries');
 const series2Fields = document.getElementById('series2Fields');
 const axisAndRangeRow = document.getElementById('cfgAxisAndRangeRow');
 const gridSettingsRow = document.getElementById('cfgGridSettingsRow');
-const showHorizontalGridLabel = document.getElementById('cfgShowHorizontalGridLabel');
-const showVerticalGridLabel = document.getElementById('cfgShowVerticalGridLabel');
+const guidelineLabel = document.getElementById('cfgGuidelinesLabel');
 addSeriesBtn === null || addSeriesBtn === void 0 || addSeriesBtn.addEventListener('click', () => {
   series2Enabled = true;
   addSeriesBtn.style.display = 'none';
@@ -714,11 +733,9 @@ function setRowVisibility(row, visible) {
 function updateSettingsVisibilityForType(type) {
   const showAxisSettings = type !== 'pie';
   setRowVisibility(axisAndRangeRow, showAxisSettings);
-  const showHorizontalGridSetting = type === 'line';
-  const showVerticalGridSetting = type === 'line' || type === 'bar' || type === 'grouped' || type === 'stacked';
-  setRowVisibility(gridSettingsRow, showHorizontalGridSetting || showVerticalGridSetting);
-  setRowVisibility(showHorizontalGridLabel, showHorizontalGridSetting);
-  setRowVisibility(showVerticalGridLabel, showVerticalGridSetting);
+  const showGuidelineSetting = type !== 'pie';
+  setRowVisibility(gridSettingsRow, showGuidelineSetting);
+  setRowVisibility(guidelineLabel, showGuidelineSetting);
   const lockedField = document.getElementById('cfgLocked');
   const snapField = document.getElementById('cfgSnap');
   const toleranceField = document.getElementById('cfgTolerance');
@@ -795,8 +812,7 @@ function initFromCfg() {
   const valueDisplayWrapper = document.getElementById('cfgValueDisplayWrapper');
   const pieLabelPositionWrapper = document.getElementById('cfgPieLabelPositionWrapper');
   const pieLabelPositionSelect = document.getElementById('cfgPieLabelPosition');
-  const showHorizontalGridInput = document.getElementById('cfgShowHorizontalGrid');
-  const showVerticalGridInput = document.getElementById('cfgShowVerticalGrid');
+  const guidelineSelect = document.getElementById('cfgGuidelines');
   const series1Input = document.getElementById('cfgSeries1');
   const startInput = document.getElementById('cfgStart');
   const answerInput = document.getElementById('cfgAnswer');
@@ -835,8 +851,10 @@ function initFromCfg() {
   if (answer2Input) answer2Input.value = series2Enabled && Array.isArray(CFG.answer2) ? formatNumberList(CFG.answer2) : '';
   if (valueDisplaySelect) valueDisplaySelect.value = CFG.valueDisplay;
   if (pieLabelPositionSelect) pieLabelPositionSelect.value = CFG.pieLabelPosition;
-  if (showHorizontalGridInput) showHorizontalGridInput.checked = CFG.showHorizontalGrid;
-  if (showVerticalGridInput) showVerticalGridInput.checked = CFG.showVerticalGrid;
+  if (guidelineSelect) {
+    const selection = getGuidelineSelectionFromFlags(CFG.showHorizontalGrid, CFG.showVerticalGrid);
+    guidelineSelect.value = selection;
+  }
   if (typeof CFG.altText !== 'string') CFG.altText = '';
   if (typeof CFG.altTextSource !== 'string') {
     CFG.altTextSource = CFG.altText ? 'manual' : 'auto';
@@ -906,8 +924,8 @@ function drawAxesAndGrid() {
   if (CFG.type === 'pie') {
     return;
   }
-  const showHorizontalGrid = CFG.type === 'line' ? CFG.showHorizontalGrid !== false : true;
-  const showVerticalGrid = CFG.showVerticalGrid && (CFG.type === 'line' || CFG.type === 'bar' || CFG.type === 'grouped' || CFG.type === 'stacked');
+  const showHorizontalGrid = CFG.showHorizontalGrid === true;
+  const showVerticalGrid = CFG.showVerticalGrid === true && (CFG.type === 'line' || CFG.type === 'bar' || CFG.type === 'grouped' || CFG.type === 'stacked');
   const step = yStep || niceStep(yMax - yMin || 1);
   const maxTicks = 500;
   for (let i = 0; i < maxTicks; i++) {
@@ -2651,8 +2669,7 @@ function applyCfg() {
   const yMaxInput = document.getElementById('cfgYMax');
   const yMinVal = parseFloat(yMinInput ? yMinInput.value : '');
   const yMaxVal = parseFloat(yMaxInput ? yMaxInput.value : '');
-  const showHorizontalGridInput = document.getElementById('cfgShowHorizontalGrid');
-  const showVerticalGridInput = document.getElementById('cfgShowVerticalGrid');
+  const guidelineSelect = document.getElementById('cfgGuidelines');
   CFG.title = document.getElementById('cfgTitle').value;
   CFG.type = document.getElementById('cfgType').value;
   CFG.series1 = document.getElementById('cfgSeries1').value;
@@ -2678,8 +2695,12 @@ function applyCfg() {
   CFG.valueDisplay = valueDisplaySelect ? sanitizeValueDisplay(valueDisplaySelect.value) : 'none';
   const pieLabelPositionSelect = document.getElementById('cfgPieLabelPosition');
   CFG.pieLabelPosition = sanitizePieLabelPosition(pieLabelPositionSelect ? pieLabelPositionSelect.value : CFG.pieLabelPosition);
-  CFG.showHorizontalGrid = sanitizeGridFlag(showHorizontalGridInput ? showHorizontalGridInput.checked : CFG.showHorizontalGrid, true);
-  CFG.showVerticalGrid = sanitizeGridFlag(showVerticalGridInput ? showVerticalGridInput.checked : CFG.showVerticalGrid, false);
+  const guidelineSelection = normalizeGuidelineSelection(
+    guidelineSelect ? guidelineSelect.value : getGuidelineSelectionFromFlags(CFG.showHorizontalGrid, CFG.showVerticalGrid)
+  );
+  const guidelineFlags = GUIDELINE_OPTIONS[guidelineSelection] || GUIDELINE_OPTIONS.horizontal;
+  CFG.showHorizontalGrid = guidelineFlags.horizontal;
+  CFG.showVerticalGrid = guidelineFlags.vertical;
   const snapVal = parseFloat(document.getElementById('cfgSnap').value);
   CFG.snap = isNaN(snapVal) ? 1 : snapVal;
   const tolVal = parseFloat(document.getElementById('cfgTolerance').value);
