@@ -6489,6 +6489,8 @@ function setupSettingsForm() {
   const forceTicksInput = g('cfgForceTicks');
   const q1Input = g('cfgQ1');
   const screenInput = g('cfgScreen');
+  const zoomInput = g('cfgZoom');
+  const panInput = g('cfgPan');
   const axisXInputElement = g('cfgAxisX');
   const axisYInputElement = g('cfgAxisY');
   const snapCheckbox = g('cfgSnap');
@@ -8916,14 +8918,12 @@ function setupSettingsForm() {
   g('cfgLock').checked = params.has('lock') ? paramBool('lock') : true;
   g('cfgAxisX').value = paramStr('xName', 'x');
   g('cfgAxisY').value = paramStr('yName', 'y');
-  const zoomInputInit = g('cfgZoom');
-  if (zoomInputInit) {
-    zoomInputInit.checked = false;
-    zoomInputInit.disabled = true;
+  if (zoomInput) {
+    zoomInput.checked = false;
+    zoomInput.disabled = true;
   }
-  const panInputInit = g('cfgPan');
-  if (panInputInit) {
-    panInputInit.checked = ADV.interactions.pan.enabled;
+  if (panInput) {
+    panInput.checked = ADV.interactions.pan.enabled;
   }
   g('cfgQ1').checked = paramBool('q1');
   if (showNamesInput) {
@@ -9058,7 +9058,11 @@ function setupSettingsForm() {
       ADV.interactions.zoom.enabled = zoomChecked;
       needsRebuild = true;
     }
-    ADV.interactions.pan.enabled = false;
+    const panChecked = false; // Alltid avslått
+    if (ADV.interactions.pan.enabled !== panChecked) {
+      ADV.interactions.pan.enabled = panChecked;
+      needsRebuild = true;
+    }
     if (q1Changed) {
       needsRebuild = true;
     }
