@@ -3121,7 +3121,8 @@ function buildFigureLibraryRawUrl(slugOrPath, format = 'svg') {
   const slug = hasExtension ? trimmed : `${trimmed}.${normalizedFormat}`;
   const params = new URLSearchParams();
   params.set('slug', slug);
-  return `${FIGURE_LIBRARY_RAW_ENDPOINT}?${params.toString()}`;
+  const rawUrl = `${FIGURE_LIBRARY_RAW_ENDPOINT}?${params.toString()}`;
+  return buildAbsoluteFigureLibraryUrl(rawUrl);
 }
 
 function normalizeServerEntry(entry) {
