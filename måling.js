@@ -68,6 +68,7 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
   }
 
   let storageWarningMessage = '';
+  let figureLibraryErrorMessage = '';
   try {
     const result = await loadFigureLibrary({ app: FIGURE_LIBRARY_APP_KEY });
     if (result && result.metadata) {
@@ -77,6 +78,10 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     if (typeof console !== 'undefined' && typeof console.warn === 'function') {
       console.warn('Kunne ikke laste figurbibliotek fra API-et', error);
     }
+    const errorMessage = error && typeof error.message === 'string' ? error.message.trim() : '';
+    figureLibraryErrorMessage = `Kunne ikke hente figurbiblioteket fra API-et${
+      errorMessage ? `: ${errorMessage}` : ''
+    }`;
   }
 
   const settingsToggleButton = doc.querySelector('[data-settings-toggle]');
@@ -3549,6 +3554,9 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     }
     if (statusNote) {
       const noteParts = [];
+      if (figureLibraryErrorMessage) {
+        noteParts.push(figureLibraryErrorMessage);
+      }
       if (storageWarningMessage) {
         noteParts.push(storageWarningMessage);
       }
