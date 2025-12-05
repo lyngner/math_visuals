@@ -16,6 +16,8 @@ const CFG = {
   axisYLabel: 'Antall elever',
   valueDisplay: 'none',
   pieLabelPosition: 'outside',
+  showHorizontalGrid: true,
+  showVerticalGrid: false,
   locked: [],
   altText: '',
   altTextSource: 'auto',
@@ -45,6 +47,16 @@ function sanitizeTextSize(value) {
   if (typeof value !== 'string') return 'normal';
   const normalized = value.trim().toLowerCase();
   return TEXT_SIZE_SCALE[normalized] ? normalized : 'normal';
+}
+
+function sanitizeGridFlag(value, defaultValue) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'ja') return true;
+    if (normalized === 'false' || normalized === '0' || normalized === 'no' || normalized === 'nei') return false;
+  }
+  return defaultValue;
 }
 
 function getFilenameSanitizer(defaultName = 'figur') {
@@ -656,6 +668,9 @@ const addSeriesBtn = document.getElementById('addSeries');
 const removeSeriesBtn = document.getElementById('removeSeries');
 const series2Fields = document.getElementById('series2Fields');
 const axisAndRangeRow = document.getElementById('cfgAxisAndRangeRow');
+const gridSettingsRow = document.getElementById('cfgGridSettingsRow');
+const showHorizontalGridLabel = document.getElementById('cfgShowHorizontalGridLabel');
+const showVerticalGridLabel = document.getElementById('cfgShowVerticalGridLabel');
 addSeriesBtn === null || addSeriesBtn === void 0 || addSeriesBtn.addEventListener('click', () => {
   series2Enabled = true;
   addSeriesBtn.style.display = 'none';
@@ -699,6 +714,11 @@ function setRowVisibility(row, visible) {
 function updateSettingsVisibilityForType(type) {
   const showAxisSettings = type !== 'pie';
   setRowVisibility(axisAndRangeRow, showAxisSettings);
+  const showHorizontalGridSetting = type === 'line';
+  const showVerticalGridSetting = type === 'line' || type === 'bar' || type === 'grouped' || type === 'stacked';
+  setRowVisibility(gridSettingsRow, showHorizontalGridSetting || showVerticalGridSetting);
+  setRowVisibility(showHorizontalGridLabel, showHorizontalGridSetting);
+  setRowVisibility(showVerticalGridLabel, showVerticalGridSetting);
   const lockedField = document.getElementById('cfgLocked');
   const snapField = document.getElementById('cfgSnap');
   const toleranceField = document.getElementById('cfgTolerance');
@@ -739,6 +759,8 @@ function initFromCfg() {
   seriesNames = [CFG.series1 || '', series2Enabled ? CFG.series2 || '' : ''];
   CFG.valueDisplay = sanitizeValueDisplay(CFG.valueDisplay);
   CFG.pieLabelPosition = sanitizePieLabelPosition(CFG.pieLabelPosition);
+  CFG.showHorizontalGrid = sanitizeGridFlag(CFG.showHorizontalGrid, true);
+  CFG.showVerticalGrid = sanitizeGridFlag(CFG.showVerticalGrid, false);
   N = CFG.labels.length;
   themePaletteSize = Math.max(1, N);
   refreshDiagramTheme();
@@ -773,6 +795,8 @@ function initFromCfg() {
   const valueDisplayWrapper = document.getElementById('cfgValueDisplayWrapper');
   const pieLabelPositionWrapper = document.getElementById('cfgPieLabelPositionWrapper');
   const pieLabelPositionSelect = document.getElementById('cfgPieLabelPosition');
+  const showHorizontalGridInput = document.getElementById('cfgShowHorizontalGrid');
+  const showVerticalGridInput = document.getElementById('cfgShowVerticalGrid');
   const series1Input = document.getElementById('cfgSeries1');
   const startInput = document.getElementById('cfgStart');
   const answerInput = document.getElementById('cfgAnswer');
@@ -811,6 +835,8 @@ function initFromCfg() {
   if (answer2Input) answer2Input.value = series2Enabled && Array.isArray(CFG.answer2) ? formatNumberList(CFG.answer2) : '';
   if (valueDisplaySelect) valueDisplaySelect.value = CFG.valueDisplay;
   if (pieLabelPositionSelect) pieLabelPositionSelect.value = CFG.pieLabelPosition;
+  if (showHorizontalGridInput) showHorizontalGridInput.checked = CFG.showHorizontalGrid;
+  if (showVerticalGridInput) showVerticalGridInput.checked = CFG.showVerticalGrid;
   if (typeof CFG.altText !== 'string') CFG.altText = '';
   if (typeof CFG.altTextSource !== 'string') {
     CFG.altTextSource = CFG.altText ? 'manual' : 'auto';
@@ -880,6 +906,8 @@ function drawAxesAndGrid() {
   if (CFG.type === 'pie') {
     return;
   }
+  const showHorizontalGrid = CFG.type === 'line' ? CFG.showHorizontalGrid !== false : true;
+  const showVerticalGrid = CFG.showVerticalGrid && (CFG.type === 'line' || CFG.type === 'bar' || CFG.type === 'grouped' || CFG.type === 'stacked');
   const step = yStep || niceStep(yMax - yMin || 1);
   const maxTicks = 500;
   for (let i = 0; i < maxTicks; i++) {
@@ -887,18 +915,33 @@ function drawAxesAndGrid() {
     if (raw > yMax + step * 0.5) break;
     const value = normalizeTickValue(raw);
     const yy = yPos(value);
-    addTo(gGrid, 'line', {
-      x1: M.l,
-      y1: yy,
-      x2: W - M.r,
-      y2: yy,
-      class: 'gridline'
-    });
+    if (showHorizontalGrid) {
+      addTo(gGrid, 'line', {
+        x1: M.l,
+        y1: yy,
+        x2: W - M.r,
+        y2: yy,
+        class: 'gridline'
+      });
+    }
     addTo(gGrid, 'text', {
       x: M.l - 10,
       y: yy + 4,
       class: 'yTickText'
     }).textContent = formatTickValue(value);
+  }
+
+  if (showVerticalGrid) {
+    CFG.labels.forEach((_, i) => {
+      const xx = xPos(i);
+      addTo(gGrid, 'line', {
+        x1: xx,
+        y1: M.t,
+        x2: xx,
+        y2: H - M.b,
+        class: 'gridline'
+      });
+    });
   }
 
   const createAxisLabelGroup = (parent, textValue, options = {}) => {
@@ -2608,6 +2651,8 @@ function applyCfg() {
   const yMaxInput = document.getElementById('cfgYMax');
   const yMinVal = parseFloat(yMinInput ? yMinInput.value : '');
   const yMaxVal = parseFloat(yMaxInput ? yMaxInput.value : '');
+  const showHorizontalGridInput = document.getElementById('cfgShowHorizontalGrid');
+  const showVerticalGridInput = document.getElementById('cfgShowVerticalGrid');
   CFG.title = document.getElementById('cfgTitle').value;
   CFG.type = document.getElementById('cfgType').value;
   CFG.series1 = document.getElementById('cfgSeries1').value;
@@ -2633,6 +2678,8 @@ function applyCfg() {
   CFG.valueDisplay = valueDisplaySelect ? sanitizeValueDisplay(valueDisplaySelect.value) : 'none';
   const pieLabelPositionSelect = document.getElementById('cfgPieLabelPosition');
   CFG.pieLabelPosition = sanitizePieLabelPosition(pieLabelPositionSelect ? pieLabelPositionSelect.value : CFG.pieLabelPosition);
+  CFG.showHorizontalGrid = sanitizeGridFlag(showHorizontalGridInput ? showHorizontalGridInput.checked : CFG.showHorizontalGrid, true);
+  CFG.showVerticalGrid = sanitizeGridFlag(showVerticalGridInput ? showVerticalGridInput.checked : CFG.showVerticalGrid, false);
   const snapVal = parseFloat(document.getElementById('cfgSnap').value);
   CFG.snap = isNaN(snapVal) ? 1 : snapVal;
   const tolVal = parseFloat(document.getElementById('cfgTolerance').value);
