@@ -2972,8 +2972,19 @@ function axisLabelText(axisKey) {
   return unit ? `${variable}, ${unit}` : variable;
 }
 
-function axisLabelChip(axisKey) {
+function axisLabelLatex(axisKey) {
   const { variable, unit } = axisLabelParts(axisKey);
+  const variableLatex = convertExpressionToLatex(variable) || `\\text{${escapeKatexPlainText(variable)}}`;
+  const unitLatex = unit
+    ? (convertExpressionToLatex(unit) || `\\text{${escapeKatexPlainText(unit)}}`)
+    : '';
+  if (unitLatex) {
+    return `${variableLatex},\\ ${unitLatex}`;
+  }
+  return variableLatex;
+}
+
+function axisLabelChip(axisKey) {
   const color = ADV.axis.style.stroke;
   const fontSizeRaw = Number.parseFloat(ADV.axis.labels.fontSize);
   const fontSize = Number.isFinite(fontSizeRaw) ? fontSizeRaw : 15;
@@ -2981,9 +2992,11 @@ function axisLabelChip(axisKey) {
     `--graf-axis-label-text:${color}`,
     `--graf-axis-label-font-size:${fontSize}px`
   ];
-  const variableHtml = `<span class="graf-axis-label__var">${escapeHtml(variable)}</span>`;
-  const unitHtml = unit ? `<span class="graf-axis-label__sep">, </span><span class="graf-axis-label__unit">${escapeHtml(unit)}</span>` : '';
-  return `<span class="graf-axis-label graf-axis-label--${axisKey}" style="${styleTokens.join(';')};">${variableHtml}${unitHtml}</span>`;
+  const latex = axisLabelLatex(axisKey);
+  const latexHtml = latex ? renderLatexToHtml(latex) : '';
+  const fallbackText = axisLabelText(axisKey);
+  const content = latexHtml || escapeHtml(fallbackText);
+  return `<span class="graf-axis-label graf-axis-label--${axisKey}" style="${styleTokens.join(';')};">${content}</span>`;
 }
 
 function axisLabelState(axisKey) {
