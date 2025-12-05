@@ -1291,7 +1291,10 @@ applyLinePointStart(appState.simple.parsed);
 function parsePointListString(str) {
   if (typeof str !== 'string') return [];
   return str.split(';').map(part => {
-    const cleaned = part.trim().replace(/^\(|\)$/g, '');
+    const cleaned = part
+      .trim()
+      .replace(/^[A-Za-z\u00C0-\u024F]+\w*\s*=\s*/, '')
+      .replace(/^\(|\)$/g, '');
     if (!cleaned) return null;
     const coords = cleaned.split(',').map(token => Number.parseFloat(token.trim().replace(',', '.')));
     if (coords.length !== 2) return null;
@@ -7155,7 +7158,15 @@ function setupSettingsForm() {
     updateFunctionPreview(element);
     setFunctionEditorMode(element, normalizePlainExpression(str) ? 'preview' : 'edit');
   };
-  const isCoords = str => /^\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?)(?:\s*;\s*(?:\(\s*-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?\s*\)|-?\d+(?:\.\d+)?\s*,\s*-?\d+(?:\.\d+)?))*\s*$/.test(str);
+  const isCoords = str => {
+    if (typeof str !== 'string') return false;
+    const parts = str.split(';').map(part => part.trim()).filter(Boolean);
+    if (!parts.length) return false;
+    return parts.every(part => {
+      const withoutLabel = part.replace(/^[A-Za-z\u00C0-\u024F]+\w*\s*=\s*/, '');
+      return /^\s*(?:\(\s*-?\d+(?:[.,]\d+)?\s*,\s*-?\d+(?:[.,]\d+)?\s*\)|-?\d+(?:[.,]\d+)?\s*,\s*-?\d+(?:[.,]\d+)?\s*)\s*$/.test(withoutLabel);
+    });
+  };
   const isExplicitFun = str => {
     const m = str.match(/^[a-zA-Z]\w*\s*\(\s*x\s*\)\s*=\s*(.+)$/) || str.match(/^y\s*=\s*(.+)$/i);
     const rhs = m ? m[1] : str;
