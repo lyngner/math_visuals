@@ -1266,6 +1266,66 @@ const EXAMPLE_STATE = (() => {
   return existing;
 })();
 
+const CURVE_LABEL_STATE = (() => {
+  const source = EXAMPLE_STATE && Array.isArray(EXAMPLE_STATE.curveLabels)
+    ? EXAMPLE_STATE.curveLabels
+    : [];
+  return source.map(entry => {
+    if (!entry || typeof entry !== 'object') {
+      return { manual: false, position: null };
+    }
+    const pos = Array.isArray(entry.position) && entry.position.length >= 2
+      ? entry.position.slice(0, 2)
+      : null;
+    return { manual: !!entry.manual, position: pos };
+  });
+})();
+
+function curveLabelState(index) {
+  const idx = Number.isInteger(index) && index >= 0 ? index : 0;
+  if (!CURVE_LABEL_STATE[idx]) {
+    CURVE_LABEL_STATE[idx] = { manual: false, position: null };
+  }
+  return CURVE_LABEL_STATE[idx];
+}
+
+function syncCurveLabelStateToExample() {
+  if (!EXAMPLE_STATE || typeof EXAMPLE_STATE !== 'object') return;
+  EXAMPLE_STATE.curveLabels = CURVE_LABEL_STATE.map(entry => ({
+    manual: !!(entry && entry.manual),
+    position: entry && Array.isArray(entry.position) && entry.position.length >= 2
+      ? entry.position.slice(0, 2)
+      : null
+  }));
+}
+
+function rememberCurveLabelPosition(index, pos, manualOverride) {
+  const state = curveLabelState(index);
+  if (!state) return;
+  if (manualOverride != null) {
+    state.manual = !!manualOverride;
+    if (!state.manual && !pos) {
+      state.position = null;
+      syncCurveLabelStateToExample();
+      return;
+    }
+  }
+  if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+    state.position = [pos.x, pos.y];
+  }
+  syncCurveLabelStateToExample();
+}
+
+function manualCurveLabelPosition(index) {
+  const state = curveLabelState(index);
+  if (!state || !state.manual) return null;
+  const pos = state.position;
+  if (Array.isArray(pos) && pos.length >= 2 && Number.isFinite(pos[0]) && Number.isFinite(pos[1])) {
+    return { x: pos[0], y: pos[1] };
+  }
+  return null;
+}
+
 const DOMAIN_MARKER_SHAPES = {
   closed: {
     offsetPx: -3,
@@ -3484,6 +3544,7 @@ function makeLabelDraggable(label, g, reposition) {
     node.style.touchAction = 'none';
     let dragging = false;
     let offset = [0, 0];
+    const labelIndex = Number.isInteger(g && g._labelIndex) && g._labelIndex >= 0 ? g._labelIndex : null;
     const toCoords = ev => {
       try {
         const c = appState.board.getUsrCoordsOfMouse(ev);
@@ -3504,6 +3565,9 @@ function makeLabelDraggable(label, g, reposition) {
       ensureLabelFront(label);
       clampLabelToView(label);
       offset = [label.X() - coords[0], label.Y() - coords[1]];
+      if (labelIndex != null) {
+        rememberCurveLabelPosition(labelIndex, { x: label.X(), y: label.Y() }, true);
+      }
       if (typeof node.setPointerCapture === 'function' && ev.pointerId != null) {
         try {
           node.setPointerCapture(ev.pointerId);
@@ -3520,6 +3584,9 @@ function makeLabelDraggable(label, g, reposition) {
       label.moveTo([nx, ny]);
       clampLabelToView(label);
       updatePlate(label);
+      if (labelIndex != null) {
+        rememberCurveLabelPosition(labelIndex, { x: label.X(), y: label.Y() }, true);
+      }
     };
     const end = ev => {
       if (!dragging) return;
@@ -3528,6 +3595,9 @@ function makeLabelDraggable(label, g, reposition) {
       ev.stopPropagation();
       clampLabelToView(label);
       updatePlate(label);
+      if (labelIndex != null) {
+        rememberCurveLabelPosition(labelIndex, { x: label.X(), y: label.Y() }, true);
+      }
       if (typeof node.releasePointerCapture === 'function' && ev.pointerId != null) {
         try {
           node.releasePointerCapture(ev.pointerId);
@@ -3542,6 +3612,9 @@ function makeLabelDraggable(label, g, reposition) {
       ev.preventDefault();
       ev.stopPropagation();
       g._labelManual = false;
+      if (labelIndex != null) {
+        rememberCurveLabelPosition(labelIndex, null, false);
+      }
       reposition(true);
     });
     return true;
@@ -4385,6 +4458,7 @@ function makeSmartCurveLabel(g, idx, content) {
   ensurePlateFor(label);
   ensureCurveLabelVisibility(label);
   g._labelManual = false;
+  g._labelIndex = Number.isInteger(idx) && idx >= 0 ? idx : 0;
   function finiteYAt(x) {
     const sample = t => {
       try {
@@ -4414,6 +4488,15 @@ function makeSmartCurveLabel(g, idx, content) {
       clampLabelToView(label);
       updatePlate(label);
       ensureLabelFront(label);
+      return;
+    }
+    const manualPos = manualCurveLabelPosition(g._labelIndex);
+    if (manualPos && !forced) {
+      label.moveTo([manualPos.x, manualPos.y]);
+      clampLabelToView(label);
+      updatePlate(label);
+      ensureLabelFront(label);
+      g._labelManual = true;
       return;
     }
     const bb = appState.board.getBoundingBox(),
@@ -4487,6 +4570,7 @@ function makeSmartCurveLabel(g, idx, content) {
     clampLabelToView(label);
     updatePlate(label);
     ensureLabelFront(label);
+    rememberCurveLabelPosition(g._labelIndex, { x: label.X(), y: label.Y() }, false);
     g._labelManual = false;
   }
   position();
