@@ -2003,24 +2003,48 @@ function isValidColor(value) {
     render();
   });
   initAltTextManager();
-  render();
-  updateFigureLayout();
+  function syncThemeAndPalette() {
+    applyThemeToDocument();
+    ensureColors(STATE.colorCount);
+    render();
+  }
   window.render = render;
-  function handleThemeProfileChange(event) {
+  function handleProjectProfileMessage(event) {
     const data = event && event.data;
     const type = typeof data === 'string' ? data : data && data.type;
-    if (type !== 'math-visuals:profile-change') return;
-    applyThemeToDocument();
-    render();
+    if (type !== 'math-visuals:profile-change' && type !== 'math-visuals:project-change') return;
+    syncThemeAndPalette();
+  }
+  function handleProjectProfileChange(event) {
+    if (!event || (event.type !== 'math-visuals:profile-change' && event.type !== 'math-visuals:project-change')) return;
+    syncThemeAndPalette();
   }
   function handleThemeSettingsChanged(event) {
     if (!event || event.type !== 'math-visuals:settings-changed') return;
-    applyThemeToDocument();
-    render();
+    syncThemeAndPalette();
   }
-  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-    window.addEventListener('message', handleThemeProfileChange);
-    window.addEventListener('math-visuals:settings-changed', handleThemeSettingsChanged);
-    window.addEventListener('math-visuals:app-mode-changed', handleAppModeChanged);
+  function initProjectProfileSync() {
+    if (typeof MutationObserver === 'function' && document && document.documentElement) {
+      const observer = new MutationObserver(mutations => {
+        if (!Array.isArray(mutations)) return;
+        const shouldSync = mutations.some(mutation => mutation && mutation.type === 'attributes' && ['data-project', 'data-mv-active-project', 'data-theme-profile'].includes(mutation.attributeName));
+        if (shouldSync) {
+          syncThemeAndPalette();
+        }
+      });
+      observer.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-project', 'data-mv-active-project', 'data-theme-profile']
+      });
+    }
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('math-visuals:profile-change', handleProjectProfileChange);
+      window.addEventListener('math-visuals:project-change', handleProjectProfileChange);
+      window.addEventListener('message', handleProjectProfileMessage);
+      window.addEventListener('math-visuals:settings-changed', handleThemeSettingsChanged);
+      window.addEventListener('math-visuals:app-mode-changed', handleAppModeChanged);
+    }
+    syncThemeAndPalette();
   }
+  initProjectProfileSync();
 })();
