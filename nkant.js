@@ -5265,7 +5265,7 @@ function bindUI() {
     { value: "custom", label: "Egenvalgt" }
   ];
   const sideOptions = [
-    { value: "inherit", label: "Arver standard" },
+    { value: "inherit", label: "Arver" },
     { value: "none", label: "Ingen" },
     { value: "value", label: "Tall" },
     { value: "custom", label: "Egenvalgt" }
@@ -5279,7 +5279,7 @@ function bindUI() {
     { value: "none", label: "Ingen" }
   ];
   const angleOptions = [
-    { value: "inherit", label: "Arver standard" },
+    { value: "inherit", label: "Arver" },
     { value: "none", label: "Ingen" },
     { value: "mark", label: "Markering" },
     { value: "mark+value", label: "Markering + tall" },
