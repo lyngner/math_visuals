@@ -33,6 +33,12 @@
   const btnPng = document.getElementById('btnPng');
   const cfgAntallWrapper = document.getElementById('cfg-antall-wrapper');
   const exportCard = document.getElementById('exportCard');
+  const DEFAULT_BRICK_PALETTE = {
+    stroke: '#af207a',
+    left: '#cf3a8f',
+    right: '#df76ae',
+    top: '#eca7cb'
+  };
   const DOT_FALLBACKS = {
     default: '#534477',
     monster: '#534477',
@@ -49,6 +55,127 @@
     if (theme && typeof theme.applyToDocument === 'function') {
       theme.applyToDocument(document);
     }
+  }
+  function clamp01(value) {
+    if (!Number.isFinite(value)) return 0;
+    if (value < 0) return 0;
+    if (value > 1) return 1;
+    return value;
+  }
+  function normalizeHexColor(color) {
+    if (typeof color !== 'string') return null;
+    const trimmed = color.trim();
+    const hex = trimmed.replace(/^#/, '');
+    if (/^[0-9a-fA-F]{3}$/.test(hex)) {
+      return '#' + hex.split('').map(ch => ch + ch).join('');
+    }
+    if (/^[0-9a-fA-F]{6}$/.test(hex)) {
+      return '#' + hex;
+    }
+    return null;
+  }
+  function hexToHsl(hex) {
+    const normalized = normalizeHexColor(hex);
+    if (!normalized) return null;
+    const r = parseInt(normalized.slice(1, 3), 16) / 255;
+    const g = parseInt(normalized.slice(3, 5), 16) / 255;
+    const b = parseInt(normalized.slice(5, 7), 16) / 255;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const delta = max - min;
+    let h = 0;
+    let s = 0;
+    const l = (max + min) / 2;
+    if (delta !== 0) {
+      s = l > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+      switch (max) {
+        case r:
+          h = (g - b) / delta + (g < b ? 6 : 0);
+          break;
+        case g:
+          h = (b - r) / delta + 2;
+          break;
+        default:
+          h = (r - g) / delta + 4;
+      }
+      h /= 6;
+    }
+    return {
+      h: clamp01(h),
+      s: clamp01(s),
+      l: clamp01(l)
+    };
+  }
+  function hslToHex(h, s, l) {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    const hueToRgb = t => {
+      const normalized = t < 0 ? t + 1 : t > 1 ? t - 1 : t;
+      if (normalized < 1 / 6) return p + (q - p) * 6 * normalized;
+      if (normalized < 1 / 2) return q;
+      if (normalized < 2 / 3) return p + (q - p) * (2 / 3 - normalized) * 6;
+      return p;
+    };
+    const r = Math.round(clamp01(hueToRgb(h + 1 / 3)) * 255);
+    const g = Math.round(clamp01(hueToRgb(h)) * 255);
+    const b = Math.round(clamp01(hueToRgb(h - 1 / 3)) * 255);
+    const toHex = value => value.toString(16).padStart(2, '0');
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }
+  function adjustLightness(hex, delta) {
+    const hsl = hexToHsl(hex);
+    if (!hsl) return null;
+    const l = clamp01(hsl.l + delta);
+    return hslToHex(hsl.h, hsl.s, l);
+  }
+  function buildBrickPalette(baseColor) {
+    const normalizedBase = normalizeHexColor(baseColor);
+    if (!normalizedBase) return { ...DEFAULT_BRICK_PALETTE };
+    const stroke = adjustLightness(normalizedBase, -0.12) || DEFAULT_BRICK_PALETTE.stroke;
+    const right = adjustLightness(normalizedBase, 0.15) || DEFAULT_BRICK_PALETTE.right;
+    const top = adjustLightness(normalizedBase, 0.27) || DEFAULT_BRICK_PALETTE.top;
+    return {
+      stroke,
+      left: normalizedBase,
+      right,
+      top
+    };
+  }
+  function getKvikkbilderBaseColor() {
+    const fallback = DEFAULT_BRICK_PALETTE.left;
+    const theme = getThemeApi();
+    if (theme && typeof theme.getGroupPalette === 'function') {
+      try {
+        const palette = theme.getGroupPalette('kvikkbilder', { count: 1 });
+        if (Array.isArray(palette) && palette.length) {
+          const normalized = normalizeHexColor(palette[0]);
+          if (normalized) return normalized;
+        }
+      } catch (_) {}
+    }
+    if (theme && typeof theme.getColor === 'function') {
+      const color = theme.getColor('kvikkbilder.fill', fallback);
+      const normalized = normalizeHexColor(color);
+      if (normalized) return normalized;
+    }
+    return fallback;
+  }
+  function applyBrickPalette(svgText, palette) {
+    if (typeof svgText !== 'string' || !svgText) return svgText;
+    const colors = palette && typeof palette === 'object' ? palette : DEFAULT_BRICK_PALETTE;
+    const replacements = [
+      ['#af207a', colors.stroke || DEFAULT_BRICK_PALETTE.stroke],
+      ['#cf3a8f', colors.left || DEFAULT_BRICK_PALETTE.left],
+      ['#df76ae', colors.right || DEFAULT_BRICK_PALETTE.right],
+      ['#eca7cb', colors.top || DEFAULT_BRICK_PALETTE.top]
+    ];
+    let result = svgText;
+    replacements.forEach(([search, replacement]) => {
+      if (typeof replacement !== 'string') return;
+      const pattern = new RegExp(search.replace('#', '\\#'), 'ig');
+      result = result.replace(pattern, replacement);
+    });
+    return result;
   }
   function getDotColor(kind) {
     const fallback = DOT_FALLBACKS[kind] || DOT_FALLBACKS.default;
@@ -1416,12 +1543,15 @@
   }
   render();
   initAltTextManager();
+  const kvikkbilderPalette = buildBrickPalette(getKvikkbilderBaseColor());
   Promise.allSettled([
     fetch('images/brick1.svg').then(r => r.text()).then(txt => {
-      BRICK_SRC = `data:image/svg+xml;base64,${btoa(txt)}`;
+      const svg = applyBrickPalette(txt, kvikkbilderPalette);
+      BRICK_SRC = `data:image/svg+xml;base64,${btoa(svg)}`;
     }),
     fetch('images/block1.svg').then(r => r.text()).then(txt => {
-      BLOCK_SRC = `data:image/svg+xml;base64,${btoa(txt)}`;
+      const svg = applyBrickPalette(txt, kvikkbilderPalette);
+      BLOCK_SRC = `data:image/svg+xml;base64,${btoa(svg)}`;
     })
   ]).then(() => {
     renderView();
