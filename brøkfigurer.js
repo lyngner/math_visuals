@@ -1603,7 +1603,11 @@ function isValidColor(value) {
       }
     }
     function initBoard() {
-      if (board) JXG.JSXGraph.freeBoard(board);
+      if (board) {
+        var _board$stopResizeObse;
+        (_board$stopResizeObse = board.stopResizeObserver) === null || _board$stopResizeObse === void 0 ? void 0 : _board$stopResizeObse.call(board);
+        JXG.JSXGraph.freeBoard(board);
+      }
       board = JXG.JSXGraph.initBoard(`box${id}`, {
         boundingbox: BOARD_BOUNDING_BOX,
         axis: false,

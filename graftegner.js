@@ -2589,6 +2589,10 @@ function destroyBoard() {
       (_brd$off = (_brd = appState.board).off) === null || _brd$off === void 0 || _brd$off.call(_brd, 'boundingbox', updateAfterViewChange);
     } catch (_) {}
     try {
+      var _brd$stopResizeObser, _brd2;
+      (_brd$stopResizeObser = (_brd2 = appState.board).stopResizeObserver) === null || _brd$stopResizeObser === void 0 ? void 0 : _brd$stopResizeObser.call(_brd2);
+    } catch (_) {}
+    try {
       if (appState.axes.customTicks.x) {
         appState.board.removeObject(appState.axes.customTicks.x);
       }
