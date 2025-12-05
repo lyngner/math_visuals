@@ -60,7 +60,7 @@
     @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
     .grid-3 {
       display: grid;
-      grid-template-columns: 44px 1fr;
+      grid-template-columns: repeat(2, minmax(72px, 1fr));
       gap: 4px;
       align-items: center;
     }
@@ -79,6 +79,7 @@
     .legend { font-weight: 600; font-size: 13px; color: #374151; margin-top: 8px; }
     .radio-row { display: flex; gap: 14px; align-items: center; }
     .tight { padding: 4px 8px; width: 44px; }
+    .grid-3 .tight { width: 100%; }
     input[type="text"]:disabled { background: #f3f4f6; color: #9ca3af; }
     .setting__details {
       margin-top: 8px;
