@@ -715,11 +715,11 @@ const FONT_LIMITS = {
   min: 6,
   max: 72
 };
-const FONT_DEFAULT = 15;
+const FONT_DEFAULT = 16;
 const FONT_SIZE_OPTIONS = {
-  large: 20,
+  large: 24,
   normal: FONT_DEFAULT,
-  small: 12
+  small: 8
 };
 const FONT_PARAM_KEYS = ['fontSize', 'font', 'axisFont', 'tickFont', 'curveFont'];
 const SHOW_CURVE_NAMES = params.has('showNames') ? paramBool('showNames') : true;
