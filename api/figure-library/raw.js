@@ -79,6 +79,10 @@ function resolveRequestedAsset(req, url) {
   }
   const queryFormat = url.searchParams.get('format') || (req && req.query && req.query.format);
   const candidates = [url.searchParams.get('path'), url.searchParams.get('slug'), url.searchParams.get('s')];
+  const pathSlug = extractSlugFromPath(url.pathname);
+  if (pathSlug) {
+    candidates.unshift(pathSlug);
+  }
   for (const candidate of candidates) {
     if (!candidate) continue;
     const descriptor = resolveAssetDescriptor(candidate, queryFormat);
@@ -99,6 +103,26 @@ function resolveRequestedAsset(req, url) {
     }
   }
   return null;
+}
+
+function extractSlugFromPath(pathname) {
+  if (typeof pathname !== 'string') {
+    return null;
+  }
+  const PREFIX = '/api/figure-library/raw';
+  if (!pathname.toLowerCase().startsWith(PREFIX)) {
+    return null;
+  }
+  const remainder = pathname.slice(PREFIX.length);
+  const trimmed = remainder.replace(/^\/+/, '');
+  if (!trimmed) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(trimmed);
+  } catch (_) {
+    return trimmed;
+  }
 }
 
 function decodePngDataUrl(dataUrl) {
