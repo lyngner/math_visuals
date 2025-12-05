@@ -1476,7 +1476,7 @@ async function handleCategoryAppsSaveClick() {
   setCategoryAppsControlsDisabled(true);
 
   try {
-    const { data, response } = await fetchFigureLibrary('PATCH', {
+    const { data, response } = await fetchFigureLibrary('POST', {
       categoryId,
       categoryApps: normalizedSelection,
     });
