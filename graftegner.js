@@ -7384,6 +7384,9 @@ function setupSettingsForm() {
           control.input.value = markerValue || DEFAULT_POINT_MARKER;
         }
       }
+      if (control.lock && control.lock.container) {
+        control.lock.container.style.display = show ? '' : 'none';
+      }
       if (control.lock && control.lock.checkbox) {
         control.lock.checkbox.disabled = !show;
         if (show) {
@@ -8442,7 +8445,6 @@ function setupSettingsForm() {
     const lockLabel = row.querySelector('[data-point-lock-container]');
     const lockCheckbox = lockLabel ? lockLabel.querySelector('input[data-point-lock]') : null;
     if (lockLabel && lockCheckbox) {
-      lockLabel.style.display = 'none';
       lockCheckbox.checked = !!initialLockValue;
       lockCheckbox.disabled = true;
       setPointLockValueForRow(row, initialLockValue);
