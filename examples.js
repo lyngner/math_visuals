@@ -5822,25 +5822,117 @@
   }
 
   let taskDescriptionSyncInitialized = false;
+  let taskPanelPreview = null;
+  let taskPanelUpdateButton = null;
+  function applyTaskPreviewValue(value, options) {
+    if (!taskPanelPreview) return;
+    const opts = options && typeof options === 'object' ? options : {};
+    const stringValue = typeof value === 'string' ? value : '';
+    const hasContent = !!stringValue.trim();
+    taskPanelPreview.dataset.placeholder = hasContent ? 'false' : 'true';
+    if (opts.skipTextUpdate) return;
+    taskPanelPreview.textContent = hasContent ? stringValue : 'Oppgave';
+  }
+  function readTaskPreviewValue() {
+    if (!taskPanelPreview) return '';
+    const raw =
+      typeof taskPanelPreview.innerText === 'string'
+        ? taskPanelPreview.innerText
+        : taskPanelPreview.textContent || '';
+    if (taskPanelPreview.dataset.placeholder === 'true') {
+      return '';
+    }
+    return raw.replace(/\r\n/g, '\n').replace(/\u00a0/g, ' ');
+  }
+  function ensureTaskPanelUi(taskInput) {
+    if (taskPanelPreview && taskPanelPreview.isConnected && taskPanelUpdateButton && taskPanelUpdateButton.isConnected) {
+      return true;
+    }
+    const taskPanel = document.getElementById('taskPanel');
+    if (!taskPanel || !taskInput) return false;
+    let body = taskPanel.querySelector('.task-panel__body');
+    if (!body) {
+      body = document.createElement('div');
+      body.className = 'task-panel__body';
+      if (taskInput.parentElement === taskPanel) {
+        taskPanel.insertBefore(body, taskInput);
+      } else {
+        taskPanel.appendChild(body);
+      }
+    }
+      taskPanelPreview = body.querySelector('.task-panel__preview');
+      if (!taskPanelPreview) {
+        taskPanelPreview = document.createElement('div');
+        taskPanelPreview.className = 'task-panel__preview';
+        taskPanelPreview.contentEditable = 'true';
+        taskPanelPreview.setAttribute('role', 'textbox');
+        taskPanelPreview.tabIndex = 0;
+        taskPanelPreview.spellcheck = true;
+        taskPanelPreview.setAttribute('aria-label', 'Oppgavetekst');
+        body.appendChild(taskPanelPreview);
+      }
+    let actions = body.querySelector('.task-panel__actions');
+    if (!actions) {
+      actions = document.createElement('div');
+      actions.className = 'task-panel__actions';
+      body.appendChild(actions);
+    }
+    taskPanelUpdateButton = actions.querySelector('[data-task-update]');
+    if (!taskPanelUpdateButton) {
+      taskPanelUpdateButton = document.createElement('button');
+      taskPanelUpdateButton.type = 'button';
+      taskPanelUpdateButton.className = 'btn';
+      taskPanelUpdateButton.dataset.taskUpdate = 'true';
+      taskPanelUpdateButton.textContent = 'Oppdater oppgavetekst';
+      actions.appendChild(taskPanelUpdateButton);
+    }
+    return true;
+  }
   function initTaskDescriptionSync() {
     if (taskDescriptionSyncInitialized) return;
     const sidebarInput = document.getElementById('exampleDescription');
     const taskInput = document.getElementById('taskModeDescription');
     if (!sidebarInput || !taskInput) return;
     taskDescriptionSyncInitialized = true;
+    if (!ensureTaskPanelUi(taskInput)) return;
 
     const syncFromSidebar = () => {
       taskInput.value = sidebarInput.value;
+      applyTaskPreviewValue(taskInput.value);
     };
     const syncFromTask = () => {
       sidebarInput.value = taskInput.value;
       sidebarInput.dispatchEvent(new Event('input'));
+      applyTaskPreviewValue(taskInput.value);
+    };
+    const syncFromPreview = event => {
+      const value = readTaskPreviewValue();
+      taskInput.value = value;
+      taskInput.dispatchEvent(new Event('input'));
+      applyTaskPreviewValue(value, { skipTextUpdate: event && event.type === 'input' });
     };
 
     sidebarInput.addEventListener('input', syncFromSidebar);
     taskInput.addEventListener('input', syncFromTask);
+    if (taskPanelPreview) {
+      taskPanelPreview.addEventListener('input', syncFromPreview);
+      taskPanelPreview.addEventListener('blur', syncFromPreview);
+    }
+
+    if (taskPanelUpdateButton) {
+      taskPanelUpdateButton.addEventListener('click', () => {
+        const updateBtn = document.getElementById('btnUpdateExample');
+        if (updateBtn && typeof updateBtn.click === 'function') {
+          updateBtn.click();
+        }
+      });
+    }
 
     syncFromSidebar();
+    if (taskPanelPreview) {
+      taskPanelPreview.textContent = sidebarInput.value || 'Oppgave';
+      applyTaskPreviewValue(sidebarInput.value, { skipTextUpdate: true });
+    }
 
     if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('math-visuals:app-mode-changed', syncFromSidebar);
