@@ -182,9 +182,14 @@
         </div>
         <svg id="fractionWallSvg" class="fractionWallSvg" viewBox="0 0 100 100" role="img" aria-labelledby="fractionWallTitle fractionWallDesc"></svg>
         <p class="hint">Trykk på en brøkbit for å bytte mellom brøk, prosent og desimaltall.</p>
-      </div>
+        </div>
 
       <div class="side">
+        <div id="taskPanel" class="card task-panel" hidden>
+          <h3>Oppgave</h3>
+          <textarea id="taskModeDescription" class="task-text-editable" placeholder="Klikk her for å skrive oppgavetekst..."></textarea>
+        </div>
+
         <div class="card card--examples">
           <div class="example-description">
             <textarea id="exampleDescription" aria-label="Oppgavetekst (valgfritt)" placeholder="Skriv oppgavetekst her"></textarea>

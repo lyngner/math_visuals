@@ -388,6 +388,7 @@
     .axis-inputs--font{ gap:10px; }
     .axis-inputs--font label{ flex:1 1 160px; }
     .axis-inputs--font select{ flex:1; min-width:0; padding:6px 10px; }
+
   </style>
   <link rel="stylesheet" href="/split.css" />
 </head>
@@ -404,9 +405,13 @@
           <a class="btn" href="#examplesCard">Gå til eksempler</a>
           <a class="btn" href="#settingsCard">Gå til innstillinger</a>
         </div>
-      </div>
+        </div>
 
       <div class="side">
+        <div id="taskPanel" class="card" hidden>
+          <h3>Oppgave</h3>
+          <textarea id="taskModeDescription" class="task-text-editable" placeholder="Klikk her for å skrive oppgavetekst..."></textarea>
+        </div>
         <div class="card card--examples" id="examplesCard">
           <div class="example-description">
             <textarea id="exampleDescription" aria-label="Oppgavetekst (valgfritt)" placeholder="Skriv oppgavetekst her"></textarea>

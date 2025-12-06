@@ -9669,3 +9669,4 @@ function setupSettingsForm() {
     if (e.key === 'Enter') apply();
   });
 }
+

@@ -5820,6 +5820,41 @@
     if (descriptionInput) ensureDescriptionListeners(descriptionInput);
     return descriptionInput || null;
   }
+
+  let taskDescriptionSyncInitialized = false;
+  function initTaskDescriptionSync() {
+    if (taskDescriptionSyncInitialized) return;
+    const sidebarInput = document.getElementById('exampleDescription');
+    const taskInput = document.getElementById('taskModeDescription');
+    if (!sidebarInput || !taskInput) return;
+    taskDescriptionSyncInitialized = true;
+
+    const syncFromSidebar = () => {
+      taskInput.value = sidebarInput.value;
+    };
+    const syncFromTask = () => {
+      sidebarInput.value = taskInput.value;
+      sidebarInput.dispatchEvent(new Event('input'));
+    };
+
+    sidebarInput.addEventListener('input', syncFromSidebar);
+    taskInput.addEventListener('input', syncFromTask);
+
+    syncFromSidebar();
+
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('math-visuals:app-mode-changed', syncFromSidebar);
+      window.addEventListener('examples:loaded', syncFromSidebar);
+    }
+  }
+
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initTaskDescriptionSync, { once: true });
+    } else {
+      initTaskDescriptionSync();
+    }
+  }
   function getDescriptionValue() {
     const input = getDescriptionInput();
     if (!input) return '';
