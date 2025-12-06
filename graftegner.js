@@ -741,9 +741,6 @@ function isDefaultPointMarker(value) {
 }
 function resolvePointMarkerStyle(rawMarker) {
   const sanitized = sanitizePointMarkerValue(rawMarker);
-  if (sanitized === '' && rawMarker === '') {
-    return { type: 'none' };
-  }
   const marker = sanitized || DEFAULT_POINT_MARKER;
   if (marker === '0') {
     return { type: 'circle', size: POINT_MARKER_SIZE * 1.5, fillOpacity: 0, strokeOpacity: 1 };
