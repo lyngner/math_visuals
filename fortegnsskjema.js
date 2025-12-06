@@ -83,14 +83,12 @@
     ceil: 'ceil',
     round: 'round'
   };
-  const FORTEGNSSKJEMA_GROUP_ID = 'fortegnsskjema';
-  const FORTEGNSSKJEMA_SLOT_COUNT = 5;
   const FORTEGNSSKJEMA_FALLBACK = {
-    axis: '#4b5563',
-    grid: '#d1d5db',
-    positive: '#111827',
-    negative: '#dc2626',
-    text: '#111827'
+    axis: '#000000',
+    grid: '#000000',
+    positive: '#000000',
+    negative: '#000000',
+    text: '#000000'
   };
   let chartPalette = {
     axis: FORTEGNSSKJEMA_FALLBACK.axis,
@@ -100,201 +98,8 @@
     text: FORTEGNSSKJEMA_FALLBACK.text
   };
 
-  function getSettingsApi() {
-    const api = globalObj && typeof globalObj === 'object' ? globalObj.MathVisualsSettings : null;
-    return api && typeof api === 'object' ? api : null;
-  }
-
-  function getGroupPaletteApi() {
-    const api = globalObj && typeof globalObj === 'object' ? globalObj.MathVisualsGroupPalette : null;
-    if (!api || typeof api !== 'object') return null;
-    if (typeof api.resolveGroupPalette === 'function') {
-      return api;
-    }
-    if (api.service && typeof api.service.resolveGroupPalette === 'function') {
-      return api.service;
-    }
-    return null;
-  }
-
-  function getThemeApi() {
-    const api = globalObj && typeof globalObj === 'object' ? globalObj.MathVisualsTheme : null;
-    return api && typeof api === 'object' ? api : null;
-  }
-
-  function getActiveThemeProjectName(theme = getThemeApi()) {
-    if (!theme || typeof theme.getActiveProfileName !== 'function') return null;
-    try {
-      const value = theme.getActiveProfileName();
-      if (typeof value === 'string' && value.trim()) {
-        return value.trim().toLowerCase();
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  function resolvePaletteProjectName() {
-    if (root && typeof root.getAttribute === 'function') {
-      const activeAttr = root.getAttribute('data-mv-active-project');
-      if (typeof activeAttr === 'string' && activeAttr.trim()) {
-        return activeAttr.trim().toLowerCase();
-      }
-      const profileAttr = root.getAttribute('data-theme-profile');
-      if (typeof profileAttr === 'string' && profileAttr.trim()) {
-        return profileAttr.trim().toLowerCase();
-      }
-    }
-    const activeThemeProject = getActiveThemeProjectName();
-    if (activeThemeProject) return activeThemeProject;
-    const settings = getSettingsApi();
-    if (settings && typeof settings.getActiveProject === 'function') {
-      try {
-        const value = settings.getActiveProject();
-        if (typeof value === 'string' && value.trim()) {
-          return value.trim().toLowerCase();
-        }
-      } catch (_) {}
-    }
-    return null;
-  }
-
-  function sanitizeColor(value) {
-    if (typeof value !== 'string') return null;
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    return trimmed;
-  }
-
-  function sanitizePalette(values) {
-    if (!Array.isArray(values)) return [];
-    const sanitized = [];
-    for (const value of values) {
-      const color = sanitizeColor(value);
-      if (color) {
-        sanitized.push(color);
-      }
-    }
-    return sanitized;
-  }
-
-  function ensurePaletteSize(basePalette, fallbackPalette, count) {
-    const base = sanitizePalette(basePalette);
-    const fallback = sanitizePalette(fallbackPalette);
-    const target = Number.isFinite(count) && count > 0 ? Math.trunc(count) : base.length || fallback.length;
-    if (!target) {
-      return base.length ? base.slice() : fallback.slice();
-    }
-    const result = [];
-    for (let index = 0; index < target; index += 1) {
-      const primary = base[index];
-      if (typeof primary === 'string' && primary) {
-        result.push(primary);
-        continue;
-      }
-      if (fallback.length) {
-        const fallbackColor = fallback[index % fallback.length];
-        if (typeof fallbackColor === 'string' && fallbackColor) {
-          result.push(fallbackColor);
-          continue;
-        }
-      }
-      if (base.length) {
-        const cycled = base[index % base.length];
-        if (typeof cycled === 'string' && cycled) {
-          result.push(cycled);
-        }
-      }
-    }
-    if (!result.length && fallback.length) {
-      result.push(fallback[0]);
-    }
-    return result;
-  }
-
-  function tryResolvePalette(resolver) {
-    try {
-      const palette = resolver();
-      return Array.isArray(palette) ? sanitizePalette(palette) : [];
-    } catch (_) {
-      return [];
-    }
-  }
-
-  function resolveGroupPaletteColors(groupId, fallbackPalette, desiredCount) {
-    const fallback = sanitizePalette(fallbackPalette);
-    const targetCount = Number.isFinite(desiredCount) && desiredCount > 0 ? Math.trunc(desiredCount) : fallback.length;
-    const project = resolvePaletteProjectName();
-    const settings = getSettingsApi();
-    let palette = [];
-    if (settings && typeof settings.getGroupPalette === 'function') {
-      palette = tryResolvePalette(() =>
-        settings.getGroupPalette(groupId, { project: project || undefined, count: targetCount || undefined })
-      );
-      if ((!palette || palette.length < targetCount) && settings.getGroupPalette.length >= 3) {
-        const altPalette = tryResolvePalette(() =>
-          settings.getGroupPalette(groupId, targetCount || undefined, project ? { project } : undefined)
-        );
-        if (altPalette.length) {
-          palette = altPalette;
-        }
-      }
-    }
-    if (!Array.isArray(palette) || palette.length < targetCount) {
-      const groupPaletteApi = getGroupPaletteApi();
-      if (groupPaletteApi && typeof groupPaletteApi.resolveGroupPalette === 'function') {
-        const resolved = tryResolvePalette(() =>
-          groupPaletteApi.resolveGroupPalette({
-            groupId,
-            count: targetCount || undefined,
-            project: project || undefined,
-            fallback
-          })
-        );
-        if (resolved.length) {
-          palette = resolved;
-        }
-      }
-    }
-    if (!Array.isArray(palette) || palette.length < targetCount) {
-      const theme = getThemeApi();
-      if (theme && typeof theme.getGroupPalette === 'function') {
-        const themePalette = tryResolvePalette(() =>
-          theme.getGroupPalette(groupId, { project: project || undefined, count: targetCount || undefined })
-        );
-        if (themePalette.length) {
-          palette = themePalette;
-        } else if (theme.getGroupPalette.length >= 3) {
-          const legacyPalette = tryResolvePalette(() =>
-            theme.getGroupPalette(groupId, targetCount || undefined, project ? { project } : undefined)
-          );
-          if (legacyPalette.length) {
-            palette = legacyPalette;
-          }
-        }
-      }
-    }
-    return ensurePaletteSize(palette, fallback.length ? fallback : fallbackPalette, targetCount || fallback.length);
-  }
-
   function applyFortegnsskjemaPalette(options = {}) {
-    const palette = resolveGroupPaletteColors(
-      FORTEGNSSKJEMA_GROUP_ID,
-      [
-        FORTEGNSSKJEMA_FALLBACK.axis,
-        FORTEGNSSKJEMA_FALLBACK.grid,
-        FORTEGNSSKJEMA_FALLBACK.positive,
-        FORTEGNSSKJEMA_FALLBACK.negative,
-        FORTEGNSSKJEMA_FALLBACK.text
-      ],
-      FORTEGNSSKJEMA_SLOT_COUNT
-    );
-    chartPalette = {
-      axis: palette[0] || FORTEGNSSKJEMA_FALLBACK.axis,
-      grid: palette[1] || FORTEGNSSKJEMA_FALLBACK.grid,
-      positive: palette[2] || FORTEGNSSKJEMA_FALLBACK.positive,
-      negative: palette[3] || FORTEGNSSKJEMA_FALLBACK.negative,
-      text: palette[4] || FORTEGNSSKJEMA_FALLBACK.text
-    };
+    chartPalette = { ...FORTEGNSSKJEMA_FALLBACK };
     if (root && root.style) {
       root.style.setProperty('--fortegnsskjema-axis-color', chartPalette.axis);
       root.style.setProperty('--fortegnsskjema-grid-color', chartPalette.grid);
@@ -308,11 +113,6 @@
   }
 
   applyFortegnsskjemaPalette();
-  if (globalObj && typeof globalObj.addEventListener === 'function') {
-    const handlePaletteEvent = () => applyFortegnsskjemaPalette({ reRender: true });
-    globalObj.addEventListener('math-visuals:settings-changed', handlePaletteEvent);
-    globalObj.addEventListener('math-visuals:profile-change', handlePaletteEvent);
-  }
   function getMathFieldConstructor() {
     if (typeof window === 'undefined') {
       return null;
