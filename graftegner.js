@@ -725,12 +725,18 @@ function markerValueForIndex(markers, index) {
   }
   return markers[markers.length - 1];
 }
-function resolvePointMarkersForCount(markerValue, count) {
+function resolvePointMarkersForCount(markerValue, count, options = {}) {
+  const allowEmpty = !!options.allowEmpty;
+  const fallback = options.fallback || DEFAULT_POINT_MARKER;
   const markers = parsePointMarkerList(markerValue);
   const resolved = [];
   for (let i = 0; i < Math.max(0, count); i += 1) {
     const marker = markers.length ? markerValueForIndex(markers, i) : markerValue;
-    resolved.push(marker || DEFAULT_POINT_MARKER);
+    if (allowEmpty && sanitizePointMarkerValue(marker) === '') {
+      resolved.push('');
+    } else {
+      resolved.push(marker || fallback);
+    }
   }
   return resolved;
 }
@@ -1773,6 +1779,7 @@ function parseSimple(txt) {
     rows: [],
     pointMarker: '',
     pointMarkers: [],
+    markerExplicitEmpty: false,
     pointLocks: [],
     lockExtraPoints: true,
     raw: txt
@@ -1879,11 +1886,15 @@ function parseSimple(txt) {
       }
       continue;
     }
-    const mm = L.match(/^marker\s*=\s*(.+)$/i);
+    const mm = L.match(/^marker\s*=\s*(.*)$/i);
     if (mm) {
       const normalizedMarker = normalizePointMarkerValue(mm[1]);
+      const sanitizedMarker = sanitizePointMarkerValue(mm[1]);
       out.pointMarkers = parsePointMarkerList(mm[1]);
-      out.pointMarker = normalizedMarker || sanitizePointMarkerValue(mm[1]);
+      out.pointMarker = normalizedMarker || sanitizedMarker;
+      if (!normalizedMarker && sanitizedMarker === '' && typeof mm[1] === 'string') {
+        out.markerExplicitEmpty = true;
+      }
       continue;
     }
     const lockMatch = L.match(/^lockpoint\s*=\s*(.+)$/i);
@@ -5911,8 +5922,11 @@ function updateCoordsInputFromPoints(points, options = {}) {
 }
 function addFixedPoints() {
   if (!Array.isArray(appState.simple.parsed.extraPoints)) return;
-  const markerList = Array.isArray(appState.simple.parsed.pointMarkers) && appState.simple.parsed.pointMarkers.length
+  const parsedMarkerList = Array.isArray(appState.simple.parsed.pointMarkers)
     ? appState.simple.parsed.pointMarkers
+    : [];
+  const markerList = parsedMarkerList.length || appState.simple.parsed.markerExplicitEmpty
+    ? parsedMarkerList
     : parsePointMarkerList(ADV.points.marker);
   const lockList = Array.isArray(appState.simple.parsed.pointLocks) ? appState.simple.parsed.pointLocks : [];
   const showPointNames = !!(ADV.curveName && ADV.curveName.showName);
@@ -5920,6 +5934,17 @@ function addFixedPoints() {
   const coordRows = Array.isArray(appState.simple.parsed.rows)
     ? appState.simple.parsed.rows.filter(row => row && row.type === 'coords')
     : [];
+  const polylinePointIndexes = new Set();
+  coordRows.forEach(row => {
+    const start = Number.isFinite(row.pointStart) ? row.pointStart : 0;
+    const count = Number.isFinite(row.pointCount) ? row.pointCount : 0;
+    if (count >= 2) {
+      for (let i = start; i < start + count; i += 1) {
+        polylinePointIndexes.add(i);
+      }
+    }
+  });
+  const hidePolylineMarkers = !!appState.simple.parsed.markerExplicitEmpty && polylinePointIndexes.size > 0;
   appState.simple.parsed.extraPoints.forEach((pt, idx) => {
     const customPointName = Array.isArray(appState.simple.parsed.pointNames)
       ? appState.simple.parsed.pointNames[idx]
@@ -5942,7 +5967,9 @@ function addFixedPoints() {
     };
     const markerCandidate = markerValueForIndex(markerList, idx);
     const markerValue = sanitizePointMarkerValue(markerCandidate);
-    const markerStyle = resolvePointMarkerStyle(markerValue);
+    const markerStyle = hidePolylineMarkers && polylinePointIndexes.has(idx)
+      ? { type: 'none' }
+      : resolvePointMarkerStyle(markerValue);
     if (markerStyle.type === 'circle') {
       pointOptions.face = 'o';
       pointOptions.size = markerStyle.size;
@@ -8362,6 +8389,8 @@ function setupSettingsForm() {
     const answerLines = [];
     const markerExports = [];
     const lockExports = [];
+    let hasPolylineCoords = false;
+    let hasExplicitEmptyPolylineMarkers = false;
     rows.forEach((row, idx) => {
       const funInput = row.querySelector('[data-fun]');
       const domInput = row.querySelector('input[data-dom]');
@@ -8383,15 +8412,28 @@ function setupSettingsForm() {
         const parsedPoints = parsePointListString(fun)
           .filter(pt => Array.isArray(pt) && pt.length === 2 && pt.every(Number.isFinite));
         if (parsedPoints.length) {
+          if (parsedPoints.length >= 2) {
+            hasPolylineCoords = true;
+          }
           const coords = parsedPoints
             .map(pt => `(${formatNumber(pt[0], stepX())}, ${formatNumber(pt[1], stepY())})`)
             .filter(Boolean);
           if (coords.length) {
             lines.push(`coords=${coords.join('; ')}`);
           }
-          const markerValueForRow = getPointMarkerInputValue(row) || DEFAULT_POINT_MARKER;
-          const markersForRow = resolvePointMarkersForCount(markerValueForRow, parsedPoints.length);
-          markersForRow.forEach(marker => markerExports.push(sanitizePointMarkerValue(marker) || DEFAULT_POINT_MARKER));
+          const storedMarkerValue = getPointMarkerValueForRow(row);
+          const markerInputEmpty = storedMarkerValue === '';
+          const markerValueForRow = markerInputEmpty ? '' : (getPointMarkerInputValue(row) || DEFAULT_POINT_MARKER);
+          const markersForRow = resolvePointMarkersForCount(markerValueForRow, parsedPoints.length, {
+            allowEmpty: markerInputEmpty
+          });
+          markersForRow.forEach(marker => {
+            const sanitized = sanitizePointMarkerValue(marker);
+            markerExports.push(markerInputEmpty ? sanitized : (sanitized || DEFAULT_POINT_MARKER));
+          });
+          if (markerInputEmpty && parsedPoints.length >= 2) {
+            hasExplicitEmptyPolylineMarkers = true;
+          }
           const lockForRow = getPointLockValueForRow(row);
           parsedPoints.forEach(() => lockExports.push(lockForRow));
         }
@@ -8445,6 +8487,9 @@ function setupSettingsForm() {
           lines.push(`marker=${markerLineValue}`);
           hasMarkerLine = true;
         }
+      } else if (hasExplicitEmptyPolylineMarkers && hasPolylineCoords) {
+        lines.push('marker=');
+        hasMarkerLine = true;
       }
     }
     if (!hasLinePtsLine && neededLinePoints > 0 && (linePointsEdited || Array.isArray(appState.simple.parsed.linePoints) && appState.simple.parsed.linePoints.length > 0)) {
