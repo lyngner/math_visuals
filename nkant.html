@@ -244,9 +244,13 @@
             <p class="label-editor__hint small">Dra etiketter direkte i tegningen for å flytte dem. I redigeringsmodus kan du også velge etiketter med TAB, bruke piltastene for å flytte (SHIFT for større steg, ALT/⌘ for finjustering) og [ eller - / ] eller + for å rotere.</p>
           </div>
         </div>
-      </div>
+        </div>
 
       <div class="side">
+        <div id="taskPanel" class="card task-panel" hidden>
+          <h3>Oppgave</h3>
+          <textarea id="taskModeDescription" class="task-text-editable" placeholder="Klikk her for å skrive oppgavetekst..."></textarea>
+        </div>
         <div class="card card--examples">
           <div class="example-description">
             <textarea id="exampleDescription" aria-label="Oppgavetekst (valgfritt)" placeholder="Skriv oppgavetekst her"></textarea>

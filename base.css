@@ -696,36 +696,48 @@ body[data-app-mode="task"] .card--examples .example-description label {
   resize: none;
 }
 
-body[data-app-mode="task"] .side {
-  gap: 0;
+.task-panel {
+  display: none;
 }
 
-body[data-app-mode="task"] .side > :not(.card--examples),
-body[data-app-mode="task"] .card--settings,
-body[data-app-mode="task"] .card--export,
-body[data-app-mode="task"] .card:has(.alt-text):not(.card--examples) {
-  display: none !important;
-}
-
-body[data-app-mode="task"] .card--examples {
-  display: flex !important;
-  gap: 12px;
-  border: none;
-  box-shadow: none;
+.task-text-editable {
+  width: 100%;
+  min-height: 150px;
+  padding: 12px;
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text-color, #1f2937);
   background: transparent;
-  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  resize: vertical;
+  transition: all 0.2s ease;
 }
 
-body[data-app-mode="task"] .card--examples .example-description {
-  padding: 0;
+.task-text-editable:hover {
+  background-color: #f9fafb;
+  border-color: #e5e7eb;
 }
 
-body[data-app-mode="task"] .card--examples .example-tabs {
+.task-text-editable:focus {
+  outline: none;
+  background-color: #ffffff;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+body[data-app-mode="task"] .side {
+  gap: var(--gap);
+}
+
+body[data-app-mode="task"] .side > :not(.task-panel) {
   display: none !important;
 }
 
-body[data-app-mode="task"] .card--examples .example-settings > :not(.example-description) {
-  display: none !important;
+body[data-app-mode="task"] .task-panel {
+  display: flex !important;
+  gap: 10px;
 }
 
 body[data-app-mode="task"] .card--examples .example-description {
