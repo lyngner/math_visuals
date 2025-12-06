@@ -591,6 +591,77 @@ body:not([data-app-mode="task"]) .card--examples .example-description {
   display: none;
 }
 
+/* ==========================================================================
+   MODUS-STYRING: Redigeringsmodus vs. Oppgavemodus (globalt)
+   ========================================================================== */
+
+/* Redigeringsmodus: vis innstillinger, skjul oppgaveteksten */
+body:not([data-app-mode="task"]) .card--settings {
+  display: flex !important;
+}
+
+/* Oppgavemodus: vis oppgaveteksten, skjul innstillinger/eksport */
+body[data-app-mode="task"] .side {
+  display: flex !important;
+}
+
+body[data-app-mode="task"] .side .task-panel {
+  display: none !important;
+}
+
+body[data-app-mode="task"] .card--settings,
+body[data-app-mode="task"] #exportCard,
+body[data-app-mode="task"] .card--export,
+body[data-app-mode="task"] [data-export-button] {
+  display: none !important;
+}
+
+body[data-app-mode="task"] .card--examples {
+  display: flex !important;
+  background: #fff !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  padding: 14px !important;
+}
+
+body[data-app-mode="task"] .card--examples .example-description {
+  display: flex !important;
+  flex-direction: column;
+  gap: 10px;
+}
+
+body[data-app-mode="task"] .card--examples .example-description label {
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 0 4px !important;
+  overflow: visible !important;
+  clip: auto !important;
+  white-space: normal !important;
+  border: 0 !important;
+}
+
+body[data-app-mode="task"] .card--examples .example-description textarea {
+  display: block !important;
+  min-height: 400px;
+  font-size: 16px;
+  line-height: 1.5;
+  padding: 12px;
+  background: #fafbfc;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+}
+
+body[data-app-mode="task"] .card--examples .toolbar {
+  display: flex !important;
+}
+
+body[data-app-mode="task"] #checkArea,
+body[data-app-mode="task"] [data-task-check-host] {
+  display: none !important;
+}
+
 .card--examples .example-description-preview .katex {
   display: inline-block;
   font-size: 1.05em;
@@ -641,36 +712,6 @@ body:not([data-app-mode="task"]) .card--examples .example-description {
 .card--examples .example-description label::after {
   content: '';
   display: none;
-}
-
-.example-description--task-mode textarea {
-  display: none !important;
-  min-height: 0;
-}
-
-.example-description--task-mode label,
-body[data-app-mode="task"] .card--examples .example-description label {
-  position: absolute !important;
-  width: 1px !important;
-  height: 1px !important;
-  padding: 0 !important;
-  margin: -1px !important;
-  overflow: hidden !important;
-  clip: rect(0, 0, 0, 0) !important;
-  white-space: nowrap !important;
-  border: 0 !important;
-}
-
-.example-description--task-mode .example-description-preview:not([data-empty="true"]) {
-  display: block;
-}
-
-.example-description--task-mode .example-description-preview[data-empty="true"] {
-  display: none;
-}
-
-.example-description--task-mode .example-description-preview[data-placeholder="true"] {
-  display: block;
 }
 
 .card--examples .example-description.example-description--collapsed {
@@ -764,64 +805,6 @@ body[data-app-mode="task"] .card--examples .example-description label {
   background-color: #ffffff;
   border-color: #6366f1;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-}
-
-body[data-app-mode="task"] .side {
-  gap: var(--gap);
-}
-
-body[data-app-mode="task"] .side > :not(.task-panel) {
-  display: none !important;
-}
-
-body[data-app-mode="task"] .task-panel {
-  display: flex !important;
-  gap: 10px;
-}
-
-body[data-app-mode="task"] .card--examples .example-description {
-  gap: 10px;
-}
-
-body[data-app-mode="task"] .card--examples .example-description textarea {
-  display: none;
-  min-height: 0;
-}
-
-body[data-app-mode="task"] .card--examples .example-description.example-description--task-editing textarea {
-  display: block;
-  min-height: 72px;
-}
-
-body[data-app-mode="task"] .card--examples .example-description .example-description-preview:not([data-empty="true"]) {
-  display: block;
-}
-
-body[data-app-mode="task"]
-  .card--examples
-  .example-description
-  .example-description-preview[data-placeholder="true"] {
-  display: block;
-}
-
-body[data-app-mode="task"] .card--examples .example-description.example-description--task-editing .example-description-preview {
-  display: none !important;
-}
-
-body[data-app-mode="task"] .card--examples .example-description .example-description-preview {
-  margin-top: 0;
-  border: none;
-  background: none;
-  padding: 0;
-  font-size: 20px;
-}
-
-body[data-app-mode="task"] .card--examples .toolbar {
-  display: none !important;
-}
-
-body[data-app-mode="task"] [data-export-button] {
-  display: none !important;
 }
 
 .math-vis-description-rendered {
