@@ -298,62 +298,72 @@ body[data-app-mode="task"] .grid.split-enabled > .splitter::before {
   resize: none;
 }
 
+/* ==========================================================================
+   MODUS-STYRING: Redigeringsmodus vs. Oppgavemodus (globalt)
+   ========================================================================== */
+
 body:not([data-app-mode="task"]) .card--examples .example-description {
   display: none;
 }
 
+body[data-app-mode="task"] .side {
+  display: flex !important;
+}
+
+body[data-app-mode="task"] .side .task-panel {
+  display: none !important;
+}
+
+body[data-app-mode="task"] .card--settings,
+body[data-app-mode="task"] #exportCard,
+body[data-app-mode="task"] .card--export,
+body[data-app-mode="task"] [data-export-button] {
+  display: none !important;
+}
+
 body[data-app-mode="task"] .card--examples {
   display: flex !important;
-  gap: 12px;
-  border: none;
-  box-shadow: none;
-  background: transparent;
-  padding: 0;
-}
-
-body[data-app-mode="task"] .card--examples .example-tabs {
-  display: none !important;
-}
-
-body[data-app-mode="task"] .card--examples .example-settings > :not(.example-description) {
-  display: none !important;
-}
-
-body[data-app-mode="task"] .card--examples .example-description textarea {
-  display: none;
-  min-height: 0;
-}
-
-body[data-app-mode="task"] .card--examples .example-description.example-description--task-editing textarea {
-  display: block;
-  min-height: 72px;
-}
-
-body[data-app-mode="task"] .card--examples .example-description label {
-  display: none;
-}
-
-body[data-app-mode="task"] .card--examples .example-description .example-description-preview:not([data-empty="true"]) {
-  display: block;
-}
-
-body[data-app-mode="task"] .card--examples .example-description .example-description-preview[data-placeholder="true"] {
-  display: inline-flex;
-}
-
-body[data-app-mode="task"] .card--examples .example-description.example-description--task-editing .example-description-preview {
-  display: none !important;
+  background: #fff !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  padding: 14px !important;
 }
 
 body[data-app-mode="task"] .card--examples .example-description {
-  padding: 0;
+  display: flex !important;
+  flex-direction: column;
+  gap: 10px;
 }
 
-body[data-app-mode="task"] .card--examples .example-description .example-description-preview {
-  margin-top: 0;
+body[data-app-mode="task"] .card--examples .example-description label {
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 0 4px !important;
+  overflow: visible !important;
+  clip: auto !important;
+  white-space: normal !important;
+  border: 0 !important;
+}
+
+body[data-app-mode="task"] .card--examples .example-description textarea {
+  display: block !important;
+  min-height: 400px;
+  font-size: 16px;
+  line-height: 1.5;
+  padding: 12px;
+  background: #fafbfc;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
 }
 
 body[data-app-mode="task"] .card--examples .toolbar {
+  display: flex !important;
+}
+
+body[data-app-mode="task"] #checkArea,
+body[data-app-mode="task"] [data-task-check-host] {
   display: none !important;
 }
 

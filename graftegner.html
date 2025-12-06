@@ -389,6 +389,70 @@
     .axis-inputs--font label{ flex:1 1 160px; }
     .axis-inputs--font select{ flex:1; min-width:0; padding:6px 10px; }
 
+    /* ==========================================================================
+       MODUS-STYRING: Rediger vs. Forhåndsvisning
+       ========================================================================== */
+
+    /* --- 1. REDIGERINGSMODUS (Standard) --- */
+    /* I redigermodus skal vi se innstillinger, men IKKE oppgaveteksten */
+    body:not([data-app-mode="task"]) #settingsCard {
+      display: flex !important; /* Vis innstillinger */
+    }
+
+    body:not([data-app-mode="task"]) .example-description {
+      display: none !important; /* Skjul tekstfeltet for oppgave */
+    }
+
+
+    /* --- 2. FORHÅNDSVISNING / OPPGAVEMODUS --- */
+    /* I oppgavemodus skal vi se oppgaveteksten, men IKKE innstillinger */
+
+    /* Skjul innstillingskortet */
+    body[data-app-mode="task"] #settingsCard {
+      display: none !important;
+    }
+
+    /* Sørg for at sidepanelet er synlig (base.css prøver ofte å skjule det) */
+    body[data-app-mode="task"] .side {
+      display: flex !important;
+    }
+
+    /* Sørg for at eksempelkortet (der teksten bor) er synlig og ser ut som et kort */
+    body[data-app-mode="task"] .card--examples {
+      display: flex !important;
+      background: #fff !important;
+      border: 1px solid #e5e7eb !important;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
+      padding: 14px !important;
+    }
+
+    /* Vis beholderen for oppgavetekst */
+    body[data-app-mode="task"] .example-description {
+      display: flex !important;
+    }
+
+    /* Gjør tekstfeltet stort og tydelig for redigering */
+    body[data-app-mode="task"] #exampleDescription {
+      display: block !important;
+      min-height: 400px; /* Bruk hele plassen som ble ledig fra innstillingene */
+      font-size: 16px;
+      line-height: 1.5;
+      padding: 12px;
+      background: #fafbfc;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+    }
+
+    /* Skjul "Sjekk svar"-boksen i redigeringsvisning hvis den forstyrrer */
+    body[data-app-mode="task"] #checkArea {
+       display: none !important; 
+    }
+    
+    /* Skjul eksport-kortet i oppgavemodus for å spare plass */
+    body[data-app-mode="task"] #exportCard {
+      display: none !important;
+    }
+
   </style>
   <link rel="stylesheet" href="/split.css" />
 </head>
@@ -408,14 +472,11 @@
         </div>
 
       <div class="side">
-        <div id="taskPanel" class="card" hidden>
-          <h3>Oppgave</h3>
-          <textarea id="taskModeDescription" class="task-text-editable" placeholder="Klikk her for å skrive oppgavetekst..."></textarea>
-        </div>
         <div class="card card--examples" id="examplesCard">
           <div class="example-description">
-            <textarea id="exampleDescription" aria-label="Oppgavetekst (valgfritt)" placeholder="Skriv oppgavetekst her"></textarea>
-            <div id="checkArea" class="checkbar" data-task-check-host hidden></div>
+            <label for="exampleDescription" style="font-weight:600; margin-bottom:4px;">Oppgavetekst</label>
+            <textarea id="exampleDescription" placeholder="Skriv oppgavetekst her..."></textarea>
+            <div id="checkArea" class="checkbar" data-task-check-host></div>
           </div>
           <div class="toolbar">
             <button id="btnUpdateExample" class="btn" type="button">Oppdater</button>
