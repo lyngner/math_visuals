@@ -2991,9 +2991,16 @@ function axisLabelText(axisKey) {
 function axisLabelLatex(axisKey) {
   const { variable, unit } = axisLabelParts(axisKey);
   const variableLatex = convertExpressionToLatex(variable) || `\\text{${escapeKatexPlainText(variable)}}`;
-  const unitLatex = unit
-    ? (convertExpressionToLatex(unit) || `\\text{${escapeKatexPlainText(unit)}}`)
-    : '';
+  const formatUnitLatex = (rawUnit) => {
+    if (!rawUnit) return '';
+    const latex = convertExpressionToLatex(rawUnit);
+    if (!latex) {
+      return `\\text{${escapeKatexPlainText(rawUnit)}}`;
+    }
+    const needsUprightText = /[A-Za-z\u00c6\u00d8\u00c5\u00e6\u00f8\u00e5]/.test(latex);
+    return needsUprightText ? `\\mathrm{${latex}}` : latex;
+  };
+  const unitLatex = formatUnitLatex(unit);
   if (unitLatex) {
     return `${variableLatex},\\ ${unitLatex}`;
   }
