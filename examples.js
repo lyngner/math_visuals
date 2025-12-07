@@ -5506,10 +5506,10 @@
       return markRendered(false);
     }
     if (!bypassFormattingCheck && !hasDescriptionFormatting(stringValue)) {
-      clearChildren(preview);
+      const hasContent = renderPlainText();
       clearDescriptionPlaceholder(preview);
-      applyState(false);
-      return markRendered(false);
+      applyState(hasContent);
+      return markRendered(hasContent);
     }
     const renderPlainText = () => {
       const fragment = buildDescriptionPreview(stringValue);
