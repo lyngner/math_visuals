@@ -905,8 +905,24 @@ function isValidColor(value) {
     if (textResult != null) return textResult;
     return false;
   }
+  function isTaskLikeMode(value) {
+    if (typeof value !== 'string') return false;
+    const normalized = value.trim().toLowerCase();
+    return [
+      'task',
+      'tasks',
+      'oppgave',
+      'oppgaver',
+      'oppgavemodus',
+      'student',
+      'elev',
+      'preview',
+      'forhandsvisning',
+      'forhåndsvisning'
+    ].includes(normalized);
+  }
   function applyAppModeChange(mode) {
-    const normalized = typeof mode === 'string' && mode.toLowerCase() === 'task' ? 'task' : 'default';
+    const normalized = isTaskLikeMode(mode) ? 'task' : 'default';
     const changed = normalized !== currentAppMode;
     currentAppMode = normalized;
     if (STATE.lastFigureIsAnswer && currentAppMode === 'task') {
@@ -929,33 +945,25 @@ function isValidColor(value) {
   }
   function getInitialAppMode() {
     if (typeof window === 'undefined') return 'default';
-    const normalize = value => {
-      if (typeof value !== 'string') return '';
-      return value.trim().toLowerCase();
-    };
-    const isTaskAlias = value => {
-      const normalized = normalize(value);
-      return ['task', 'tasks', 'oppgave', 'oppgaver', 'oppgavemodus', 'student', 'elev'].includes(normalized);
-    };
     const mv = window.mathVisuals;
     if (mv && typeof mv.getAppMode === 'function') {
       try {
         const mode = mv.getAppMode();
-        if (isTaskAlias(mode)) {
+        if (isTaskLikeMode(mode)) {
           return 'task';
         }
       } catch (_) {}
     }
     if (typeof document !== 'undefined' && document.body && document.body.dataset) {
       const bodyMode = document.body.dataset.appMode;
-      if (isTaskAlias(bodyMode)) {
+      if (isTaskLikeMode(bodyMode)) {
         return 'task';
       }
     }
     try {
       const params = new URLSearchParams(window.location && window.location.search ? window.location.search : '');
       const fromQuery = params.get('mode');
-      if (isTaskAlias(fromQuery)) {
+      if (isTaskLikeMode(fromQuery)) {
         return 'task';
       }
     } catch (_) {}

@@ -528,6 +528,16 @@ function isValidColor(value) {
       }
     });
   }
+
+  function isTaskLikeMode(mode) {
+    const normalized = typeof mode === 'string' ? mode.trim().toLowerCase() : '';
+    return (
+      normalized === 'task' ||
+      normalized === 'preview' ||
+      normalized === 'forhandsvisning' ||
+      normalized === 'forhåndsvisning'
+    );
+  }
   function setCheckStatus(type, heading, detailLines) {
     if (!checkStatus) return;
     if (!type) {
@@ -558,8 +568,7 @@ function isValidColor(value) {
   }
   function applyAppModeToTaskControls(mode) {
     if (!taskCheckHost) return;
-    const normalized = typeof mode === 'string' ? mode.toLowerCase() : '';
-    const isTaskMode = normalized === 'task';
+    const isTaskMode = isTaskLikeMode(mode);
     if (isTaskMode) {
       ensureTaskCheckControlsAppended();
       taskCheckHost.hidden = false;
@@ -602,7 +611,7 @@ function isValidColor(value) {
       const params = new URLSearchParams(window.location && window.location.search ? window.location.search : '');
       const fromQuery = params.get('mode');
       if (typeof fromQuery === 'string' && fromQuery.trim()) {
-        return fromQuery.trim().toLowerCase() === 'task' ? 'task' : 'default';
+        return isTaskLikeMode(fromQuery) ? 'task' : 'default';
       }
     } catch (_) {}
     return 'default';
