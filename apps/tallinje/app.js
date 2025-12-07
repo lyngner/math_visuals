@@ -118,10 +118,19 @@ function setupTallinjeApp({ registerCleanup }) {
     });
   }
 
+  function isTaskLikeMode(mode) {
+    const normalized = typeof mode === 'string' ? mode.trim().toLowerCase() : '';
+    return (
+      normalized === 'task' ||
+      normalized === 'preview' ||
+      normalized === 'forhandsvisning' ||
+      normalized === 'forhåndsvisning'
+    );
+  }
+
   function applyAppModeToTaskControls(mode) {
     if (!taskCheckHost) return;
-    const normalized = typeof mode === 'string' ? mode.toLowerCase() : '';
-    const isTaskMode = normalized === 'task';
+    const isTaskMode = isTaskLikeMode(mode);
     if (isTaskMode) {
       ensureTaskControlsAppended();
       taskCheckHost.hidden = false;
@@ -167,18 +176,18 @@ function setupTallinjeApp({ registerCleanup }) {
       const params = new URLSearchParams(window.location && window.location.search ? window.location.search : '');
       const fromQuery = params.get('mode');
       if (typeof fromQuery === 'string' && fromQuery.trim()) {
-        return fromQuery.trim().toLowerCase() === 'task' ? 'task' : 'default';
+        return isTaskLikeMode(fromQuery) ? 'task' : 'default';
       }
     } catch (_) {}
     return 'default';
   }
 
   function handleAppModeChanged(event) {
-  if (!event) return;
-  const detail = event.detail;
-  if (!detail || typeof detail.mode !== 'string') return;
-  applyAppModeToTaskControls(detail.mode);
-}
+    if (!event) return;
+    const detail = event.detail;
+    if (!detail || typeof detail.mode !== 'string') return;
+    applyAppModeToTaskControls(detail.mode);
+  }
 
   function evaluateDescriptionInputs() {
     if (typeof window === 'undefined') return;

@@ -651,7 +651,7 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
       try {
         const mode = mv.getAppMode();
         if (typeof mode === 'string' && mode.trim()) {
-          return mode;
+          return normalizeAppMode(mode);
         }
       } catch (_) {}
     }
@@ -659,7 +659,7 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
       const params = new URLSearchParams(globalObj.location && globalObj.location.search ? globalObj.location.search : '');
       const fromQuery = params.get('mode');
       if (typeof fromQuery === 'string' && fromQuery.trim()) {
-        return fromQuery.trim().toLowerCase() === 'task' ? 'task' : 'default';
+        return isTaskLikeMode(fromQuery) ? 'task' : 'default';
       }
     } catch (_) {}
     return 'default';
@@ -2168,7 +2168,18 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     return candidate;
   }
 
+  function isTaskLikeMode(mode) {
+    const normalized = typeof mode === 'string' ? mode.trim().toLowerCase() : '';
+    return (
+      normalized === 'task' ||
+      normalized === 'preview' ||
+      normalized === 'forhandsvisning' ||
+      normalized === 'forhåndsvisning'
+    );
+  }
+
   function normalizeAppMode(mode) {
+    if (isTaskLikeMode(mode)) return 'task';
     if (typeof mode !== 'string') return 'default';
     const normalized = mode.trim().toLowerCase();
     return normalized || 'default';

@@ -578,6 +578,16 @@ const statusEl = document.getElementById('status');
     } catch (_) {}
   }
 
+function isTaskLikeMode(mode) {
+  const normalized = typeof mode === 'string' ? mode.trim().toLowerCase() : '';
+  return (
+    normalized === 'task' ||
+    normalized === 'preview' ||
+    normalized === 'forhandsvisning' ||
+    normalized === 'forhåndsvisning'
+  );
+}
+
 function ensureTaskControlsHost() {
   if (!taskCheckHost) return;
   taskCheckControls.forEach(control => {
@@ -589,8 +599,7 @@ function ensureTaskControlsHost() {
 
 function applyAppModeToTaskControls(mode) {
   if (!taskCheckHost) return;
-  const normalized = typeof mode === 'string' ? mode.toLowerCase() : '';
-  const isTaskMode = normalized === 'task';
+  const isTaskMode = isTaskLikeMode(mode);
   if (isTaskMode) {
     ensureTaskControlsHost();
     taskCheckHost.hidden = false;
@@ -626,7 +635,7 @@ function applyAppModeToTaskControls(mode) {
       try {
         const mode = mv.getAppMode();
         if (typeof mode === 'string' && mode) {
-          return mode;
+          return isTaskLikeMode(mode) ? 'task' : mode;
         }
       } catch (_) {
         // fall through to query parsing below
@@ -636,7 +645,7 @@ function applyAppModeToTaskControls(mode) {
       const params = new URLSearchParams(window.location && window.location.search ? window.location.search : '');
       const fromQuery = params.get('mode');
       if (typeof fromQuery === 'string' && fromQuery.trim()) {
-        return fromQuery.trim().toLowerCase() === 'task' ? 'task' : 'default';
+        return isTaskLikeMode(fromQuery) ? 'task' : 'default';
       }
     } catch (_) {}
     return 'default';
