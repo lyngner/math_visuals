@@ -1196,9 +1196,9 @@
     oppgavemodus: 'task',
     student: 'task',
     elev: 'task',
-    preview: 'task',
-    forhåndsvisning: 'task',
-    forhandsvisning: 'task',
+    preview: 'preview',
+    forhåndsvisning: 'preview',
+    forhandsvisning: 'preview',
     default: DEFAULT_APP_MODE,
     standard: DEFAULT_APP_MODE,
     teacher: DEFAULT_APP_MODE,
@@ -1220,8 +1220,25 @@
     const trimmed = value.trim().toLowerCase();
     if (!trimmed) return null;
     if (APP_MODE_ALIASES[trimmed]) return APP_MODE_ALIASES[trimmed];
+    if (trimmed === 'preview-mode') return 'preview';
     if (trimmed === 'task-mode') return 'task';
     return null;
+  }
+  function applyExampleNavigationVisibilityForMode(mode) {
+    if (typeof document === 'undefined') return;
+    const normalized = normalizeAppMode(mode) || DEFAULT_APP_MODE;
+    const isPreviewMode = normalized === 'preview';
+    const nav = document.getElementById('exampleTabs');
+    if (!nav) return;
+    if (isPreviewMode) {
+      nav.setAttribute('hidden', '');
+      nav.setAttribute('aria-hidden', 'true');
+      nav.style.display = 'none';
+    } else {
+      nav.removeAttribute('hidden');
+      nav.setAttribute('aria-hidden', 'false');
+      nav.style.removeProperty('display');
+    }
   }
   function adjustSplitLayoutForMode(isTaskMode) {
     if (typeof document === 'undefined') return;
@@ -1311,6 +1328,7 @@
       const isTaskMode = targetMode === 'task';
       adjustSplitLayoutForMode(isTaskMode);
       updateDescriptionEditVisibilityForMode(targetMode);
+      applyExampleNavigationVisibilityForMode(targetMode);
       if (isTaskMode) {
         const raf =
           typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
@@ -7955,6 +7973,7 @@
   } else {
     document.body.appendChild(tabsContainer);
   }
+  applyExampleNavigationVisibilityForMode(currentAppMode);
   moveSettingsIntoExampleCard();
   moveDescriptionBelowTabs();
   window.addEventListener('resize', adjustTabsSpacing);
