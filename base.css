@@ -612,7 +612,8 @@ body[data-app-mode="task"] .side .task-panel {
 body[data-app-mode="task"] .card--settings,
 body[data-app-mode="task"] #exportCard,
 body[data-app-mode="task"] .card--export,
-body[data-app-mode="task"] [data-export-button] {
+body[data-app-mode="task"] [data-export-button],
+body[data-app-mode="task"] .example-settings {
   display: none !important;
 }
 
