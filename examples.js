@@ -1377,6 +1377,9 @@
     }
     if (normalized === 'task') {
       ensureTaskModeDescriptionRendered();
+      setTaskModeDescriptionEditing(true, { force: true, focus: false });
+    } else {
+      setTaskModeDescriptionEditing(false, { force: true });
     }
     if (notifyParent && (changed || opts.alwaysNotify === true)) {
       postParentAppMode(normalized);

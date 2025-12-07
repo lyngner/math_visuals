@@ -655,7 +655,7 @@ body[data-app-mode="task"] .card--examples .example-description textarea {
 }
 
 body[data-app-mode="task"] .card--examples .toolbar {
-  display: flex !important;
+  display: none !important;
 }
 
 body[data-app-mode="task"] #checkArea,
