@@ -595,28 +595,27 @@ body:not([data-app-mode="task"]) .card--examples .example-description {
    MODUS-STYRING: Redigeringsmodus vs. Oppgavemodus (globalt)
    ========================================================================== */
 
-/* Redigeringsmodus: vis innstillinger, skjul oppgaveteksten */
+/* --- REDIGERINGSMODUS (Standard) --- */
+/* Vis innstillinger */
 body:not([data-app-mode="task"]) .card--settings {
   display: flex !important;
 }
 
-/* Oppgavemodus: vis oppgaveteksten, skjul innstillinger/eksport */
+/* --- OPPGAVEMODUS (Task) --- */
+
+/* 1. Vis sidepanelet generelt */
 body[data-app-mode="task"] .side {
   display: flex !important;
 }
 
-body[data-app-mode="task"] .side .task-panel {
-  display: none !important;
-}
-
+/* 2. Skjul innstillinger og eksport-kortet */
 body[data-app-mode="task"] .card--settings,
 body[data-app-mode="task"] #exportCard,
-body[data-app-mode="task"] .card--export,
-body[data-app-mode="task"] [data-export-button],
-body[data-app-mode="task"] .example-settings {
+body[data-app-mode="task"] .card--export {
   display: none !important;
 }
 
+/* 3. Vis eksempelkortet (der teksten bor) */
 body[data-app-mode="task"] .card--examples {
   display: flex !important;
   background: #fff !important;
@@ -625,39 +624,35 @@ body[data-app-mode="task"] .card--examples {
   padding: 14px !important;
 }
 
+/* 4. Skjul verktøylinjen med knappene "Lag nytt", "Oppdater" osv */
+body[data-app-mode="task"] .card--examples .toolbar {
+  display: none !important;
+}
+
+/* 5. Vis oppgavetekst-seksjonen */
 body[data-app-mode="task"] .card--examples .example-description {
   display: flex !important;
   flex-direction: column;
   gap: 10px;
 }
 
-body[data-app-mode="task"] .card--examples .example-description label {
-  position: static !important;
-  width: auto !important;
-  height: auto !important;
-  padding: 0 !important;
-  margin: 0 0 4px !important;
-  overflow: visible !important;
-  clip: auto !important;
-  white-space: normal !important;
-  border: 0 !important;
-}
-
+/* 6. TVING tekstfeltet til å vises (textarea) */
 body[data-app-mode="task"] .card--examples .example-description textarea {
   display: block !important;
-  min-height: 400px;
-  font-size: 16px;
-  line-height: 1.5;
-  padding: 12px;
-  background: #fafbfc;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
+  min-height: 400px; /* Gjør den stor og fin */
+  opacity: 1 !important;
+  height: auto !important;
+  resize: vertical !important;
+  padding: 12px !important;
+  background: #fafbfc !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 8px !important;
 }
 
-body[data-app-mode="task"] .card--examples .toolbar {
+/* 7. Skjul labels og "sjekk svar"-bokser som forstyrrer */
+body[data-app-mode="task"] .card--examples .example-description label {
   display: none !important;
 }
-
 body[data-app-mode="task"] #checkArea,
 body[data-app-mode="task"] [data-task-check-host] {
   display: none !important;

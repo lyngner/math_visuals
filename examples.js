@@ -5656,11 +5656,15 @@
         }
       }
     }
-    const shouldShowInput = isTaskMode && taskModeDescriptionEditing;
-    if (shouldShowInput) {
+    if (isTaskMode) {
       input.hidden = false;
       input.removeAttribute('hidden');
       input.removeAttribute('aria-hidden');
+
+      if (container) {
+        container.removeAttribute('hidden');
+        delete container.dataset.hiddenInEditMode;
+      }
     } else {
       input.hidden = true;
       input.setAttribute('aria-hidden', 'true');
