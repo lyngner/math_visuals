@@ -7130,8 +7130,16 @@ function setupSettingsForm() {
     if (options.includes(normalized)) return normalized;
     return options[0] || DEFAULT_COLOR_FALLBACK;
   };
+  const toColorInputArray = inputs => {
+    if (!inputs) return [];
+    if (Array.isArray(inputs)) return inputs.filter(Boolean);
+    if (typeof inputs[Symbol.iterator] === 'function') {
+      return Array.from(inputs).filter(Boolean);
+    }
+    return [inputs].filter(Boolean);
+  };
   const syncFunctionColorSwatches = (inputs, preferred) => {
-    const swatches = Array.isArray(inputs) ? inputs.filter(Boolean) : inputs ? [inputs] : [];
+    const swatches = toColorInputArray(inputs);
     if (!swatches.length) return;
     const options = getFunctionColorOptions();
     const target = normalizeFunctionColorChoice(preferred) || options[0] || DEFAULT_COLOR_FALLBACK;
@@ -7192,7 +7200,7 @@ function setupSettingsForm() {
   };
   const registerFunctionColorControl = (row, inputs, options = {}) => {
     if (!row) return null;
-    const swatches = Array.isArray(inputs) ? inputs.filter(Boolean) : inputs ? [inputs] : [];
+    const swatches = toColorInputArray(inputs);
     if (!swatches.length) return null;
     const index = getRowIndex(row);
     const providedDefault = normalizeFunctionColorChoice(options.defaultColor);
