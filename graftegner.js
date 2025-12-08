@@ -3840,6 +3840,20 @@ function updateCurveColorsFromTheme() {
       });
     }
   });
+  if (typeof funcRows !== 'undefined') {
+    const rows = funcRows ? funcRows.querySelectorAll('.func-group') : [];
+    rows.forEach((row, i) => {
+      const graph = appState.graphs[i];
+      if (!graph) return;
+      const picker = row.querySelector('[data-color-picker]');
+      if (picker) {
+        const activeBtn = picker.querySelector('.color-swatch--active');
+        if (activeBtn) {
+          activeBtn.style.backgroundColor = graph.color;
+        }
+      }
+    });
+  }
   if (updated && appState.board && typeof appState.board.update === 'function') {
     appState.board.update();
   }
@@ -9232,6 +9246,7 @@ function setupSettingsForm() {
       const hiddenInput = picker.querySelector('input[data-color]');
 
       activeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
         e.stopPropagation();
         const isHidden = optionsPanel.hidden;
         document.querySelectorAll('.color-options').forEach(el => el.hidden = true);
@@ -9240,6 +9255,7 @@ function setupSettingsForm() {
 
       picker.querySelectorAll('.color-option-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
+          e.preventDefault();
           e.stopPropagation();
           const newColor = btn.dataset.colorValue;
 
