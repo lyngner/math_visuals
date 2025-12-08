@@ -7083,11 +7083,7 @@ function setupSettingsForm() {
   const computeDefaultColorForIndex = index => normalizeColorValue(colorFor(index - 1)) || DEFAULT_COLOR_FALLBACK;
   let functionColorOptions = [];
   const resolveFunctionColorOptions = () => {
-    const palette = ensureColorCount(
-      fetchGraftegnerPalette(FUNCTION_COLOR_OPTION_COUNT),
-      DEFAULT_FUNCTION_COLORS.fallback,
-      FUNCTION_COLOR_OPTION_COUNT
-    );
+    const palette = resolveCurvePalette(FUNCTION_COLOR_OPTION_COUNT);
     const sanitized = sanitizePaletteList(palette);
     const filled = ensureColorCount(sanitized, DEFAULT_FUNCTION_COLORS.fallback, FUNCTION_COLOR_OPTION_COUNT);
     return filled.slice(0, FUNCTION_COLOR_OPTION_COUNT);
@@ -7111,45 +7107,34 @@ function setupSettingsForm() {
     if (options.includes(normalized)) return normalized;
     return options[0] || DEFAULT_COLOR_FALLBACK;
   };
-  const buildFunctionColorOptionsMarkup = selected => {
+  const syncFunctionColorSwatches = (inputs, preferred) => {
+    const swatches = Array.isArray(inputs) ? inputs.filter(Boolean) : inputs ? [inputs] : [];
+    if (!swatches.length) return;
     const options = getFunctionColorOptions();
-    const normalizedSelected = normalizeFunctionColorChoice(selected);
-    return options
-      .map((color, index) => {
-        const normalizedColor = normalizeColorValue(color) || DEFAULT_COLOR_FALLBACK;
-        const label = `Farge ${index + 1}`;
-        const selectedAttr = normalizedColor === normalizedSelected ? ' selected' : '';
-        const style = `background-color:${normalizedColor}; --option-color:${normalizedColor};`;
-        return `<option value="${normalizedColor}" data-color-index="${index}" aria-label="${label}" style="${style}"${selectedAttr}>${label}</option>`;
-      })
-      .join('');
-  };
-  const applyFunctionColorSelectStyle = select => {
-    if (!select) return;
-    const normalized = normalizeFunctionColorChoice(select.value);
-    const swatch = normalized || DEFAULT_COLOR_FALLBACK;
-    select.style.setProperty('--func-color-swatch', swatch);
-    select.style.color = '#0f172a';
-  };
-  const syncFunctionColorSelectOptions = (select, preferred) => {
-    if (!select) return;
-    const optionsMarkup = buildFunctionColorOptionsMarkup(preferred || select.value);
-    select.innerHTML = optionsMarkup;
-    select.value = normalizeFunctionColorChoice(preferred || select.value);
-    applyFunctionColorSelectStyle(select);
+    const target = normalizeFunctionColorChoice(preferred) || options[0] || DEFAULT_COLOR_FALLBACK;
+    swatches.forEach((input, index) => {
+      const nextColor = normalizeColorValue(options[index] || options[0] || DEFAULT_COLOR_FALLBACK) || DEFAULT_COLOR_FALLBACK;
+      input.value = nextColor;
+      input.dataset.colorIndex = String(index);
+      const swatch = input.closest('.color-option') ? input.closest('.color-option').querySelector('.color-swatch') : null;
+      if (swatch) {
+        swatch.style.setProperty('--swatch-color', nextColor);
+      }
+      input.checked = nextColor === target;
+    });
   };
   const refreshFunctionColorOptions = () => {
     functionColorOptions = resolveFunctionColorOptions();
     const rows = funcRows ? Array.from(funcRows.querySelectorAll('.func-group')) : [];
     rows.forEach(row => {
-      const select = row.querySelector('select[data-color]');
       const control = functionColorControls.find(entry => entry && entry.row === row);
       const desired = control && control.manual ? control.value : computeDefaultColorForIndex(getRowIndex(row));
-      syncFunctionColorSelectOptions(select, desired);
+      const swatches = row.querySelectorAll('input[data-color]');
+      syncFunctionColorSwatches(swatches, desired);
       if (control) {
-        control.value = normalizeFunctionColorChoice(control.manual ? control.value : select.value);
+        control.value = normalizeFunctionColorChoice(control.manual ? control.value : desired);
         if (!control.manual) {
-          control.input.value = control.value;
+          syncFunctionColorSwatches(control.inputs, control.value);
         }
       }
     });
@@ -7163,14 +7148,16 @@ function setupSettingsForm() {
       row.classList.remove('func-group--color-manual');
     }
   };
-  const registerFunctionColorControl = (row, input, options = {}) => {
-    if (!row || !input) return null;
+  const registerFunctionColorControl = (row, inputs, options = {}) => {
+    if (!row) return null;
+    const swatches = Array.isArray(inputs) ? inputs.filter(Boolean) : inputs ? [inputs] : [];
+    if (!swatches.length) return null;
     const index = getRowIndex(row);
     const providedDefault = normalizeFunctionColorChoice(options.defaultColor);
     const manualColor = normalizeFunctionColorChoice(options.manualColor);
     const control = {
       row,
-      input,
+      inputs: swatches,
       defaultColor: providedDefault || computeDefaultColorForIndex(index),
       value: '',
       manual: false
@@ -7191,28 +7178,23 @@ function setupSettingsForm() {
     if (!control.value) {
       control.value = normalizeFunctionColorChoice(control.defaultColor || DEFAULT_COLOR_FALLBACK);
     }
-    input.value = control.value;
-    syncFunctionColorSelectOptions(input, control.value);
+    syncFunctionColorSwatches(control.inputs, control.value);
     applyColorManualClass(row, control.manual);
     const handleColorInput = event => {
-      const normalized = normalizeFunctionColorChoice(input.value);
-      if (normalized) {
-        input.value = normalized;
-      }
+      const target = event && event.target && swatches.includes(event.target) ? event.target : null;
+      const normalized = normalizeFunctionColorChoice(target ? target.value : control.value);
       const nextValue = normalized || control.defaultColor || DEFAULT_COLOR_FALLBACK;
       if (normalized && control.defaultColor && normalized === control.defaultColor) {
         control.manual = false;
         control.value = control.defaultColor;
-        input.value = control.defaultColor;
       } else if (normalized) {
         control.manual = true;
         control.value = normalized;
       } else {
         control.manual = false;
         control.value = control.defaultColor || DEFAULT_COLOR_FALLBACK;
-        input.value = control.value;
       }
-      applyFunctionColorSelectStyle(input);
+      syncFunctionColorSwatches(control.inputs, control.value);
       applyColorManualClass(row, control.manual);
       if (event && event.type === 'change') {
         flushSimpleFormChange();
@@ -7220,8 +7202,10 @@ function setupSettingsForm() {
         scheduleSimpleFormChange();
       }
     };
-    input.addEventListener('input', handleColorInput);
-    input.addEventListener('change', handleColorInput);
+    swatches.forEach(input => {
+      input.addEventListener('change', handleColorInput);
+      input.addEventListener('click', handleColorInput);
+    });
     functionColorControls.push(control);
     return control;
   };
@@ -7249,13 +7233,13 @@ function setupSettingsForm() {
       if (!control || !control.row) return;
       const nextDefault = computeDefaultColorForIndex(getRowIndex(control.row));
       control.defaultColor = normalizeFunctionColorChoice(nextDefault || control.defaultColor || DEFAULT_COLOR_FALLBACK);
-      if (control.manual && !getFunctionColorOptions().includes(control.value)) {
+      const availableColors = getFunctionColorOptions();
+      if (control.manual && !availableColors.includes(control.value)) {
         control.manual = false;
       }
       if (!control.manual) {
         control.value = control.defaultColor || DEFAULT_COLOR_FALLBACK;
-        control.input.value = control.value;
-        syncFunctionColorSelectOptions(control.input, control.value);
+        syncFunctionColorSwatches(control.inputs, control.value);
       }
       applyColorManualClass(control.row, control.manual);
     });
@@ -8841,13 +8825,25 @@ function setupSettingsForm() {
     const manualColor = normalizeFunctionColorChoice(colorVal);
     const isManualColor = !!colorManual && !!manualColor;
     const initialColor = isManualColor ? manualColor : (defaultColor || DEFAULT_COLOR_FALLBACK);
-    const colorAttr = initialColor || DEFAULT_COLOR_FALLBACK;
+    const colorAttr = normalizeFunctionColorChoice(initialColor || DEFAULT_COLOR_FALLBACK);
+    const colorOptions = getFunctionColorOptions();
+    const colorGroupName = `func-color-${index}`;
     const colorControlMarkup = `
             <label class="func-color">
               <span>Farge</span>
-              <select data-color>
-                ${buildFunctionColorOptionsMarkup(colorAttr)}
-              </select>
+              <div class="func-color-picker" role="radiogroup" aria-label="Velg farge for funksjon ${index}">
+                ${colorOptions.map((color, colorIndex) => {
+                  const normalized = normalizeFunctionColorChoice(color);
+                  const checked = normalized === colorAttr ? ' checked' : '';
+                  const id = `${colorGroupName}-${colorIndex + 1}`;
+                  return `
+                    <label class="color-option" for="${id}">
+                      <input type="radio" name="${colorGroupName}" id="${id}" value="${normalized}" data-color data-color-index="${colorIndex}"${checked}>
+                      <span class="color-swatch" style="--swatch-color:${normalized}"></span>
+                      <span class="sr-only">Farge ${colorIndex + 1}</span>
+                    </label>`;
+                }).join('')}
+              </div>
             </label>`;
     const gliderMarkup = index === 1 ? `
             <div class="func-row func-row--domain">
@@ -8942,9 +8938,9 @@ function setupSettingsForm() {
         preview.removeAttribute('data-preview-no-latex');
       }
     }
-    const colorInput = row.querySelector('select[data-color]');
-    if (colorInput) {
-      registerFunctionColorControl(row, colorInput, {
+    const colorInputs = Array.from(row.querySelectorAll('input[data-color]'));
+    if (colorInputs.length) {
+      registerFunctionColorControl(row, colorInputs, {
         defaultColor,
         manualColor,
         manual: isManualColor
