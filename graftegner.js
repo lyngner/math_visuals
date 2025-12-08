@@ -7018,6 +7018,14 @@ function setupSettingsForm() {
         LAST_COMPUTED_SCREEN = ADV.screen.slice(0, 4);
         LAST_SCREEN_SOURCE = 'manual';
         syncScreenInputFromState();
+        if (appState.board && typeof appState.board.getBoundingBox === 'function') {
+          const currentScreen = fromBoundingBox(appState.board.getBoundingBox());
+          if (!screensEqual(currentScreen, normalized)) {
+            try {
+              appState.board.setBoundingBox(toBB(normalized), false);
+            } catch (_) {}
+          }
+        }
         changed = true;
       }
     }
