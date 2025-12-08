@@ -644,6 +644,14 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     }
   }
 
+  function syncBodyAppMode(mode) {
+    if (!doc || !doc.body || !doc.body.dataset) return;
+    const normalized = isTaskLikeMode(mode) ? 'task' : typeof mode === 'string' && mode.trim() ? mode.trim() : 'default';
+    if (doc.body.dataset.appMode !== normalized) {
+      doc.body.dataset.appMode = normalized;
+    }
+  }
+
   function getCurrentAppMode() {
     if (typeof globalObj === 'undefined') return 'default';
     const mv = globalObj.mathVisuals;
@@ -667,6 +675,7 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
 
   function handleAppModeChanged(event) {
     if (!event || !event.detail || typeof event.detail.mode !== 'string') return;
+    syncBodyAppMode(event.detail.mode);
     applyAppModeToTaskControls(event.detail.mode);
   }
 
@@ -2248,6 +2257,7 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
   function setCurrentAppMode(mode) {
     const previousMode = currentAppMode;
     currentAppMode = normalizeAppMode(mode);
+    syncBodyAppMode(currentAppMode);
     if (currentAppMode === 'task') {
       deactivateInlineEditor();
     }

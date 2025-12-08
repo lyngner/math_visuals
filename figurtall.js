@@ -921,9 +921,19 @@ function isValidColor(value) {
       'forhåndsvisning'
     ].includes(normalized);
   }
+  function syncBodyAppMode(mode) {
+    if (typeof document === 'undefined') return;
+    const body = document.body;
+    if (!body || !body.dataset) return;
+    const normalized = isTaskLikeMode(mode) ? 'task' : typeof mode === 'string' && mode.trim() ? mode.trim() : 'default';
+    if (body.dataset.appMode !== normalized) {
+      body.dataset.appMode = normalized;
+    }
+  }
   function applyAppModeChange(mode) {
     const normalized = isTaskLikeMode(mode) ? 'task' : 'default';
     const changed = normalized !== currentAppMode;
+    syncBodyAppMode(normalized);
     currentAppMode = normalized;
     if (STATE.lastFigureIsAnswer && currentAppMode === 'task') {
       ensureTaskStudentCells(true);
@@ -944,30 +954,34 @@ function isValidColor(value) {
     applyAppModeChange(event.detail.mode);
   }
   function getInitialAppMode() {
-    if (typeof window === 'undefined') return 'default';
+    let resolved = 'default';
+    if (typeof window === 'undefined') return resolved;
     const mv = window.mathVisuals;
     if (mv && typeof mv.getAppMode === 'function') {
       try {
         const mode = mv.getAppMode();
         if (isTaskLikeMode(mode)) {
-          return 'task';
+          resolved = 'task';
         }
       } catch (_) {}
     }
-    if (typeof document !== 'undefined' && document.body && document.body.dataset) {
+    if (resolved === 'default' && typeof document !== 'undefined' && document.body && document.body.dataset) {
       const bodyMode = document.body.dataset.appMode;
       if (isTaskLikeMode(bodyMode)) {
-        return 'task';
+        resolved = 'task';
       }
     }
-    try {
-      const params = new URLSearchParams(window.location && window.location.search ? window.location.search : '');
-      const fromQuery = params.get('mode');
-      if (isTaskLikeMode(fromQuery)) {
-        return 'task';
-      }
-    } catch (_) {}
-    return 'default';
+    if (resolved === 'default') {
+      try {
+        const params = new URLSearchParams(window.location && window.location.search ? window.location.search : '');
+        const fromQuery = params.get('mode');
+        if (isTaskLikeMode(fromQuery)) {
+          resolved = 'task';
+        }
+      } catch (_) {}
+    }
+    syncBodyAppMode(resolved);
+    return resolved;
   }
   function applyStateToControls() {
     if (rowsInput) rowsInput.value = String(rows);

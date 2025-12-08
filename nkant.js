@@ -278,6 +278,27 @@ function getCurrentAppMode() {
   }
   return 'default';
 }
+function isTaskLikeMode(mode) {
+  const normalized = typeof mode === 'string' ? mode.trim().toLowerCase() : '';
+  return (
+    normalized === 'task' ||
+    normalized === 'preview' ||
+    normalized === 'forhandsvisning' ||
+    normalized === 'forhåndsvisning'
+  );
+}
+
+function syncBodyAppMode(mode) {
+  if (typeof document === 'undefined') return;
+  const body = document.body;
+  if (!body || !body.dataset) return;
+  const normalized = isTaskLikeMode(mode) ? 'task' : typeof mode === 'string' && mode.trim() ? mode.trim() : 'default';
+  if (body.dataset.appMode !== normalized) {
+    body.dataset.appMode = normalized;
+  }
+}
+
+syncBodyAppMode(getCurrentAppMode() || 'default');
 
 function isLabelEditingAllowed() {
   return getCurrentAppMode() !== 'task';
@@ -5566,7 +5587,9 @@ function bindUI() {
       return sanitize('Geometri');
     }
 
-    const handleAppModeChange = () => {
+    const handleAppModeChange = event => {
+      const mode = event && event.detail && typeof event.detail.mode === 'string' ? event.detail.mode : getCurrentAppMode();
+      syncBodyAppMode(mode);
       syncLabelEditingAvailability();
     };
     window.addEventListener('math-visuals:app-mode-changed', handleAppModeChange);

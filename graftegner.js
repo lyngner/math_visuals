@@ -6518,13 +6518,26 @@ function getCurrentAppMode() {
   return 'default';
 }
 
-applyAppModeToTaskCheckHost(getCurrentAppMode() || 'task');
+function syncBodyAppMode(mode) {
+  if (typeof document === 'undefined') return;
+  const body = document.body;
+  if (!body || !body.dataset) return;
+  const normalized = isTaskLikeMode(mode) ? 'task' : typeof mode === 'string' && mode.trim() ? mode.trim() : 'default';
+  if (body.dataset.appMode !== normalized) {
+    body.dataset.appMode = normalized;
+  }
+}
+
+const initialAppMode = getCurrentAppMode() || 'task';
+syncBodyAppMode(initialAppMode);
+applyAppModeToTaskCheckHost(initialAppMode);
 
 if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('math-visuals:app-mode-changed', event => {
     if (!event) return;
     const detail = event.detail;
     if (!detail || typeof detail.mode !== 'string') return;
+    syncBodyAppMode(detail.mode);
     applyAppModeToTaskCheckHost(detail.mode);
   });
 }

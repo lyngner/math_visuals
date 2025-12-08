@@ -596,6 +596,16 @@ function isValidColor(value) {
       });
     }
   }
+
+  function syncBodyAppMode(mode) {
+    if (typeof document === 'undefined') return;
+    const body = document.body;
+    if (!body || !body.dataset) return;
+    const normalized = isTaskLikeMode(mode) ? 'task' : typeof mode === 'string' && mode.trim() ? mode.trim() : 'default';
+    if (body.dataset.appMode !== normalized) {
+      body.dataset.appMode = normalized;
+    }
+  }
   function getCurrentAppMode() {
     if (typeof window === 'undefined') return 'default';
     const mv = window.mathVisuals;
@@ -620,6 +630,7 @@ function isValidColor(value) {
     if (!event) return;
     const detail = event.detail;
     if (!detail || typeof detail.mode !== 'string') return;
+    syncBodyAppMode(detail.mode);
     applyAppModeToTaskControls(detail.mode);
   }
   function evaluateDescriptionInputs() {
@@ -633,7 +644,9 @@ function isValidColor(value) {
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
     window.addEventListener('math-visuals:app-mode-changed', handleAppModeChanged);
   }
-  applyAppModeToTaskControls(getCurrentAppMode() || 'task');
+  const initialAppMode = getCurrentAppMode() || 'task';
+  syncBodyAppMode(initialAppMode);
+  applyAppModeToTaskControls(initialAppMode);
   if (checkButton) {
     checkButton.addEventListener('click', () => {
       evaluateDescriptionInputs();
