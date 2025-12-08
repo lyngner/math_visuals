@@ -241,18 +241,21 @@
       position:relative;
       display:flex;
       align-items:center;
-      height:44px;
+      justify-content:center;
+      width:40px;
+      height:40px;
     }
-    .color-swatch{
+    .color-swatch--active{
       width:32px;
       height:32px;
       border-radius:50%;
       border:2px solid #fff;
       box-shadow:0 0 0 1px #d1d5db;
       cursor:pointer;
+      padding:0;
       transition:transform 0.1s;
     }
-    .color-swatch:hover{
+    .color-swatch--active:hover{
       transform:scale(1.1);
       box-shadow:0 0 0 1px #9ca3af;
     }
@@ -263,25 +266,23 @@
       transform:translateX(-50%);
       background:white;
       border:1px solid #e5e7eb;
-      border-radius:20px;
-      padding:6px;
+      border-radius:99px;
+      padding:8px;
       display:flex;
-      gap:6px;
-      box-shadow:0 4px 12px rgba(0,0,0,0.15);
-      z-index:10;
+      gap:8px;
+      box-shadow:0 4px 15px rgba(0,0,0,0.15);
+      z-index:100;
       margin-top:8px;
     }
     .color-options::before{
       content:'';
       position:absolute;
-      top:-5px;
+      top:-6px;
       left:50%;
-      transform:translateX(-50%) rotate(45deg);
-      width:8px;
-      height:8px;
-      background:white;
-      border-left:1px solid #e5e7eb;
-      border-top:1px solid #e5e7eb;
+      margin-left:-6px;
+      border-width:6px;
+      border-style:solid;
+      border-color:transparent transparent #fff transparent;
     }
     .color-option-btn{
       width:24px;
@@ -289,14 +290,18 @@
       border-radius:50%;
       border:1px solid rgba(0,0,0,0.1);
       cursor:pointer;
-      transition:transform 0.1s;
       padding:0;
-    }
-    .color-option-btn.is-selected{
-      box-shadow:0 0 0 2px #111827;
+      transition:transform 0.1s;
     }
     .color-option-btn:hover{
       transform:scale(1.2);
+    }
+    .color-option-btn.is-selected{
+      outline:2px solid #6366f1;
+      outline-offset:2px;
+    }
+    .color-options[hidden]{
+      display:none !important;
     }
     @media (max-width:900px){
       .func-row--main{ grid-template-columns:1fr; }
