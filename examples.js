@@ -5633,9 +5633,14 @@
   }
 
   function updateDescriptionEditVisibilityForMode(mode) {
-    const normalized = normalizeAppMode(mode != null ? mode : currentAppMode) || DEFAULT_APP_MODE;
+    const requestedMode = mode != null ? mode : currentAppMode;
+    const normalized = normalizeAppMode(requestedMode) || DEFAULT_APP_MODE;
+    const requestedModeName =
+      typeof requestedMode === 'string' ? requestedMode.trim().toLowerCase() : '';
+    const isPreviewMode = requestedModeName === 'preview';
     const isTaskMode = normalized === 'task';
-    if (!isTaskMode) {
+    const shouldShowDescription = isTaskMode || isPreviewMode;
+    if (!isTaskMode || isPreviewMode) {
       taskModeDescriptionEditing = false;
     }
     let input = null;
@@ -5656,7 +5661,7 @@
     if (container) {
       container.classList.toggle('example-description--task-mode', isTaskMode);
       container.classList.toggle('example-description--task-editing', isTaskMode && taskModeDescriptionEditing);
-      if (isTaskMode) {
+      if (shouldShowDescription) {
         container.removeAttribute('hidden');
         container.removeAttribute('aria-hidden');
         delete container.dataset.hiddenInEditMode;
@@ -5667,14 +5672,14 @@
       }
       const examplesCard = container.closest('.card--examples');
       if (examplesCard) {
-        if (isTaskMode && taskModeDescriptionEditing) {
+        if (isTaskMode && !isPreviewMode && taskModeDescriptionEditing) {
           examplesCard.dataset.descriptionEditing = 'true';
         } else {
           delete examplesCard.dataset.descriptionEditing;
         }
       }
     }
-    if (isTaskMode) {
+    if (isTaskMode && !isPreviewMode) {
       input.hidden = false;
       input.removeAttribute('hidden');
       input.removeAttribute('aria-hidden');
@@ -5689,12 +5694,16 @@
     }
     const preview = getDescriptionPreviewElement();
     if (preview) {
-      const shouldShowPlaceholder = isTaskMode && preview.dataset.empty === 'true' && !taskModeDescriptionEditing;
+      const isEmpty = preview.dataset.empty === 'true';
+      const shouldShowPlaceholder =
+        shouldShowDescription && isEmpty && (!isTaskMode || !taskModeDescriptionEditing);
       if (shouldShowPlaceholder) {
         applyDescriptionPlaceholder(preview, 'Legg til oppgavetekst');
       } else {
         clearDescriptionPlaceholder(preview);
-        if (isTaskMode && !taskModeDescriptionEditing && preview.dataset.empty !== 'true') {
+        const shouldShowPreviewContent =
+          shouldShowDescription && !isEmpty && (!isTaskMode || !taskModeDescriptionEditing);
+        if (shouldShowPreviewContent) {
           preview.removeAttribute('hidden');
           preview.setAttribute('aria-hidden', 'false');
         } else {
