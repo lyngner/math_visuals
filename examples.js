@@ -7638,14 +7638,19 @@
     }
     const cfg = ex.config;
     let applied = false;
+    const providedBindings = new Set();
     if (!skipReloadIfActive) {
       for (const name of BINDING_NAMES) {
         const value = cfg[name];
         const normalizedValue = value != null ? value : cfg[String(name).toLowerCase()];
         if (normalizedValue != null) {
           applyBinding(name, normalizedValue);
+          providedBindings.add(name);
           applied = true;
         }
+      }
+      if (!providedBindings.has('STATE')) {
+        applyBinding('STATE', {});
       }
     }
     if (applied || skipReloadIfActive) {
