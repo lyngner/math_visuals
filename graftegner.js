@@ -6899,13 +6899,28 @@ function setupSettingsForm() {
   const axisXInputElement = g('cfgAxisX');
   const axisYInputElement = g('cfgAxisY');
   const snapCheckbox = g('cfgSnap');
-  const exampleState = EXAMPLE_STATE;
-  const resolveExampleStateFlag = (key, fallback) => (
-    Object.prototype.hasOwnProperty.call(exampleState, key)
-      ? !!exampleState[key]
+  const getExampleState = () => {
+    const state = typeof window !== 'undefined' && window.STATE && typeof window.STATE === 'object'
+      ? window.STATE
+      : EXAMPLE_STATE;
+    if (state !== EXAMPLE_STATE && EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
+      Object.keys(EXAMPLE_STATE).forEach(key => {
+        if (!Object.prototype.hasOwnProperty.call(state, key)) {
+          delete EXAMPLE_STATE[key];
+        }
+      });
+      Object.assign(EXAMPLE_STATE, state);
+      return EXAMPLE_STATE;
+    }
+    return state;
+  };
+  const resolveExampleStateFlag = (state, key, fallback) => (
+    Object.prototype.hasOwnProperty.call(state, key)
+      ? !!state[key]
       : !!fallback
   );
   const applyExampleStateToControls = () => {
+    const exampleState = getExampleState();
     hydrateCurveLabelStateFromExample();
     hydrateAxisLabelStateFromExample();
     const axisLabelConfig = exampleState && typeof exampleState.axisLabels === 'object'
@@ -6935,8 +6950,8 @@ function setupSettingsForm() {
     if (Number.isFinite(nextFontSize)) {
       ADV.axis.labels.fontSize = nextFontSize;
     }
-    const resolvedShowNames = resolveExampleStateFlag('showNames', ADV.curveName && ADV.curveName.showName);
-    const resolvedShowExpr = resolveExampleStateFlag('showExpression', ADV.curveName && ADV.curveName.showExpression);
+    const resolvedShowNames = resolveExampleStateFlag(exampleState, 'showNames', ADV.curveName && ADV.curveName.showName);
+    const resolvedShowExpr = resolveExampleStateFlag(exampleState, 'showExpression', ADV.curveName && ADV.curveName.showExpression);
     let changed = false;
     if (showNamesInput && showNamesInput.checked !== resolvedShowNames) {
       showNamesInput.checked = resolvedShowNames;
@@ -6969,7 +6984,7 @@ function setupSettingsForm() {
       }
     }
     if (Object.prototype.hasOwnProperty.call(exampleState, 'firstQuadrant')) {
-      const resolvedQ1 = resolveExampleStateFlag('firstQuadrant', INITIAL_FIRST_QUADRANT);
+      const resolvedQ1 = resolveExampleStateFlag(exampleState, 'firstQuadrant', INITIAL_FIRST_QUADRANT);
       if (q1Input && q1Input.checked !== resolvedQ1) {
         q1Input.checked = resolvedQ1;
       }
@@ -6978,7 +6993,7 @@ function setupSettingsForm() {
         changed = true;
       }
     }
-    const resolvedAxisNumbers = resolveExampleStateFlag('showAxisNumbers', INITIAL_SHOW_AXIS_NUMBERS);
+    const resolvedAxisNumbers = resolveExampleStateFlag(exampleState, 'showAxisNumbers', INITIAL_SHOW_AXIS_NUMBERS);
     if (showAxisNumbersInput && showAxisNumbersInput.checked !== resolvedAxisNumbers) {
       showAxisNumbersInput.checked = resolvedAxisNumbers;
     }
@@ -6986,7 +7001,7 @@ function setupSettingsForm() {
       ADV.axis.ticks.showNumbers = resolvedAxisNumbers;
       changed = true;
     }
-    const resolvedGrid = resolveExampleStateFlag('showGrid', INITIAL_SHOW_GRID);
+    const resolvedGrid = resolveExampleStateFlag(exampleState, 'showGrid', INITIAL_SHOW_GRID);
     if (showGridInput && showGridInput.checked !== resolvedGrid) {
       showGridInput.checked = resolvedGrid;
     }
@@ -6994,7 +7009,7 @@ function setupSettingsForm() {
       ADV.axis.grid.show = resolvedGrid;
       changed = true;
     }
-    const resolvedForceTicks = resolveExampleStateFlag('forceTicks', INITIAL_FORCE_TICKS);
+    const resolvedForceTicks = resolveExampleStateFlag(exampleState, 'forceTicks', INITIAL_FORCE_TICKS);
     if (forceTicksInput && forceTicksInput.checked !== resolvedForceTicks && !forceTicksInput.disabled) {
       forceTicksInput.checked = resolvedForceTicks;
     }
@@ -7002,7 +7017,7 @@ function setupSettingsForm() {
       FORCE_TICKS_REQUESTED = resolvedForceTicks;
       changed = true;
     }
-    const resolvedSnap = resolveExampleStateFlag('snapEnabled', INITIAL_SNAP_ENABLED);
+    const resolvedSnap = resolveExampleStateFlag(exampleState, 'snapEnabled', INITIAL_SNAP_ENABLED);
     if (snapCheckbox && !snapCheckbox.disabled && snapCheckbox.checked !== resolvedSnap) {
       snapCheckbox.checked = resolvedSnap;
     }
@@ -7032,6 +7047,7 @@ function setupSettingsForm() {
     return changed;
   };
   const syncExampleStateFromControls = () => {
+    const exampleState = getExampleState();
     const resolvedShowNames = showNamesInput ? !!showNamesInput.checked : !!(ADV.curveName && ADV.curveName.showName);
     const resolvedShowExpr = showExprInput ? !!showExprInput.checked : !!(ADV.curveName && ADV.curveName.showExpression);
     exampleState.showNames = resolvedShowNames;
