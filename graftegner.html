@@ -423,11 +423,11 @@
 
     /* --- 1. REDIGERINGSMODUS (Standard) --- */
     /* I redigermodus skal vi se innstillinger, men IKKE oppgaveteksten */
-    body:not([data-app-mode="task"]) #settingsCard {
+    body:not([data-app-mode="task"]):not([data-app-mode="preview"]) #settingsCard {
       display: flex !important; /* Vis innstillinger */
     }
 
-    body:not([data-app-mode="task"]) .example-description {
+    body:not([data-app-mode="task"]):not([data-app-mode="preview"]) .example-description {
       display: none !important; /* Skjul tekstfeltet for oppgave */
     }
 
@@ -436,17 +436,20 @@
     /* I oppgavemodus skal vi se oppgaveteksten, men IKKE innstillinger */
 
     /* Skjul innstillingskortet */
-    body[data-app-mode="task"] #settingsCard {
+    body[data-app-mode="task"] #settingsCard,
+    body[data-app-mode="preview"] #settingsCard {
       display: none !important;
     }
 
     /* Sørg for at sidepanelet er synlig (base.css prøver ofte å skjule det) */
-    body[data-app-mode="task"] .side {
+    body[data-app-mode="task"] .side,
+    body[data-app-mode="preview"] .side {
       display: flex !important;
     }
 
     /* Sørg for at eksempelkortet (der teksten bor) er synlig og ser ut som et kort */
-    body[data-app-mode="task"] .card--examples {
+    body[data-app-mode="task"] .card--examples,
+    body[data-app-mode="preview"] .card--examples {
       display: flex !important;
       background: #fff !important;
       border: 1px solid #e5e7eb !important;
@@ -454,13 +457,21 @@
       padding: 14px !important;
     }
 
+    /* Skjul verktøylinjen for oppgaver/forhåndsvisning */
+    body[data-app-mode="task"] .card--examples .toolbar,
+    body[data-app-mode="preview"] .card--examples .toolbar {
+      display: none !important;
+    }
+
     /* Vis beholderen for oppgavetekst */
-    body[data-app-mode="task"] .example-description {
+    body[data-app-mode="task"] .example-description,
+    body[data-app-mode="preview"] .example-description {
       display: flex !important;
     }
 
     /* Gjør tekstfeltet stort og tydelig for redigering */
-    body[data-app-mode="task"] #exampleDescription {
+    body[data-app-mode="task"] #exampleDescription,
+    body[data-app-mode="preview"] #exampleDescription {
       display: block !important;
       min-height: 400px; /* Bruk hele plassen som ble ledig fra innstillingene */
       font-size: 16px;
@@ -472,12 +483,14 @@
     }
 
     /* Skjul "Sjekk svar"-boksen i redigeringsvisning hvis den forstyrrer */
-    body[data-app-mode="task"] #checkArea {
-       display: none !important; 
+    body[data-app-mode="task"] #checkArea,
+    body[data-app-mode="preview"] #checkArea {
+       display: none !important;
     }
-    
+
     /* Skjul eksport-kortet i oppgavemodus for å spare plass */
-    body[data-app-mode="task"] #exportCard {
+    body[data-app-mode="task"] #exportCard,
+    body[data-app-mode="preview"] #exportCard {
       display: none !important;
     }
 
