@@ -7122,14 +7122,33 @@ function setupSettingsForm() {
     const options = getFunctionColorOptions();
     const target = normalizeFunctionColorChoice(preferred) || options[0] || DEFAULT_COLOR_FALLBACK;
     swatches.forEach((input, index) => {
-      const nextColor = normalizeColorValue(options[index] || options[0] || DEFAULT_COLOR_FALLBACK) || DEFAULT_COLOR_FALLBACK;
+      const compactPicker = input.type === 'hidden' || (input.closest && input.closest('.func-color-compact'));
+      const nextColor = compactPicker
+        ? target
+        : normalizeColorValue(options[index] || options[0] || DEFAULT_COLOR_FALLBACK) || DEFAULT_COLOR_FALLBACK;
       input.value = nextColor;
       input.dataset.colorIndex = String(index);
+      if (compactPicker && input.closest) {
+        const picker = input.closest('[data-color-picker]');
+        const activeSwatch = picker ? picker.querySelector('.color-swatch--active') : null;
+        if (activeSwatch) {
+          activeSwatch.style.backgroundColor = nextColor;
+        }
+        const optionButtons = picker ? picker.querySelectorAll('.color-option-btn') : null;
+        if (optionButtons) {
+          optionButtons.forEach(btn => {
+            const optionColor = normalizeColorValue(btn.dataset.colorValue);
+            btn.classList.toggle('is-selected', optionColor === nextColor);
+          });
+        }
+      }
       const swatch = input.closest('.color-option') ? input.closest('.color-option').querySelector('.color-swatch') : null;
       if (swatch) {
         swatch.style.setProperty('--swatch-color', nextColor);
       }
-      input.checked = nextColor === target;
+      if (!compactPicker) {
+        input.checked = nextColor === target;
+      }
     });
   };
   const refreshFunctionColorOptions = () => {
@@ -8833,27 +8852,31 @@ function setupSettingsForm() {
     const defaultColor = computeDefaultColorForIndex(index);
     const manualColor = normalizeFunctionColorChoice(colorVal);
     const isManualColor = !!colorManual && !!manualColor;
-    const initialColor = isManualColor ? manualColor : (defaultColor || DEFAULT_COLOR_FALLBACK);
-    const colorAttr = normalizeFunctionColorChoice(initialColor || DEFAULT_COLOR_FALLBACK);
-    const colorOptions = getFunctionColorOptions();
-    const colorGroupName = `func-color-${index}`;
-    const colorControlMarkup = `
-            <label class="func-color">
-              <span>Farge</span>
-              <div class="func-color-picker" role="radiogroup" aria-label="Velg farge for funksjon ${index}">
-                ${colorOptions.map((color, colorIndex) => {
-                  const normalized = normalizeFunctionColorChoice(color);
-                  const checked = normalized === colorAttr ? ' checked' : '';
-                  const id = `${colorGroupName}-${colorIndex + 1}`;
-                  return `
-                    <label class="color-option" for="${id}">
-                      <input type="radio" name="${colorGroupName}" id="${id}" value="${normalized}" data-color data-color-index="${colorIndex}"${checked}>
-                      <span class="color-swatch" style="--swatch-color:${normalized}"></span>
-                      <span class="sr-only">Farge ${colorIndex + 1}</span>
-                    </label>`;
-                }).join('')}
-              </div>
-            </label>`;
+    const palette = resolveCurvePalette(3);
+    const activeColor = normalizeColorValue(colorVal)
+      || normalizeColorValue(palette[(index - 1) % 3])
+      || DEFAULT_COLOR_FALLBACK;
+    let colorControlMarkup = `
+    <div class="func-color-compact" data-color-picker>
+      <button type="button" class="color-swatch color-swatch--active" style="background-color: ${activeColor};" aria-label="Endre farge"></button>
+      <div class="color-options" hidden>
+  `;
+
+    palette.slice(0, 3).forEach((color, idx) => {
+      const isSelected = normalizeColorValue(color) === activeColor;
+      colorControlMarkup += `
+      <button type="button" class="color-option-btn ${isSelected ? 'is-selected' : ''}" 
+              style="background-color: ${color};" 
+              data-color-value="${color}" 
+              aria-label="Velg farge ${idx + 1}"></button>
+    `;
+    });
+
+    colorControlMarkup += `
+      </div>
+      <input type="hidden" data-color value="${activeColor}">
+    </div>
+  `;
     const gliderMarkup = index === 1 ? `
             <div class="func-row func-row--domain">
               <label class="domain">
@@ -9201,6 +9224,43 @@ function setupSettingsForm() {
     if (funInput) {
       toggleDomain(funInput);
       updatePointMarkerVisibility();
+    }
+    const picker = row.querySelector('[data-color-picker]');
+    if (picker) {
+      const activeBtn = picker.querySelector('.color-swatch--active');
+      const optionsPanel = picker.querySelector('.color-options');
+      const hiddenInput = picker.querySelector('input[data-color]');
+
+      activeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const isHidden = optionsPanel.hidden;
+        document.querySelectorAll('.color-options').forEach(el => el.hidden = true);
+        optionsPanel.hidden = !isHidden;
+      });
+
+      picker.querySelectorAll('.color-option-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const newColor = btn.dataset.colorValue;
+
+          activeBtn.style.backgroundColor = newColor;
+          hiddenInput.value = newColor;
+          picker.querySelectorAll('.color-option-btn').forEach(option => {
+            const optionColor = normalizeColorValue(option.dataset.colorValue);
+            option.classList.toggle('is-selected', option === btn || optionColor === normalizeColorValue(newColor));
+          });
+          optionsPanel.hidden = true;
+
+          hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+          hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!picker.contains(e.target)) {
+          optionsPanel.hidden = true;
+        }
+      });
     }
     if (index === 1) {
       updateAnswerPlacement();
