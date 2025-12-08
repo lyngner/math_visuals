@@ -7058,12 +7058,76 @@ function setupSettingsForm() {
   const DEFAULT_COLOR_FALLBACK = normalizeColorValue(getDefaultCurveColor(0))
     || DEFAULT_FUNCTION_COLORS.fallback[0]
     || GRAFTEGNER_FALLBACK_PALETTE[0];
+  const FUNCTION_COLOR_OPTION_COUNT = 3;
   const getRowIndex = row => {
     if (!row || !row.dataset) return 1;
     const parsed = Number.parseInt(row.dataset.index, 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
   };
   const computeDefaultColorForIndex = index => normalizeColorValue(colorFor(index - 1)) || DEFAULT_COLOR_FALLBACK;
+  let functionColorOptions = [];
+  const resolveFunctionColorOptions = () => {
+    const palette = ensureColorCount(
+      fetchGraftegnerPalette(FUNCTION_COLOR_OPTION_COUNT),
+      DEFAULT_FUNCTION_COLORS.fallback,
+      FUNCTION_COLOR_OPTION_COUNT
+    );
+    const sanitized = sanitizePaletteList(palette);
+    const filled = ensureColorCount(sanitized, DEFAULT_FUNCTION_COLORS.fallback, FUNCTION_COLOR_OPTION_COUNT);
+    return filled.slice(0, FUNCTION_COLOR_OPTION_COUNT);
+  };
+  const getFunctionColorOptions = () => {
+    if (!Array.isArray(functionColorOptions) || functionColorOptions.length === 0) {
+      functionColorOptions = resolveFunctionColorOptions();
+    }
+    if (!functionColorOptions.length) {
+      functionColorOptions = ensureColorCount(
+        DEFAULT_FUNCTION_COLORS.fallback,
+        GRAFTEGNER_FALLBACK_PALETTE,
+        FUNCTION_COLOR_OPTION_COUNT
+      );
+    }
+    return functionColorOptions.slice(0, FUNCTION_COLOR_OPTION_COUNT);
+  };
+  const normalizeFunctionColorChoice = color => {
+    const normalized = normalizeColorValue(color);
+    const options = getFunctionColorOptions();
+    if (options.includes(normalized)) return normalized;
+    return options[0] || DEFAULT_COLOR_FALLBACK;
+  };
+  const buildFunctionColorOptionsMarkup = selected => {
+    const options = getFunctionColorOptions();
+    const normalizedSelected = normalizeFunctionColorChoice(selected);
+    return options
+      .map(color => {
+        const selectedAttr = color === normalizedSelected ? ' selected' : '';
+        return `<option value="${color}"${selectedAttr}>${color}</option>`;
+      })
+      .join('');
+  };
+  const syncFunctionColorSelectOptions = (select, preferred) => {
+    if (!select) return;
+    const optionsMarkup = buildFunctionColorOptionsMarkup(preferred || select.value);
+    select.innerHTML = optionsMarkup;
+    select.value = normalizeFunctionColorChoice(preferred || select.value);
+  };
+  const refreshFunctionColorOptions = () => {
+    functionColorOptions = resolveFunctionColorOptions();
+    const rows = funcRows ? Array.from(funcRows.querySelectorAll('.func-group')) : [];
+    rows.forEach(row => {
+      const select = row.querySelector('select[data-color]');
+      const control = functionColorControls.find(entry => entry && entry.row === row);
+      const desired = control && control.manual ? control.value : computeDefaultColorForIndex(getRowIndex(row));
+      syncFunctionColorSelectOptions(select, desired);
+      if (control) {
+        control.value = normalizeFunctionColorChoice(control.manual ? control.value : select.value);
+        if (!control.manual) {
+          control.input.value = control.value;
+        }
+      }
+    });
+  };
+  refreshFunctionColorOptions();
   const applyColorManualClass = (row, manual) => {
     if (!row || !row.classList) return;
     if (manual) {
@@ -7075,8 +7139,8 @@ function setupSettingsForm() {
   const registerFunctionColorControl = (row, input, options = {}) => {
     if (!row || !input) return null;
     const index = getRowIndex(row);
-    const providedDefault = normalizeColorValue(options.defaultColor);
-    const manualColor = normalizeColorValue(options.manualColor);
+    const providedDefault = normalizeFunctionColorChoice(options.defaultColor);
+    const manualColor = normalizeFunctionColorChoice(options.manualColor);
     const control = {
       row,
       input,
@@ -7095,15 +7159,16 @@ function setupSettingsForm() {
       control.value = manualColor;
     } else {
       control.manual = false;
-      control.value = control.defaultColor;
+      control.value = normalizeFunctionColorChoice(control.defaultColor || DEFAULT_COLOR_FALLBACK);
     }
     if (!control.value) {
-      control.value = control.defaultColor || DEFAULT_COLOR_FALLBACK;
+      control.value = normalizeFunctionColorChoice(control.defaultColor || DEFAULT_COLOR_FALLBACK);
     }
     input.value = control.value;
+    syncFunctionColorSelectOptions(input, control.value);
     applyColorManualClass(row, control.manual);
     const handleColorInput = event => {
-      const normalized = normalizeColorValue(input.value);
+      const normalized = normalizeFunctionColorChoice(input.value);
       if (normalized) {
         input.value = normalized;
       }
@@ -7151,13 +7216,18 @@ function setupSettingsForm() {
     };
   };
   let refreshFunctionColorDefaultsLocal = () => {
+    refreshFunctionColorOptions();
     functionColorControls.forEach(control => {
       if (!control || !control.row) return;
       const nextDefault = computeDefaultColorForIndex(getRowIndex(control.row));
-      control.defaultColor = nextDefault || control.defaultColor || DEFAULT_COLOR_FALLBACK;
+      control.defaultColor = normalizeFunctionColorChoice(nextDefault || control.defaultColor || DEFAULT_COLOR_FALLBACK);
+      if (control.manual && !getFunctionColorOptions().includes(control.value)) {
+        control.manual = false;
+      }
       if (!control.manual) {
         control.value = control.defaultColor || DEFAULT_COLOR_FALLBACK;
         control.input.value = control.value;
+        syncFunctionColorSelectOptions(control.input, control.value);
       }
       applyColorManualClass(control.row, control.manual);
     });
@@ -8740,14 +8810,16 @@ function setupSettingsForm() {
     const titleLabel = 'Funksjon eller punkter';
     const placeholderAttr = index === 1 ? ` placeholder="${DEFAULT_FUNCTION_EXPRESSION}"` : '';
     const defaultColor = computeDefaultColorForIndex(index);
-    const manualColor = normalizeColorValue(colorVal);
+    const manualColor = normalizeFunctionColorChoice(colorVal);
     const isManualColor = !!colorManual && !!manualColor;
     const initialColor = isManualColor ? manualColor : (defaultColor || DEFAULT_COLOR_FALLBACK);
     const colorAttr = initialColor || DEFAULT_COLOR_FALLBACK;
     const colorControlMarkup = `
             <label class="func-color">
               <span>Farge</span>
-              <input type="color" data-color value="${colorAttr}">
+              <select data-color>
+                ${buildFunctionColorOptionsMarkup(colorAttr)}
+              </select>
             </label>`;
     const gliderMarkup = index === 1 ? `
             <div class="func-row func-row--domain">
@@ -8842,7 +8914,7 @@ function setupSettingsForm() {
         preview.removeAttribute('data-preview-no-latex');
       }
     }
-    const colorInput = row.querySelector('input[data-color]');
+    const colorInput = row.querySelector('select[data-color]');
     if (colorInput) {
       registerFunctionColorControl(row, colorInput, {
         defaultColor,
