@@ -159,6 +159,16 @@ function setupTallinjeApp({ registerCleanup }) {
     }
   }
 
+  function syncBodyAppMode(mode) {
+    if (typeof document === 'undefined') return;
+    const body = document.body;
+    if (!body || !body.dataset) return;
+    const normalized = isTaskLikeMode(mode) ? 'task' : typeof mode === 'string' && mode.trim() ? mode.trim() : 'default';
+    if (body.dataset.appMode !== normalized) {
+      body.dataset.appMode = normalized;
+    }
+  }
+
   function getCurrentAppMode() {
     if (typeof window === 'undefined') return 'default';
     const mv = window.mathVisuals;
@@ -186,6 +196,7 @@ function setupTallinjeApp({ registerCleanup }) {
     if (!event) return;
     const detail = event.detail;
     if (!detail || typeof detail.mode !== 'string') return;
+    syncBodyAppMode(detail.mode);
     applyAppModeToTaskControls(detail.mode);
   }
 
@@ -200,7 +211,9 @@ function setupTallinjeApp({ registerCleanup }) {
 
   addManagedEventListener(typeof window !== 'undefined' ? window : null, 'math-visuals:app-mode-changed', handleAppModeChanged);
 
-  applyAppModeToTaskControls(getCurrentAppMode() || 'task');
+  const initialAppMode = getCurrentAppMode() || 'task';
+  syncBodyAppMode(initialAppMode);
+  applyAppModeToTaskControls(initialAppMode);
 
   const STATE = window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
   window.STATE = STATE;

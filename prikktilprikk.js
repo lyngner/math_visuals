@@ -2752,6 +2752,7 @@
     const editModes = new Set(['edit', 'default']);
     const playModes = new Set(['play', 'solve', 'student', 'view', 'task']);
     if (!editModes.has(normalized) && !playModes.has(normalized)) return;
+    syncBodyAppMode(normalized);
     updateTaskControlsVisibility(normalized);
     const nextIsEditMode = editModes.has(normalized);
     if (typeof window !== 'undefined') {
@@ -2932,6 +2933,16 @@
     }
   }
 
+  function syncBodyAppMode(mode) {
+    if (typeof document === 'undefined') return;
+    const body = document.body;
+    if (!body || !body.dataset) return;
+    const normalized = isTaskLikeMode(mode) ? 'task' : typeof mode === 'string' && mode.trim() ? mode.trim() : 'default';
+    if (body.dataset.appMode !== normalized) {
+      body.dataset.appMode = normalized;
+    }
+  }
+
   function getCurrentAppMode() {
     if (typeof window === 'undefined') return 'default';
     const mv = window.mathVisuals;
@@ -2955,5 +2966,7 @@
     return 'default';
   }
 
-  updateTaskControlsVisibility(getCurrentAppMode() || 'task');
+  const initialAppMode = getCurrentAppMode() || 'task';
+  syncBodyAppMode(initialAppMode);
+  updateTaskControlsVisibility(initialAppMode);
 })();
