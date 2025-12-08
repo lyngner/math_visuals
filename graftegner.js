@@ -3190,6 +3190,7 @@ function appendAxisLabelsToSvgClone(node) {
     textEl.setAttribute('fill', color);
     textEl.setAttribute('font-size', `${fontSize}`);
     textEl.setAttribute('font-family', 'Inter, "Segoe UI", system-ui, sans-serif');
+    textEl.setAttribute('font-style', 'italic');
     textEl.textContent = label;
     if (axisKey === 'x') {
       textEl.setAttribute('text-anchor', 'end');
@@ -3247,6 +3248,7 @@ function appendCurveLabelsToSvgClone(node) {
     textEl.setAttribute('fill', normalizeColorValue(g && g.color) || '#111827');
     textEl.setAttribute('font-size', `${fontSize}`);
     textEl.setAttribute('font-family', 'Inter, "Segoe UI", system-ui, sans-serif');
+    textEl.setAttribute('font-style', 'italic');
     textEl.setAttribute('dominant-baseline', 'middle');
     textEl.setAttribute('text-anchor', 'start');
     textEl.setAttribute('pointer-events', 'none');
