@@ -5633,16 +5633,13 @@
   }
 
   function updateDescriptionEditVisibilityForMode(mode) {
-    const requestedMode = mode != null ? mode : currentAppMode;
-    const normalized = normalizeAppMode(requestedMode) || DEFAULT_APP_MODE;
-    const requestedModeName =
-      typeof requestedMode === 'string' ? requestedMode.trim().toLowerCase() : '';
-    const isPreviewMode = requestedModeName === 'preview';
+    const normalized = normalizeAppMode(mode != null ? mode : currentAppMode) || DEFAULT_APP_MODE;
     const isTaskMode = normalized === 'task';
-    const shouldShowDescription = isTaskMode || isPreviewMode;
-    if (!isTaskMode || isPreviewMode) {
-      taskModeDescriptionEditing = false;
+
+    if (isTaskMode) {
+      taskModeDescriptionEditing = true;
     }
+
     let input = null;
     try {
       input = getDescriptionInput();
@@ -5661,56 +5658,28 @@
     if (container) {
       container.classList.toggle('example-description--task-mode', isTaskMode);
       container.classList.toggle('example-description--task-editing', isTaskMode && taskModeDescriptionEditing);
-      if (shouldShowDescription) {
-        container.removeAttribute('hidden');
-        container.removeAttribute('aria-hidden');
-        delete container.dataset.hiddenInEditMode;
-      } else {
-        container.setAttribute('hidden', '');
-        container.setAttribute('aria-hidden', 'true');
-        container.dataset.hiddenInEditMode = 'true';
-      }
+      container.removeAttribute('hidden');
+      container.removeAttribute('aria-hidden');
+      delete container.dataset.hiddenInEditMode;
+
       const examplesCard = container.closest('.card--examples');
       if (examplesCard) {
-        if (isTaskMode && !isPreviewMode && taskModeDescriptionEditing) {
+        if (isTaskMode && taskModeDescriptionEditing) {
           examplesCard.dataset.descriptionEditing = 'true';
         } else {
           delete examplesCard.dataset.descriptionEditing;
         }
       }
     }
-    if (isTaskMode && !isPreviewMode) {
-      input.hidden = false;
-      input.removeAttribute('hidden');
-      input.removeAttribute('aria-hidden');
 
-      if (container) {
-        container.removeAttribute('hidden');
-        delete container.dataset.hiddenInEditMode;
-      }
-    } else {
-      input.hidden = true;
-      input.setAttribute('aria-hidden', 'true');
-    }
+    input.hidden = false;
+    input.removeAttribute('hidden');
+    input.removeAttribute('aria-hidden');
+
     const preview = getDescriptionPreviewElement();
-    if (preview) {
-      const isEmpty = preview.dataset.empty === 'true';
-      const shouldShowPlaceholder =
-        shouldShowDescription && isEmpty && (!isTaskMode || !taskModeDescriptionEditing);
-      if (shouldShowPlaceholder) {
-        applyDescriptionPlaceholder(preview, 'Legg til oppgavetekst');
-      } else {
-        clearDescriptionPlaceholder(preview);
-        const shouldShowPreviewContent =
-          shouldShowDescription && !isEmpty && (!isTaskMode || !taskModeDescriptionEditing);
-        if (shouldShowPreviewContent) {
-          preview.removeAttribute('hidden');
-          preview.setAttribute('aria-hidden', 'false');
-        } else {
-          preview.setAttribute('hidden', '');
-          preview.setAttribute('aria-hidden', 'true');
-        }
-      }
+    if (preview && isTaskMode) {
+      preview.setAttribute('hidden', '');
+      preview.setAttribute('aria-hidden', 'true');
     }
   }
 
