@@ -3839,21 +3839,27 @@ function updateCurveColorsFromTheme() {
         });
       });
     }
-  });
-  if (typeof funcRows !== 'undefined') {
-    const rows = funcRows ? funcRows.querySelectorAll('.func-group') : [];
-    rows.forEach((row, i) => {
-      const graph = appState.graphs[i];
-      if (!graph) return;
-      const picker = row.querySelector('[data-color-picker]');
-      if (picker) {
-        const activeBtn = picker.querySelector('.color-swatch--active');
-        if (activeBtn) {
-          activeBtn.style.backgroundColor = graph.color;
+
+    if (typeof funcRows !== 'undefined') {
+      const row = funcRows ? funcRows.querySelector(`.func-group:nth-child(${idx + 1})`) : null;
+      if (row) {
+        const picker = row.querySelector('[data-color-picker]');
+        if (picker) {
+          const activeBtn = picker.querySelector('.color-swatch--active');
+          if (activeBtn && appliedColor) {
+            activeBtn.style.backgroundColor = appliedColor;
+          }
+
+          const options = picker.querySelectorAll('.color-option-btn');
+          const graphColor = normalizeColorValue(appliedColor);
+          options.forEach(btn => {
+            const optColor = normalizeColorValue(btn.dataset.colorValue);
+            btn.classList.toggle('is-selected', optColor === graphColor);
+          });
         }
       }
-    });
-  }
+    }
+  });
   if (updated && appState.board && typeof appState.board.update === 'function') {
     appState.board.update();
   }
