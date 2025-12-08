@@ -357,7 +357,14 @@ const betaFeatureItems = nav ? Array.from(nav.querySelectorAll('[data-beta-featu
 const profileFilteredItems = nav ? Array.from(nav.querySelectorAll('[data-profile-filter]')) : [];
 const PROFILE_FILTER_ATTR = 'data-profile-filter';
 const SETTINGS_ENABLED_PROFILES = new Set(['annet', 'kikora', 'campus']);
-const CAMPUS_VISIBLE_LABELS = new Set(['Graftegner', 'nKant', 'Diagram', 'Settings']);
+const CAMPUS_VISIBLE_LABELS = new Set([
+  'Bibliotek',
+  'Diagram',
+  'Eksempelarkiv',
+  'Graftegner',
+  'Settings',
+  'nKant'
+]);
 function setBetaFeatureVisibility(isEnabled) {
   betaFeatureItems.forEach(item => {
     if (item instanceof HTMLElement) {
