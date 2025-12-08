@@ -4069,6 +4069,51 @@ const KATEX_TEXT_ESCAPE_REGEX = /([#%&$^_{}\\])/g;
 function escapeKatexPlainText(text) {
   return String(text).replace(KATEX_TEXT_ESCAPE_REGEX, '\\$1');
 }
+function formatPointLabelLatex(text) {
+  if (typeof text !== 'string') return '';
+  const trimmed = text.trim();
+  if (!trimmed) return '';
+  const latex = convertExpressionToLatex(trimmed);
+  if (latex) return latex;
+  if (/^[A-Za-z\u00c6\u00d8\u00c5\u00e6\u00f8\u00e5]+$/.test(trimmed)) {
+    return trimmed;
+  }
+  return `\\text{${escapeKatexPlainText(trimmed)}}`;
+}
+function formatPointLabelHtml(text) {
+  const value = typeof text === 'function' ? text() : text;
+  const latex = formatPointLabelLatex(typeof value === 'string' ? value : '');
+  if (latex) {
+    const html = renderLatexToHtml(latex);
+    if (html) return html;
+  }
+  return typeof value === 'string' ? escapeHtml(value) : '';
+}
+function applyPointLabelStyling(label) {
+  if (!label) return;
+  const fontSizeRaw = Number.parseFloat(ADV && ADV.curveName ? ADV.curveName.fontSize : SHARED_FONT_SIZE);
+  const fontSize = Number.isFinite(fontSizeRaw) ? fontSizeRaw : SHARED_FONT_SIZE;
+  const cssTokens = [
+    'user-select:none',
+    'pointer-events:none',
+    `font-size:${fontSize}px`
+  ];
+  try {
+    label.setAttribute({
+      display: 'html',
+      fontSize,
+      cssStyle: cssTokens.join(';')
+    });
+  } catch (_) {}
+}
+function setPointLabelText(point, text) {
+  if (!point || !point.label || typeof point.label.setText !== 'function') return;
+  applyPointLabelStyling(point.label);
+  const renderer = typeof text === 'function'
+    ? () => formatPointLabelHtml(text())
+    : () => formatPointLabelHtml(text);
+  point.label.setText(renderer);
+}
 function renderKatexPlainText(target, text) {
   if (!target) return;
   const str = typeof text === 'string' ? text : '';
@@ -5002,6 +5047,7 @@ function buildFunctions() {
         showInfobox: false
       });
       gliders.push(P);
+      applyPointLabelStyling(P.label);
 
       // HARD KLAMMING TIL DOMENE UNDER DRAG
       P.on('drag', () => {
@@ -5011,23 +5057,24 @@ function buildFunctions() {
         emitLinePointUpdate({ sync: false });
       });
       if (ADV.points.showCoordsOnHover) {
+        applyPointLabelStyling(P.label);
         P.label.setAttribute({
           visible: false
         });
         P.on('over', () => {
-          P.label.setText(() => fmtCoordsStatic(P));
+          setPointLabelText(P, () => fmtCoordsStatic(P));
           P.label.setAttribute({
             visible: true
           });
         });
         P.on('drag', () => {
-          P.label.setText(() => fmtCoordsDrag(P));
+          setPointLabelText(P, () => fmtCoordsDrag(P));
           P.label.setAttribute({
             visible: true
           });
         });
         P.on('up', () => {
-          P.label.setText(() => fmtCoordsStatic(P));
+          setPointLabelText(P, () => fmtCoordsStatic(P));
         });
         P.on('out', () => P.label.setAttribute({
           visible: false
@@ -5105,6 +5152,7 @@ function buildPointsLine() {
       withLabel: true,
       showInfobox: false
     });
+    applyPointLabelStyling(P0.label);
     const P1 = appState.board.create('point', start1.slice(), {
       name: '',
       size: POINT_MARKER_SIZE,
@@ -5114,6 +5162,7 @@ function buildPointsLine() {
       withLabel: true,
       showInfobox: false
     });
+    applyPointLabelStyling(P1.label);
     appState.points.A = P0;
     appState.points.B = P1;
     appState.points.moving = [P0, P1];
@@ -5132,6 +5181,7 @@ function buildPointsLine() {
       withLabel: true,
       showInfobox: false
     });
+    applyPointLabelStyling(P.label);
     appState.points.A = F;
     appState.points.B = P;
     appState.points.moving = [P];
@@ -5145,6 +5195,7 @@ function buildPointsLine() {
       withLabel: true,
       showInfobox: false
     });
+    applyPointLabelStyling(P.label);
     const Q = appState.board.create('point', [() => P.X() + 1, () => P.Y() + slopeM], {
       name: '',
       visible: false,
@@ -5305,29 +5356,30 @@ function buildPointsLine() {
     for (const P of appState.points.moving) {
       if (mode === 'drag') P.on('drag', () => snap(P));else P.on('up', () => {
         snap(P);
-        if (P.label) P.label.setText(() => fmtCoordsStatic(P));
+        if (P.label) setPointLabelText(P, () => fmtCoordsStatic(P));
       });
     }
   }
   if (ADV.points.showCoordsOnHover) {
     for (const P of appState.points.moving) {
+      applyPointLabelStyling(P.label);
       P.label.setAttribute({
         visible: false
       });
       P.on('over', () => {
-        P.label.setText(() => fmtCoordsStatic(P));
+        setPointLabelText(P, () => fmtCoordsStatic(P));
         P.label.setAttribute({
           visible: true
         });
       });
       P.on('drag', () => {
-        P.label.setText(() => fmtCoordsDrag(P));
+        setPointLabelText(P, () => fmtCoordsDrag(P));
         P.label.setAttribute({
           visible: true
         });
       });
       P.on('up', () => {
-        P.label.setText(() => fmtCoordsStatic(P));
+        setPointLabelText(P, () => fmtCoordsStatic(P));
       });
       P.on('out', () => P.label.setAttribute({
         visible: false
@@ -5988,6 +6040,7 @@ function addFixedPoints() {
     }
     const P = appState.board.create('point', pt.slice(), pointOptions);
     pointObjects.push(P);
+    applyPointLabelStyling(P.label);
     if (markerStyle.type === 'text') {
       appState.board.create('text', [() => P.X(), () => P.Y(), markerStyle.text], {
         anchorX: 'middle',
@@ -6000,7 +6053,7 @@ function addFixedPoints() {
     }
     const hasHoverCoords = !!ADV.points.showCoordsOnHover;
     if (P.label && showPointNames) {
-      P.label.setText(pointLabel);
+      setPointLabelText(P, pointLabel);
       P.label.setAttribute({
         visible: true
       });
@@ -6009,7 +6062,7 @@ function addFixedPoints() {
       const restorePointLabel = () => {
         if (!P.label) return;
         if (showPointNames) {
-          P.label.setText(pointLabel);
+          setPointLabelText(P, pointLabel);
           P.label.setAttribute({
             visible: true
           });
@@ -6025,7 +6078,7 @@ function addFixedPoints() {
         });
       }
       P.on('over', () => {
-        P.label.setText(() => fmtCoordsStatic(P));
+        setPointLabelText(P, () => fmtCoordsStatic(P));
         P.label.setAttribute({
           visible: true
         });
@@ -7893,8 +7946,8 @@ function setupSettingsForm() {
           if (moveNeeded) {
             glider.moveTo([targetX, fnY]);
             moved = true;
-            if (glider.label && typeof glider.label.setText === 'function') {
-              glider.label.setText(() => fmtCoordsStatic(glider));
+            if (glider.label) {
+              setPointLabelText(glider, () => fmtCoordsStatic(glider));
             }
           }
         } catch (_) {}
@@ -8003,8 +8056,8 @@ function setupSettingsForm() {
             if (moveNeeded) {
               try {
                 point.moveTo([tx, ty]);
-                if (point.label && typeof point.label.setText === 'function') {
-                  point.label.setText(() => fmtCoordsStatic(point));
+                if (point.label) {
+                  setPointLabelText(point, () => fmtCoordsStatic(point));
                 }
               } catch (_) {
                 // ignore move errors
@@ -8044,8 +8097,8 @@ function setupSettingsForm() {
             }
             try {
               glider.moveTo([clampedX, fnY]);
-              if (glider.label && typeof glider.label.setText === 'function') {
-                glider.label.setText(() => fmtCoordsStatic(glider));
+              if (glider.label) {
+                setPointLabelText(glider, () => fmtCoordsStatic(glider));
               }
             } catch (_) {}
           }
