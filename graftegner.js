@@ -343,6 +343,15 @@ function normalizeColorValue(value) {
   return `#${hex}`;
 }
 
+function getReadableTextColor(color) {
+  const normalized = normalizeColorValue(color) || '#111827';
+  const r = parseInt(normalized.slice(1, 3), 16);
+  const g = parseInt(normalized.slice(3, 5), 16);
+  const b = parseInt(normalized.slice(5, 7), 16);
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 180 ? '#111827' : '#f9fafb';
+}
+
 function refreshGraftegnerTheme(options = {}) {
   const project = getActiveProjectName();
   const paletteApi = getPaletteApi();
@@ -7106,17 +7115,28 @@ function setupSettingsForm() {
     const options = getFunctionColorOptions();
     const normalizedSelected = normalizeFunctionColorChoice(selected);
     return options
-      .map(color => {
-        const selectedAttr = color === normalizedSelected ? ' selected' : '';
-        return `<option value="${color}"${selectedAttr}>${color}</option>`;
+      .map((color, index) => {
+        const normalizedColor = normalizeColorValue(color) || DEFAULT_COLOR_FALLBACK;
+        const label = `Farge ${index + 1}`;
+        const textColor = getReadableTextColor(normalizedColor);
+        const selectedAttr = normalizedColor === normalizedSelected ? ' selected' : '';
+        return `<option value="${normalizedColor}" data-color-index="${index}" aria-label="${label}" title="${normalizedColor}" style="background-color:${normalizedColor};color:${textColor};">${label}</option>`;
       })
       .join('');
+  };
+  const applyFunctionColorSelectStyle = select => {
+    if (!select) return;
+    const normalized = normalizeFunctionColorChoice(select.value);
+    const textColor = getReadableTextColor(normalized);
+    select.style.backgroundColor = normalized || DEFAULT_COLOR_FALLBACK;
+    select.style.color = textColor;
   };
   const syncFunctionColorSelectOptions = (select, preferred) => {
     if (!select) return;
     const optionsMarkup = buildFunctionColorOptionsMarkup(preferred || select.value);
     select.innerHTML = optionsMarkup;
     select.value = normalizeFunctionColorChoice(preferred || select.value);
+    applyFunctionColorSelectStyle(select);
   };
   const refreshFunctionColorOptions = () => {
     functionColorOptions = resolveFunctionColorOptions();
@@ -7192,6 +7212,7 @@ function setupSettingsForm() {
         control.value = control.defaultColor || DEFAULT_COLOR_FALLBACK;
         input.value = control.value;
       }
+      applyFunctionColorSelectStyle(input);
       applyColorManualClass(row, control.manual);
       if (event && event.type === 'change') {
         flushSimpleFormChange();
