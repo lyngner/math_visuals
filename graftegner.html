@@ -178,6 +178,48 @@
       color:#0f172a;
       font-weight:600;
     }
+    .func-color .func-color-picker{
+      display:flex;
+      gap:10px;
+      align-items:center;
+    }
+    .func-color .color-option{
+      position:relative;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .func-color .color-option input[type="radio"]{
+      position:absolute;
+      inset:0;
+      opacity:0;
+      margin:0;
+      cursor:pointer;
+    }
+    .func-color .color-swatch{
+      --swatch-color:#fff;
+      width:38px;
+      height:38px;
+      border-radius:50%;
+      background:var(--swatch-color);
+      border:2px solid #e5e7eb;
+      box-shadow:0 3px 6px rgba(15,23,42,.16);
+      transition:transform .08s ease, box-shadow .08s ease, border-color .08s ease;
+      display:inline-flex;
+    }
+    .func-color .color-option:hover .color-swatch{
+      box-shadow:0 4px 8px rgba(15,23,42,.2);
+      transform:translateY(-1px);
+    }
+    .func-color .color-option input[type="radio"]:focus-visible + .color-swatch{
+      outline:3px solid rgba(99,102,241,.45);
+      outline-offset:2px;
+    }
+    .func-color .color-option input[type="radio"]:checked + .color-swatch{
+      border-color:#111827;
+      box-shadow:0 0 0 3px rgba(15,23,42,.15), 0 4px 10px rgba(15,23,42,.22);
+      transform:translateY(-1px);
+    }
     .func-color select[data-color]:focus,
     .func-color select[data-color]:focus-visible{
       outline:none;
