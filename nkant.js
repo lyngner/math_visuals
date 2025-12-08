@@ -4955,6 +4955,12 @@ function svgToString(svgEl) {
   const removeSelector = '[data-ignore-export="true"], .label-rotation-handle';
   const removable = clone.querySelectorAll(removeSelector);
   removable.forEach(el => el.remove());
+  const exportLabels = clone.querySelectorAll('text[data-label-key]');
+  exportLabels.forEach(el => {
+    if (!el.getAttribute('font-style')) {
+      el.setAttribute('font-style', 'italic');
+    }
+  });
   const selectedLabels = clone.querySelectorAll('.label-selected');
   selectedLabels.forEach(el => el.classList.remove('label-selected'));
   const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
