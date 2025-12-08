@@ -7640,8 +7640,10 @@
     let applied = false;
     if (!skipReloadIfActive) {
       for (const name of BINDING_NAMES) {
-        if (cfg[name] != null) {
-          applyBinding(name, cfg[name]);
+        const value = cfg[name];
+        const normalizedValue = value != null ? value : cfg[String(name).toLowerCase()];
+        if (normalizedValue != null) {
+          applyBinding(name, normalizedValue);
           applied = true;
         }
       }
