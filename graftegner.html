@@ -167,6 +167,29 @@
       border:none;
       border-radius:8px;
     }
+    .func-color select[data-color]{
+      min-width:88px;
+      padding:10px 12px;
+      border-radius:8px;
+      border:1px solid #d1d5db;
+      background-size:100% 100%;
+      background-repeat:no-repeat;
+      color:transparent;
+    }
+    .func-color select[data-color]:focus,
+    .func-color select[data-color]:focus-visible{
+      outline:none;
+      border-color:#6366f1;
+      box-shadow:0 0 0 3px rgba(99,102,241,.15);
+    }
+    .func-color select[data-color] option{
+      color:transparent;
+      font-size:0;
+      min-height:34px;
+      padding:12px 10px;
+      background-size:100% 100%;
+      background-repeat:no-repeat;
+    }
     @media (max-width:900px){
       .func-row--main{ grid-template-columns:1fr; }
     }

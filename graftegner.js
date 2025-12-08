@@ -7118,18 +7118,16 @@ function setupSettingsForm() {
       .map((color, index) => {
         const normalizedColor = normalizeColorValue(color) || DEFAULT_COLOR_FALLBACK;
         const label = `Farge ${index + 1}`;
-        const textColor = getReadableTextColor(normalizedColor);
         const selectedAttr = normalizedColor === normalizedSelected ? ' selected' : '';
-        return `<option value="${normalizedColor}" data-color-index="${index}" aria-label="${label}" title="${normalizedColor}" style="background-color:${normalizedColor};color:${textColor};">${label}</option>`;
+        return `<option value="${normalizedColor}" data-color-index="${index}" aria-label="${label}" style="background-color:${normalizedColor};"${selectedAttr}>${label}</option>`;
       })
       .join('');
   };
   const applyFunctionColorSelectStyle = select => {
     if (!select) return;
     const normalized = normalizeFunctionColorChoice(select.value);
-    const textColor = getReadableTextColor(normalized);
     select.style.backgroundColor = normalized || DEFAULT_COLOR_FALLBACK;
-    select.style.color = textColor;
+    select.style.color = 'transparent';
   };
   const syncFunctionColorSelectOptions = (select, preferred) => {
     if (!select) return;
