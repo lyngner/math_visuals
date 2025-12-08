@@ -6349,29 +6349,38 @@ function rebuildAll() {
     appState.isRebuilding = false;
   }
 }
-window.addEventListener('resize', () => {
-  const jxg = getJXG();
-  const resizeBoards = jxg && jxg.JSXGraph && typeof jxg.JSXGraph.resizeBoards === 'function' ? jxg.JSXGraph.resizeBoards : null;
-  const board = appState.board;
-  if (board && typeof board.resizeContainer === 'function') {
-    var _brd$containerObj, _brd$containerObj2;
-    const cw = (_brd$containerObj = board.containerObj) === null || _brd$containerObj === void 0 ? void 0 : _brd$containerObj.clientWidth;
-    const ch = (_brd$containerObj2 = board.containerObj) === null || _brd$containerObj2 === void 0 ? void 0 : _brd$containerObj2.clientHeight;
-    if (cw && ch) {
-      board.resizeContainer(cw, ch);
-      board.update();
-    }
-  } else if (typeof resizeBoards === 'function') {
-    try {
-      resizeBoards();
-    } catch (error) {
-      if (typeof console !== 'undefined' && console && typeof console.warn === 'function') {
-        console.warn('[graftegner] Ignoring resize error from JSXGraph.resizeBoards', error);
+let resizeScheduled = false;
+const scheduleResize = () => {
+  if (resizeScheduled) return;
+  resizeScheduled = true;
+  const scheduler = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : fn => setTimeout(fn, 0);
+  scheduler(() => {
+    resizeScheduled = false;
+    const jxg = getJXG();
+    const resizeBoards =
+      jxg && jxg.JSXGraph && typeof jxg.JSXGraph.resizeBoards === 'function' ? jxg.JSXGraph.resizeBoards : null;
+    const board = appState.board;
+    if (board && typeof board.resizeContainer === 'function') {
+      var _brd$containerObj, _brd$containerObj2;
+      const cw = (_brd$containerObj = board.containerObj) === null || _brd$containerObj === void 0 ? void 0 : _brd$containerObj.clientWidth;
+      const ch = (_brd$containerObj2 = board.containerObj) === null || _brd$containerObj2 === void 0 ? void 0 : _brd$containerObj2.clientHeight;
+      if (cw && ch) {
+        board.resizeContainer(cw, ch);
+        board.update();
+      }
+    } else if (typeof resizeBoards === 'function') {
+      try {
+        resizeBoards();
+      } catch (error) {
+        if (typeof console !== 'undefined' && console && typeof console.warn === 'function') {
+          console.warn('[graftegner] Ignoring resize error from JSXGraph.resizeBoards', error);
+        }
       }
     }
-  }
-  updateAfterViewChange();
-});
+    updateAfterViewChange();
+  });
+};
+window.addEventListener('resize', scheduleResize, { passive: true });
 function handleGraftegnerProfileChange() {
   applyThemeToDocument();
   applyGraftegnerDefaultsFromTheme({ count: computePaletteRequestCount() });
@@ -9409,12 +9418,17 @@ function setupSettingsForm() {
     });
   }
   if (typeof window !== 'undefined') {
-    window.addEventListener('examples:loaded', () => {
+    const runExampleHydration = () => {
       hydrateCurveLabelStateFromExample();
       resetScreenStateForExample();
       fillFormFromSimple(window.SIMPLE);
       apply();
-    });
+    };
+    const scheduleExampleHydration = () => {
+      const scheduler = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : fn => setTimeout(fn, 0);
+      scheduler(runExampleHydration);
+    };
+    window.addEventListener('examples:loaded', scheduleExampleHydration);
   }
   if (screenInput) {
     screenInput.addEventListener('input', () => {

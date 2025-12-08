@@ -1862,24 +1862,25 @@ function isValidColor(value) {
         docUpHandler
       ]];
       const winListeners = docListeners;
+      const passiveCapture = { capture: true, passive: true };
       for (const [type, handler] of listeners) {
-        box.addEventListener(type, handler, true);
+        box.addEventListener(type, handler, passiveCapture);
       }
       for (const [type, handler] of docListeners) {
-        document.addEventListener(type, handler, true);
+        document.addEventListener(type, handler, passiveCapture);
       }
       for (const [type, handler] of winListeners) {
-        window.addEventListener(type, handler, true);
+        window.addEventListener(type, handler, passiveCapture);
       }
       detachDivisionGuard = () => {
         for (const [type, handler] of listeners) {
-          box.removeEventListener(type, handler, true);
+          box.removeEventListener(type, handler, passiveCapture);
         }
         for (const [type, handler] of docListeners) {
-          document.removeEventListener(type, handler, true);
+          document.removeEventListener(type, handler, passiveCapture);
         }
         for (const [type, handler] of winListeners) {
-          window.removeEventListener(type, handler, true);
+          window.removeEventListener(type, handler, passiveCapture);
         }
         detachDivisionGuard = null;
       };
