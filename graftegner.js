@@ -9269,11 +9269,11 @@ function setupSettingsForm() {
 
           activeBtn.style.backgroundColor = newColor;
           hiddenInput.value = newColor;
+          optionsPanel.hidden = true;
           picker.querySelectorAll('.color-option-btn').forEach(option => {
             const optionColor = normalizeColorValue(option.dataset.colorValue);
             option.classList.toggle('is-selected', option === btn || optionColor === normalizeColorValue(newColor));
           });
-          optionsPanel.hidden = true;
 
           hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
           hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
