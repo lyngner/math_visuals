@@ -643,11 +643,30 @@ body[data-app-mode="preview"] .card--examples .example-description {
   gap: 10px;
 }
 
-/* 6. TVING tekstfeltet til å vises (textarea) */
-body[data-app-mode="task"] .card--examples .example-description textarea,
-body[data-app-mode="preview"] .card--examples .example-description textarea {
+/* 6. Click-to-edit: vis forhåndsvisning som standard i task-modus */
+body[data-app-mode="task"] .card--examples .example-description textarea {
+  display: none !important;
+}
+
+body[data-app-mode="task"] .card--examples .example-description .example-description-preview {
   display: block !important;
-  min-height: 400px; /* Gjør den stor og fin */
+  cursor: pointer;
+  min-height: 60px;
+  padding: 12px;
+  border: 1px dashed transparent;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+body[data-app-mode="task"] .card--examples .example-description .example-description-preview:hover {
+  background-color: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+/* 7. Redigeringsmodus: vis tekstfeltet og skjul preview */
+body[data-app-mode="task"] .card--examples .example-description.is-editing textarea {
+  display: block !important;
+  min-height: 200px;
   opacity: 1 !important;
   height: auto !important;
   resize: vertical !important;
@@ -655,6 +674,10 @@ body[data-app-mode="preview"] .card--examples .example-description textarea {
   background: #fafbfc !important;
   border: 1px solid #d1d5db !important;
   border-radius: 8px !important;
+}
+
+body[data-app-mode="task"] .card--examples .example-description.is-editing .example-description-preview {
+  display: none !important;
 }
 
 /* 7. Skjul labels og "sjekk svar"-bokser som forstyrrer */
