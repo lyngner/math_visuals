@@ -6343,15 +6343,22 @@ function rebuildAll() {
 window.addEventListener('resize', () => {
   const jxg = getJXG();
   const resizeBoards = jxg && jxg.JSXGraph && typeof jxg.JSXGraph.resizeBoards === 'function' ? jxg.JSXGraph.resizeBoards : null;
-  if (typeof resizeBoards === 'function') {
-    resizeBoards();
-  } else if (appState.board && typeof appState.board.resizeContainer === 'function') {
+  const board = appState.board;
+  if (board && typeof board.resizeContainer === 'function') {
     var _brd$containerObj, _brd$containerObj2;
-    const cw = (_brd$containerObj = appState.board.containerObj) === null || _brd$containerObj === void 0 ? void 0 : _brd$containerObj.clientWidth;
-    const ch = (_brd$containerObj2 = appState.board.containerObj) === null || _brd$containerObj2 === void 0 ? void 0 : _brd$containerObj2.clientHeight;
+    const cw = (_brd$containerObj = board.containerObj) === null || _brd$containerObj === void 0 ? void 0 : _brd$containerObj.clientWidth;
+    const ch = (_brd$containerObj2 = board.containerObj) === null || _brd$containerObj2 === void 0 ? void 0 : _brd$containerObj2.clientHeight;
     if (cw && ch) {
-      appState.board.resizeContainer(cw, ch);
-      appState.board.update();
+      board.resizeContainer(cw, ch);
+      board.update();
+    }
+  } else if (typeof resizeBoards === 'function') {
+    try {
+      resizeBoards();
+    } catch (error) {
+      if (typeof console !== 'undefined' && console && typeof console.warn === 'function') {
+        console.warn('[graftegner] Ignoring resize error from JSXGraph.resizeBoards', error);
+      }
     }
   }
   updateAfterViewChange();
