@@ -5523,6 +5523,16 @@
     if (!trimmedValue) {
       clearChildren(preview);
       clearDescriptionPlaceholder(preview);
+      const shouldShowPlaceholder =
+        typeof document !== 'undefined' &&
+        document.body &&
+        document.body.dataset &&
+        document.body.dataset.appMode === 'task';
+      if (shouldShowPlaceholder) {
+        applyDescriptionPlaceholder(preview, 'Klikk her for å skrive oppgavetekst…');
+        preview.dataset.empty = 'false';
+        return markRendered(true);
+      }
       applyState(false);
       return markRendered(false);
     }
@@ -5635,9 +5645,9 @@
   function updateDescriptionEditVisibilityForMode(mode) {
     const normalized = normalizeAppMode(mode != null ? mode : currentAppMode) || DEFAULT_APP_MODE;
     const isTaskMode = normalized === 'task';
-
-    if (isTaskMode) {
-      taskModeDescriptionEditing = true;
+    const isEditing = isTaskMode && taskModeDescriptionEditing;
+    if (!isTaskMode && taskModeDescriptionEditing) {
+      taskModeDescriptionEditing = false;
     }
 
     let input = null;
@@ -5657,14 +5667,15 @@
     const container = input.closest('.example-description');
     if (container) {
       container.classList.toggle('example-description--task-mode', isTaskMode);
-      container.classList.toggle('example-description--task-editing', isTaskMode && taskModeDescriptionEditing);
+      container.classList.toggle('example-description--task-editing', isEditing);
+      container.classList.toggle('is-editing', isEditing);
       container.removeAttribute('hidden');
       container.removeAttribute('aria-hidden');
       delete container.dataset.hiddenInEditMode;
 
       const examplesCard = container.closest('.card--examples');
       if (examplesCard) {
-        if (isTaskMode && taskModeDescriptionEditing) {
+        if (isEditing) {
           examplesCard.dataset.descriptionEditing = 'true';
         } else {
           delete examplesCard.dataset.descriptionEditing;
@@ -5675,12 +5686,6 @@
     input.hidden = false;
     input.removeAttribute('hidden');
     input.removeAttribute('aria-hidden');
-
-    const preview = getDescriptionPreviewElement();
-    if (preview && isTaskMode) {
-      preview.setAttribute('hidden', '');
-      preview.setAttribute('aria-hidden', 'true');
-    }
   }
 
   function startTaskModeDescriptionEdit(options) {
@@ -5827,6 +5832,35 @@
     return descriptionInput || null;
   }
 
+  function initClickToEditBehavior() {
+    if (typeof document === 'undefined') return;
+    document.addEventListener('click', event => {
+      const body = document.body;
+      if (!body || body.dataset.appMode !== 'task') return;
+      const preview = event.target && event.target.closest('.example-description-preview');
+      if (!preview) return;
+      const container = preview.closest('.example-description');
+      if (!container) return;
+      setTaskModeDescriptionEditing(true, { focus: true });
+    });
+
+    document.addEventListener('focusout', event => {
+      const target = event && event.target;
+      const body = document.body;
+      if (!target || !body || body.dataset.appMode !== 'task') return;
+      if (target.tagName !== 'TEXTAREA' || target.id !== 'exampleDescription') return;
+      const container = target.closest('.example-description');
+      if (!container) return;
+      setTimeout(() => {
+        if (!document.body || document.body.dataset.appMode !== 'task') return;
+        const active = document.activeElement;
+        if (active && container.contains(active)) return;
+        setTaskModeDescriptionEditing(false, { force: true });
+        renderDescriptionPreviewFromValue(target.value, { force: true });
+      }, 100);
+    });
+  }
+
   let taskDescriptionSyncInitialized = false;
   let taskPanelPreview = null;
   let taskPanelUpdateButton = null;
@@ -5951,6 +5985,14 @@
       document.addEventListener('DOMContentLoaded', initTaskDescriptionSync, { once: true });
     } else {
       initTaskDescriptionSync();
+    }
+  }
+
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initClickToEditBehavior, { once: true });
+    } else {
+      initClickToEditBehavior();
     }
   }
   function getDescriptionValue() {
