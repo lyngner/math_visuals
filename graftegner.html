@@ -168,13 +168,15 @@
       border-radius:8px;
     }
     .func-color select[data-color]{
-      min-width:88px;
-      padding:10px 12px;
+      --func-color-swatch:#fff;
+      min-width:120px;
+      padding:10px 12px 10px 48px;
       border-radius:8px;
       border:1px solid #d1d5db;
-      background-size:100% 100%;
+      background:linear-gradient(90deg, var(--func-color-swatch) 0 38px, #fff 38px 100%);
       background-repeat:no-repeat;
-      color:transparent;
+      color:#0f172a;
+      font-weight:600;
     }
     .func-color select[data-color]:focus,
     .func-color select[data-color]:focus-visible{
@@ -183,12 +185,15 @@
       box-shadow:0 0 0 3px rgba(99,102,241,.15);
     }
     .func-color select[data-color] option{
-      color:transparent;
-      font-size:0;
+      --option-color:transparent;
+      color:#0f172a;
+      font-size:14px;
+      font-weight:600;
       min-height:34px;
-      padding:12px 10px;
-      background-size:100% 100%;
+      padding:12px 10px 12px 44px;
+      background:linear-gradient(90deg, var(--option-color) 0 32px, #fff 32px 100%);
       background-repeat:no-repeat;
+      text-shadow:0 1px 2px rgba(255,255,255,.65);
     }
     @media (max-width:900px){
       .func-row--main{ grid-template-columns:1fr; }
