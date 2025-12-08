@@ -8886,7 +8886,12 @@ function setupSettingsForm() {
       || DEFAULT_COLOR_FALLBACK;
     let colorControlMarkup = `
     <div class="func-color-compact" data-color-picker>
-      <button type="button" class="color-swatch color-swatch--active" style="background-color: ${activeColor};" aria-label="Endre farge"></button>
+      <button type="button"
+              class="color-swatch color-swatch--active"
+              style="background-color: ${activeColor};"
+              aria-label="Endre farge"
+              aria-haspopup="true"
+              aria-expanded="false"></button>
       <div class="color-options" hidden>
   `;
 
@@ -9259,38 +9264,56 @@ function setupSettingsForm() {
       const optionsPanel = picker.querySelector('.color-options');
       const hiddenInput = picker.querySelector('input[data-color]');
 
-      activeBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const isHidden = optionsPanel.hidden;
-        document.querySelectorAll('.color-options').forEach(el => el.hidden = true);
-        optionsPanel.hidden = !isHidden;
-      });
+      if (activeBtn && optionsPanel && hiddenInput) {
+        const closeAllPickers = () => {
+          document.querySelectorAll('[data-color-picker]').forEach(otherPicker => {
+            const otherPanel = otherPicker.querySelector('.color-options');
+            const otherButton = otherPicker.querySelector('.color-swatch--active');
+            if (otherPanel) otherPanel.hidden = true;
+            if (otherButton) otherButton.setAttribute('aria-expanded', 'false');
+          });
+        };
 
-      picker.querySelectorAll('.color-option-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
+        activeBtn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          const newColor = btn.dataset.colorValue;
 
-          activeBtn.style.backgroundColor = newColor;
-          hiddenInput.value = newColor;
-          optionsPanel.hidden = true;
-          picker.querySelectorAll('.color-option-btn').forEach(option => {
-            const optionColor = normalizeColorValue(option.dataset.colorValue);
-            option.classList.toggle('is-selected', option === btn || optionColor === normalizeColorValue(newColor));
-          });
-
-          hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
-          hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+          const wasHidden = optionsPanel.hidden;
+          closeAllPickers();
+          optionsPanel.hidden = !wasHidden;
+          activeBtn.setAttribute('aria-expanded', String(!wasHidden));
         });
-      });
 
-      document.addEventListener('click', (e) => {
-        if (!picker.contains(e.target)) {
-          optionsPanel.hidden = true;
-        }
-      });
+        picker.querySelectorAll('.color-option-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const newColor = btn.dataset.colorValue;
+
+            activeBtn.style.backgroundColor = newColor;
+            hiddenInput.value = newColor;
+            optionsPanel.hidden = true;
+            activeBtn.setAttribute('aria-expanded', 'false');
+
+            picker.querySelectorAll('.color-option-btn').forEach(opt => {
+              opt.classList.toggle('is-selected', opt === btn);
+            });
+
+            hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+            hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+          });
+        });
+
+        const closeIfOutside = (e) => {
+          if (!optionsPanel.hidden && !picker.contains(e.target)) {
+            optionsPanel.hidden = true;
+            activeBtn.setAttribute('aria-expanded', 'false');
+          }
+        };
+
+        document.addEventListener('click', closeIfOutside);
+      }
     }
     if (index === 1) {
       updateAnswerPlacement();
