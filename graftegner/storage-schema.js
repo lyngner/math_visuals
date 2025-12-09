@@ -27,6 +27,22 @@ function normalizeViewArray(view) {
   return values;
 }
 
+function normalizeCurveLabels(curveLabels) {
+  if (!Array.isArray(curveLabels)) return undefined;
+  return curveLabels
+    .filter(entry => entry && typeof entry === 'object')
+    .map(entry => {
+      const position = Array.isArray(entry.position) && entry.position.length >= 2
+        ? [normalizeNumber(entry.position[0]), normalizeNumber(entry.position[1])]
+        : [null, null];
+      const validPosition = position.every(Number.isFinite) ? position : null;
+      return {
+        manual: !!entry.manual,
+        position: validPosition
+      };
+    });
+}
+
 function normalizeAxisLabels(labels = {}, defaults) {
   if (!labels || typeof labels !== 'object') return null;
   const base = defaults && defaults.axisLabels && typeof defaults.axisLabels === 'object'
@@ -83,13 +99,15 @@ function migrateToStorageV2(snapshot = {}) {
   const view = normalizeViewArray(adv && adv.screen || snapshot.view || state.view) || null;
   const options = normalizeDiffOptions(adv, defaults);
   const meta = snapshot.meta && typeof snapshot.meta === 'object' ? { ...snapshot.meta } : {};
+  const curveLabels = normalizeCurveLabels(snapshot.curveLabels);
 
   return {
     v: STORAGE_SCHEMA_V2.version,
     code,
     view,
     options,
-    meta
+    meta,
+    ...(curveLabels !== undefined ? { curveLabels } : {})
   };
 }
 
