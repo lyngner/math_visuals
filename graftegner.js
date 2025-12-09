@@ -833,7 +833,41 @@ function normalizeStorageState(raw) {
     meta: raw.meta && typeof raw.meta === 'object' ? raw.meta : {}
   };
 }
-const STORAGE_STATE_V2 = normalizeStorageState(typeof window !== 'undefined' ? window.STATE : null);
+function migrateLegacySaveState(snapshot = {}) {
+  if (!snapshot || typeof snapshot !== 'object') return null;
+  const state = snapshot.state || snapshot.STATE || snapshot;
+  const advSnapshot = snapshot.adv || snapshot.ADV || null;
+  const defaults = snapshot.defaults || STORAGE_V2_DEFAULTS;
+  const codeCandidates = [
+    snapshot.code,
+    state && state.code,
+    snapshot.appState && snapshot.appState.simple && snapshot.appState.simple.value
+  ];
+  const code = codeCandidates.find(value => typeof value === 'string') || '';
+  const view = normalizeStorageView(
+    (state && state.view) || snapshot.view || (advSnapshot && advSnapshot.screen)
+  );
+  const options = buildStorageOptionsSnapshot(advSnapshot, defaults);
+  const meta = snapshot.meta && typeof snapshot.meta === 'object' ? { ...snapshot.meta } : {};
+
+  return {
+    v: STORAGE_SCHEMA_VERSION,
+    code,
+    view,
+    options,
+    meta
+  };
+}
+
+function normalizeImportedSaveState(raw) {
+  const normalized = normalizeStorageState(raw);
+  if (normalized) return normalized;
+  const migrated = migrateLegacySaveState(raw);
+  return normalizeStorageState(migrated);
+}
+
+const STORAGE_STATE_V2 = normalizeImportedSaveState(typeof window !== 'undefined' ? window.STATE : null)
+  || normalizeImportedSaveState(typeof window !== 'undefined' ? window.ADV : null);
 function buildStorageOptionsSnapshot(adv, defaults = STORAGE_V2_DEFAULTS) {
   const diff = {};
   const grid = !!(adv && adv.axis && adv.axis.grid && adv.axis.grid.show);
@@ -7332,6 +7366,11 @@ function serializeBoardSvg(clone) {
 const btnSvg = document.getElementById('btnSvg');
 if (btnSvg) {
   btnSvg.addEventListener('click', () => {
+    const cleanState = createCleanSaveState();
+    if (typeof window !== 'undefined') {
+      window.STATE_V2 = cleanState;
+      window.STATE = cleanState;
+    }
     const svgExport = buildBoardSvgExport();
     if (!svgExport || !svgExport.markup) return;
     const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
@@ -7357,6 +7396,11 @@ if (btnSvg) {
 const btnPng = document.getElementById('btnPng');
 if (btnPng) {
   btnPng.addEventListener('click', () => {
+    const cleanState = createCleanSaveState();
+    if (typeof window !== 'undefined') {
+      window.STATE_V2 = cleanState;
+      window.STATE = cleanState;
+    }
     const svgExport = buildBoardSvgExport();
     if (!svgExport || !svgExport.markup) return;
     const svgBlob = new Blob([svgExport.markup], {
@@ -9438,7 +9482,9 @@ function setupSettingsForm() {
         syncSimpleFromForm();
       } catch (_) {}
       if (typeof window !== 'undefined') {
-        window.STATE_V2 = buildStorageSnapshotV2();
+        const cleanState = createCleanSaveState(event && event.detail && event.detail.meta);
+        window.STATE_V2 = cleanState;
+        window.STATE = cleanState;
       }
       if (!event || !event.detail) return;
       if (event.detail.svgOverride) return;
@@ -10783,6 +10829,75 @@ function setupSettingsForm() {
         apply();
       }
     });
+  }
+  const loadCleanSaveState = rawState => {
+    const normalized = normalizeImportedSaveState(rawState)
+      || normalizeImportedSaveState({ state: rawState, adv: ADV })
+      || normalizeImportedSaveState({ adv: ADV });
+    if (!normalized) return false;
+
+    if (typeof window !== 'undefined') {
+      window.STATE_V2 = normalized;
+      window.STATE = normalized;
+    }
+
+    const nextCode = typeof normalized.code === 'string' ? normalized.code : '';
+    fillFormFromSimple(nextCode);
+    appState.simple.lastRendered = appState.simple.value;
+    if (typeof window !== 'undefined') {
+      window.SIMPLE = appState.simple.value;
+    }
+
+    const lockInput = g('cfgLock');
+    const q1Input = g('cfgQ1');
+    const axisXInput = axisXInputElement || g('cfgAxisX');
+    const axisYInput = axisYInputElement || g('cfgAxisY');
+
+    if (Array.isArray(normalized.view) && normalized.view.length === 4) {
+      const copy = normalized.view.slice(0, 4);
+      ADV.screen = copy;
+      LAST_COMPUTED_SCREEN = copy.slice(0, 4);
+      LAST_SCREEN_SOURCE = 'manual';
+      if (screenInput) {
+        screenInput.value = formatScreenForInput(copy);
+        screenInput.classList.remove('is-auto');
+        if (screenInput.dataset) delete screenInput.dataset.autoscreen;
+      }
+    }
+
+    const opts = normalized.options || {};
+    if (opts.lockAspect !== undefined) {
+      ADV.lockAspect = !!opts.lockAspect;
+      if (lockInput) lockInput.checked = !!opts.lockAspect;
+    }
+    if (opts.firstQuadrant !== undefined) {
+      ADV.firstQuadrant = !!opts.firstQuadrant;
+      if (q1Input) q1Input.checked = !!opts.firstQuadrant;
+    }
+    if (opts.grid !== undefined && ADV.axis && ADV.axis.grid) {
+      ADV.axis.grid.show = !!opts.grid;
+      if (showGridInput) showGridInput.checked = !!opts.grid;
+    }
+    if (opts.axisNumbers !== undefined && ADV.axis && ADV.axis.ticks) {
+      ADV.axis.ticks.showNumbers = !!opts.axisNumbers;
+      if (showAxisNumbersInput) showAxisNumbersInput.checked = !!opts.axisNumbers;
+    }
+    if (opts.axisLabels && ADV.axis && ADV.axis.labels) {
+      if (typeof opts.axisLabels.x === 'string') {
+        ADV.axis.labels.x = opts.axisLabels.x;
+        if (axisXInput) axisXInput.value = opts.axisLabels.x;
+      }
+      if (typeof opts.axisLabels.y === 'string') {
+        ADV.axis.labels.y = opts.axisLabels.y;
+        if (axisYInput) axisYInput.value = opts.axisLabels.y;
+      }
+    }
+
+    apply();
+    return true;
+  };
+  if (typeof window !== 'undefined') {
+    window.loadCleanSaveState = loadCleanSaveState;
   }
   refreshFunctionColorDefaults = refreshFunctionColorDefaultsLocal;
   root.addEventListener('change', apply);
