@@ -1194,6 +1194,83 @@ if (typeof document !== "undefined") {
     updateLayoutUi();
   }
 }
+function normalizeSimpleLayoutState(state) {
+  if (!state || typeof state !== "object") return {};
+  return snapshotSimpleState({
+    length: state.length,
+    height: state.height,
+    totalHandle: state.totalHandle,
+    challenge: state.challenge
+  });
+}
+function createCleanState() {
+  ensureCfgDefaults();
+  if (typeof document !== "undefined") {
+    readConfigFromHtml();
+  }
+  const normalizedLayout = normalizeLayout(currentLayoutMode != null ? currentLayoutMode : CFG.SIMPLE.layout);
+  const advLabels = CFG.ADV.labels || {};
+  const layoutState = {};
+  Object.keys(layoutStateStore).forEach(key => {
+    layoutState[normalizeLayout(key)] = normalizeSimpleLayoutState(layoutStateStore[key]);
+  });
+  if (!layoutState[normalizedLayout]) {
+    layoutState[normalizedLayout] = snapshotSimpleState(CFG.SIMPLE);
+  }
+  const cleanState = {
+    v: 1,
+    layout: normalizedLayout,
+    simple: snapshotSimpleState(CFG.SIMPLE),
+    layoutState,
+    grid: !!CFG.ADV.grid,
+    splitLines: CFG.ADV.splitLines !== false,
+    showExpressions: ((advLabels.cellMode) || 'factors') !== 'none',
+    variable1: CFG.SIMPLE.variable1 || '',
+    variable2: CFG.SIMPLE.variable2 || '',
+    showSum: CFG.SIMPLE.showSum === true
+  };
+  if (CFG.SIMPLE.altTextSource === 'manual' && typeof CFG.SIMPLE.altText === 'string') {
+    cleanState.altText = CFG.SIMPLE.altText;
+    cleanState.altTextSource = 'manual';
+  }
+  return cleanState;
+}
+function loadCleanState(state) {
+  if (!state || typeof state !== 'object' || state.v !== 1) return false;
+  ensureCfgDefaults();
+  const targetLayout = normalizeLayout(state.layout != null ? state.layout : currentLayoutMode != null ? currentLayoutMode : CFG.SIMPLE.layout);
+  Object.entries(state.layoutState || {}).forEach(([key, value]) => {
+    const normalizedKey = normalizeLayout(key);
+    layoutStateStore[normalizedKey] = normalizeSimpleLayoutState(value);
+  });
+  if (state.simple && typeof state.simple === 'object') {
+    layoutStateStore[targetLayout] = normalizeSimpleLayoutState(state.simple);
+  } else {
+    ensureLayoutState(targetLayout);
+  }
+  applyLayoutStateToSimple(targetLayout);
+  CFG.SIMPLE.variable1 = sanitizeVariableName(state.variable1 != null ? state.variable1 : CFG.SIMPLE.variable1);
+  CFG.SIMPLE.variable2 = sanitizeVariableName(state.variable2 != null ? state.variable2 : CFG.SIMPLE.variable2);
+  if (state.showSum != null) CFG.SIMPLE.showSum = !!state.showSum;
+  if (state.grid != null) CFG.ADV.grid = !!state.grid;
+  if (state.splitLines != null) CFG.ADV.splitLines = !!state.splitLines;
+  if (state.altTextSource === 'manual' && typeof state.altText === 'string') {
+    CFG.SIMPLE.altTextSource = 'manual';
+    CFG.SIMPLE.altText = state.altText;
+  }
+  const advLabels = CFG.ADV.labels || {};
+  if (state.showExpressions === false) {
+    advLabels.cellMode = 'none';
+  } else if (state.showExpressions === true) {
+    advLabels.cellMode = advLabels.cellMode === 'none' ? lastVisibleCellMode || 'factors' : advLabels.cellMode;
+    if (advLabels.cellMode !== 'none') {
+      lastVisibleCellMode = advLabels.cellMode;
+    }
+  }
+  applyConfigToInputs();
+  render();
+  return true;
+}
 /* ========================================================= */
 
 function readConfigFromHtml() {
@@ -3384,4 +3461,18 @@ if (typeof window !== 'undefined') {
   window.applyConfig = applyExamplesConfig;
   window.applyState = applyExamplesConfig;
   window.render = render;
+  if (typeof window.createCleanState !== 'function') {
+    window.createCleanState = createCleanState;
+  }
+  if (typeof window.loadCleanState !== 'function') {
+    window.loadCleanState = loadCleanState;
+  }
+  const existingApi = window.arealmodellApi && typeof window.arealmodellApi === 'object'
+    ? window.arealmodellApi
+    : {};
+  window.arealmodellApi = {
+    ...existingApi,
+    createCleanState: (...args) => createCleanState(...args),
+    loadCleanState: (...args) => loadCleanState(...args)
+  };
 }
