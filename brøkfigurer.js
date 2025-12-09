@@ -822,6 +822,36 @@ function isValidColor(value) {
     const clamped = Math.max(min, base);
     return max != null ? Math.min(clamped, max) : clamped;
   };
+  const VALID_SHAPES = new Set(['circle', 'rectangle', 'square', 'triangle']);
+  const VALID_DIVISIONS = new Set(['horizontal', 'vertical', 'grid', 'diagonal', 'triangular']);
+  function sanitizeFilledEntries(value) {
+    let iterable;
+    if (value instanceof Map) {
+      iterable = value.entries();
+    } else if (value && typeof value[Symbol.iterator] === 'function') {
+      iterable = value;
+    }
+    if (!iterable) return [];
+    const normalized = new Map();
+    for (const entry of iterable) {
+      if (entry == null) continue;
+      let pair;
+      if (Array.isArray(entry)) pair = entry;else {
+        try {
+          pair = Array.from(entry);
+        } catch (_) {
+          continue;
+        }
+      }
+      if (!Array.isArray(pair) || pair.length < 2) continue;
+      const partIndex = Number.parseInt(pair[0], 10);
+      const colorIndex = Number.parseInt(pair[1], 10);
+      if (!Number.isFinite(partIndex) || partIndex < 0) continue;
+      if (!Number.isFinite(colorIndex) || colorIndex <= 0) continue;
+      normalized.set(partIndex, colorIndex);
+    }
+    return Array.from(normalized.entries()).sort((a, b) => a[0] - b[0]);
+  }
   const STATE = window.STATE && typeof window.STATE === 'object' ? window.STATE : {};
   window.STATE = STATE;
   const modifiedColorIndexes = new Set();
@@ -2840,6 +2870,109 @@ function isValidColor(value) {
     }
     (_window$render4 = (_window4 = window).render) === null || _window$render4 === void 0 || _window$render4.call(_window4);
   });
+  function createCleanState() {
+    const figures = getActiveFigureIds().map(id => {
+      const figState = ensureFigureState(id);
+      const solution = figState.solution && typeof figState.solution === 'object' ? figState.solution : {};
+      const rawNum = Number.parseInt(solution.numerator, 10);
+      const rawDen = Number.parseInt(solution.denominator, 10);
+      return {
+        shape: VALID_SHAPES.has(figState.shape) ? figState.shape : 'rectangle',
+        division: VALID_DIVISIONS.has(figState.division) ? figState.division : 'horizontal',
+        parts: clampInt(figState.parts, 1),
+        allowDenominatorChange: !!figState.allowDenominatorChange,
+        filled: sanitizeFilledEntries(figState.filled),
+        solution: {
+          numerator: Number.isFinite(rawNum) && rawNum >= 0 ? rawNum : null,
+          denominator: Number.isFinite(rawDen) && rawDen > 0 ? rawDen : null
+        }
+      };
+    });
+    return {
+      v: 1,
+      settings: {
+        rows,
+        cols,
+        allowWrong: !!STATE.allowWrong,
+        showDivisionLines: !!STATE.showDivisionLines,
+        showOutline: !!STATE.showOutline
+      },
+      palette: {
+        colorCount,
+        colors: getColors().slice(0, colorCount)
+      },
+      figures
+    };
+  }
+  function loadCleanState(rawState) {
+    if (!rawState || typeof rawState !== 'object' || rawState.v !== 1) return false;
+    const settings = rawState.settings && typeof rawState.settings === 'object' ? rawState.settings : {};
+    rows = clampInt(settings.rows != null ? settings.rows : rows, MIN_DIMENSION, MAX_ROWS);
+    cols = clampInt(settings.cols != null ? settings.cols : cols, MIN_DIMENSION, MAX_COLS);
+    allowWrongGlobal = !!settings.allowWrong;
+    showDivisionLinesGlobal = settings.showDivisionLines === false ? false : true;
+    showOutlineGlobal = settings.showOutline === false ? false : true;
+    STATE.rows = rows;
+    STATE.cols = cols;
+    STATE.allowWrong = allowWrongGlobal;
+    STATE.showDivisionLines = showDivisionLinesGlobal;
+    STATE.showOutline = showOutlineGlobal;
+    const palette = rawState.palette && typeof rawState.palette === 'object' ? rawState.palette : {};
+    const paletteColors = Array.isArray(palette.colors)
+      ? palette.colors.map(color => typeof color === 'string' ? color.trim() : '').filter(Boolean)
+      : [];
+    colorCount = clampInt(
+      palette.colorCount != null ? palette.colorCount : paletteColors.length || colorCount,
+      1,
+      maxColors
+    );
+    STATE.colorCount = colorCount;
+    modifiedColorIndexes.clear();
+    autoPaletteEnabled = paletteColors.length === 0;
+    STATE.colors = [];
+    for (let i = 0; i < colorCount; i++) {
+      const color = paletteColors[i];
+      if (typeof color === 'string' && color) {
+        STATE.colors[i] = color;
+        modifiedColorIndexes.add(i);
+      }
+    }
+    ensureColorDefaults(colorCount);
+    rebuildLayout();
+    const figureEntries = Array.isArray(rawState.figures) ? rawState.figures : [];
+    const total = rows * cols;
+    for (const key of Object.keys(STATE.figures)) {
+      const idNum = Number.parseInt(key, 10);
+      if (!Number.isFinite(idNum) || idNum < 1 || idNum > total) {
+        delete STATE.figures[key];
+      }
+    }
+    for (let idx = 0; idx < total; idx++) {
+      const entry = figureEntries[idx] && typeof figureEntries[idx] === 'object' ? figureEntries[idx] : {};
+      const id = idx + 1;
+      const figState = ensureFigureState(id);
+      if (VALID_SHAPES.has(entry.shape)) figState.shape = entry.shape;
+      if (VALID_DIVISIONS.has(entry.division)) figState.division = entry.division;
+      const parsedParts = Number.parseInt(entry.parts, 10);
+      figState.parts = clampInt(Number.isFinite(parsedParts) && parsedParts > 0 ? parsedParts : figState.parts, 1);
+      figState.allowDenominatorChange = entry.allowDenominatorChange === true;
+      figState.filled = sanitizeFilledEntries(entry.filled);
+      const rawSolution = entry.solution && typeof entry.solution === 'object' ? entry.solution : {};
+      const solNum = Number.parseInt(rawSolution.numerator, 10);
+      const solDen = Number.parseInt(rawSolution.denominator, 10);
+      figState.solution = {
+        numerator: Number.isFinite(solNum) && solNum >= 0 ? solNum : null,
+        denominator: Number.isFinite(solDen) && solDen > 0 ? solDen : null
+      };
+      figState.allowWrong = allowWrongGlobal;
+      STATE.figures[id] = figState;
+    }
+    applyStateToControls();
+    updateColorVisibility();
+    window.render();
+    refreshAltText('state-load');
+    return true;
+  }
   function handleThemePaletteChanged() {
     applyThemeToDocument();
     refreshPaletteDefaults();
@@ -2867,6 +3000,14 @@ function isValidColor(value) {
     window.addEventListener('message', handleThemeProfileMessage);
     window.addEventListener('math-visuals:profile-change', handleThemeProfileChangeEvent);
     window.addEventListener('math-visuals:settings-changed', handleThemeSettingsChanged);
+  }
+  if (typeof window !== 'undefined') {
+    const api = {
+      createCleanState,
+      loadCleanState
+    };
+    window.brøkfigurerApi = api;
+    if (!window.brokfigurerApi) window.brokfigurerApi = api;
   }
   window.render();
 })();
