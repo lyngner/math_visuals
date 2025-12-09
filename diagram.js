@@ -220,15 +220,119 @@ function createCleanDiagramState() {
   };
 }
 
-function loadCleanDiagramState(json) {
-  let state = json;
-  if (typeof state === 'string') {
-    try {
-      state = JSON.parse(state);
-    } catch (_) {
-      return false;
+let lastLoadedDiagramState = null;
+
+function buildCleanDiagramStateFromLegacyConfig(configLike) {
+  if (!configLike || typeof configLike !== 'object') return null;
+  const cfg = typeof configLike === 'object' ? configLike : {};
+  const fallback = CFG || {};
+  const start1 = normalizeNumberArray(cfg.start || cfg.values || fallback.start || []);
+  const answer1 = normalizeNumberArray(cfg.answer || fallback.answer || []);
+  const start2 = normalizeNumberArray(cfg.start2 || []);
+  const answer2 = normalizeNumberArray(cfg.answer2 || []);
+  const rawLabels = Array.isArray(cfg.labels) ? cfg.labels : Array.isArray(fallback.labels) ? fallback.labels : [];
+  const baseLength = Math.max(rawLabels.length, start1.length, start2.length, answer1.length, answer2.length, 0);
+  const labels = normalizeLabelArray(rawLabels, baseLength);
+  const hasSecondSeries = start2.length > 0 || answer2.length > 0 || !!cfg.series2;
+  const series1Name = typeof cfg.series1 === 'string' ? cfg.series1 : fallback.series1 || '';
+  const series2Name = typeof cfg.series2 === 'string' ? cfg.series2 : fallback.series2 || '';
+
+  return {
+    version: 1,
+    tool: { id: 'diagram', name: 'Diagram', version: 'v1' },
+    chart: {
+      type: sanitizeDiagramType(cfg.type || fallback.type, hasSecondSeries),
+      title: typeof cfg.title === 'string' ? cfg.title : fallback.title,
+      textSize: sanitizeTextSize(cfg.textSize || cfg.fontSize || fallback.textSize),
+      valueDisplay: sanitizeValueDisplay(cfg.valueDisplay || fallback.valueDisplay),
+      pieLabelPosition: sanitizePieLabelPosition(cfg.pieLabelPosition || fallback.pieLabelPosition)
+    },
+    axes: {
+      x: typeof cfg.axisXLabel === 'string' ? cfg.axisXLabel : fallback.axisXLabel,
+      y: typeof cfg.axisYLabel === 'string' ? cfg.axisYLabel : fallback.axisYLabel
+    },
+    grid: {
+      horizontal: sanitizeGridFlag(cfg.showHorizontalGrid, fallback.showHorizontalGrid),
+      vertical: sanitizeGridFlag(cfg.showVerticalGrid, fallback.showVerticalGrid)
+    },
+    legend: {
+      seriesNames: [series1Name, hasSecondSeries ? series2Name : '']
+    },
+    colors: { series: [] },
+    data: {
+      labels,
+      rows: [
+        {
+          key: 'series1',
+          name: series1Name,
+          start: alignLength(start1, baseLength, 0),
+          answer: alignLength(answer1, baseLength, 0)
+        },
+        ...(hasSecondSeries
+          ? [
+              {
+                key: 'series2',
+                name: series2Name,
+                start: alignLength(start2, baseLength, 0),
+                answer: alignLength(answer2, baseLength, 0)
+              }
+            ]
+          : [])
+      ],
+      locked: normalizeLockedArray(cfg.locked, baseLength),
+      snap: Number.isFinite(cfg.snap) ? cfg.snap : fallback.snap,
+      tolerance: Number.isFinite(cfg.tolerance) ? cfg.tolerance : fallback.tolerance
+    },
+    description: {
+      text: typeof cfg.altText === 'string' ? cfg.altText : fallback.altText || '',
+      source: typeof cfg.altTextSource === 'string' ? cfg.altTextSource : fallback.altTextSource || 'auto'
     }
+  };
+}
+
+function normalizeCleanDiagramStatePayload(payload) {
+  let legacyMarkupDetected = false;
+  const parseCandidate = value => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      if (/^</.test(trimmed)) {
+        legacyMarkupDetected = true;
+        return null;
+      }
+      try {
+        return JSON.parse(trimmed);
+      } catch (_) {
+        return null;
+      }
+    }
+    return value;
+  };
+
+  const attempt = candidate => {
+    const parsed = parseCandidate(candidate);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (parsed.diagramState) return attempt(parsed.diagramState);
+    if (parsed.cleanDiagramState) return attempt(parsed.cleanDiagramState);
+    if (parsed.config) return attempt(parsed.config);
+    if ((parsed.chart && parsed.data) || parsed.tool === 'diagram') return parsed;
+    if (parsed.CFG || parsed.CONFIG || parsed.labels || parsed.start || parsed.answer) {
+      const legacyCfg = parsed.CFG || parsed.CONFIG || parsed;
+      return buildCleanDiagramStateFromLegacyConfig(legacyCfg);
+    }
+    return null;
+  };
+
+  const normalized = attempt(payload);
+  if (normalized) return normalized;
+  if (legacyMarkupDetected && typeof createCleanDiagramState === 'function') {
+    return createCleanDiagramState();
   }
+  return null;
+}
+
+function loadCleanDiagramState(json) {
+  const state = normalizeCleanDiagramStatePayload(json);
   if (!state || typeof state !== 'object') return false;
 
   const chart = state.chart || {};
@@ -330,8 +434,9 @@ function loadCleanDiagramState(json) {
   CFG.altText = typeof altText === 'string' ? altText : '';
   CFG.altTextSource = typeof altTextSource === 'string' ? altTextSource : 'auto';
 
+  lastLoadedDiagramState = state;
   applyCfg();
-  return true;
+  return state;
 }
 
 function getGuidelineSelectionFromFlags(horizontal, vertical) {

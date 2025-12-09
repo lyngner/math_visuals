@@ -7479,14 +7479,26 @@
     flushPendingChanges();
     const svgMarkup = collectExampleSvgMarkup({ flush: false });
     const cfg = {};
+    let diagramState = null;
+    if (typeof window !== 'undefined' && typeof window.createCleanDiagramState === 'function') {
+      try {
+        diagramState = window.createCleanDiagramState();
+      } catch (error) {
+        console.error('[examples] failed to collect clean diagram state', error);
+      }
+    }
     for (const name of BINDING_NAMES) {
       const binding = getBinding(name);
       if (binding != null && typeof binding !== 'function') {
         cfg[name] = cloneValue(binding);
       }
     }
+    const config = { ...cfg };
+    if (diagramState && typeof diagramState === 'object') {
+      config.diagramState = diagramState;
+    }
     return {
-      config: cfg,
+      config,
       svg: svgMarkup,
       description: getDescriptionValue()
     };
@@ -7631,15 +7643,51 @@
       scheduleOverlayHide(true);
       return false;
     }
-    const description = extractDescriptionFromExample(ex);
+    const hydrateDiagramExample = example => {
+      if (typeof window === 'undefined' || typeof window.loadCleanDiagramState !== 'function') {
+        return { applied: false, description: null };
+      }
+      const candidates = [];
+      const config = example ? example.config : null;
+      if (config && typeof config === 'object') {
+        candidates.push(config.diagramState, config.cleanDiagramState, config.state, config);
+      } else if (typeof config === 'string') {
+        candidates.push(config);
+      }
+      if (example && typeof example.diagramState !== 'undefined') {
+        candidates.push(example.diagramState);
+      }
+      if (example && typeof example.svg === 'string') {
+        candidates.push(example.svg);
+      }
+      for (const candidate of candidates) {
+        if (candidate == null) continue;
+        const result = window.loadCleanDiagramState(candidate);
+        if (result) {
+          const desc =
+            result && result.description && typeof result.description.text === 'string'
+              ? result.description.text
+              : null;
+          return { applied: true, description: desc };
+        }
+      }
+      return { applied: false, description: null };
+    };
+
+    const diagramHydration = hydrateDiagramExample(ex);
+    const description =
+      diagramHydration.description != null
+        ? normalizeDescriptionString(diagramHydration.description)
+        : extractDescriptionFromExample(ex);
     setDescriptionValue(description);
     if (currentAppMode === 'task') {
       ensureTaskModeDescriptionRendered();
     }
-    const cfg = ex.config;
+    const cfg = ex.config && typeof ex.config === 'object' ? ex.config : {};
     let applied = false;
     const providedBindings = new Set();
-    if (!skipReloadIfActive) {
+    const shouldApplyBindings = !skipReloadIfActive && !diagramHydration.applied;
+    if (shouldApplyBindings) {
       for (const name of BINDING_NAMES) {
         const value = cfg[name];
         const normalizedValue = value != null ? value : cfg[String(name).toLowerCase()];
@@ -7652,6 +7700,10 @@
       if (!providedBindings.has('STATE')) {
         applyBinding('STATE', {});
       }
+    }
+    if (diagramHydration.applied) {
+      applied = true;
+      providedBindings.add('CFG');
     }
     if (applied || skipReloadIfActive) {
       currentExampleIndex = index;
