@@ -9346,16 +9346,24 @@ function setupSettingsForm() {
     return row;
   };
   const resetScreenStateForExample = () => {
+    if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
+      EXAMPLE_STATE.screen = null;
+      EXAMPLE_STATE.screenSource = null;
+    }
     ADV.screen = DEFAULT_SCREEN.slice(0, 4);
     LAST_COMPUTED_SCREEN = DEFAULT_SCREEN.slice(0, 4);
     LAST_SCREEN_SOURCE = 'manual';
     if (appState.board && typeof appState.board.setBoundingBox === 'function') {
       try {
         appState.board.setBoundingBox(toBB(DEFAULT_SCREEN), false);
+        if (typeof appState.board.update === 'function') {
+          appState.board.update();
+        }
       } catch (_) {}
     }
     if (screenInput) {
       screenInput.value = formatScreenForInput(DEFAULT_SCREEN);
+      screenInput.defaultValue = formatScreenForInput(DEFAULT_SCREEN);
       if (screenInput.dataset) delete screenInput.dataset.autoscreen;
       screenInput.classList.remove('is-auto');
     }
