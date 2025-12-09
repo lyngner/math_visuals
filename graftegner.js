@@ -1440,6 +1440,9 @@ function buildExampleStateFromStorageV2(storageState) {
   if (opts.axisNumbers !== undefined) {
     exampleState.showAxisNumbers = !!opts.axisNumbers;
   }
+  if (opts.firstQuadrant !== undefined) {
+    exampleState.firstQuadrant = !!opts.firstQuadrant;
+  }
   if (opts.axisLabels) {
     exampleState.axisLabels = {
       x: typeof opts.axisLabels.x === 'string' ? opts.axisLabels.x : ADV.axis.labels.x,
@@ -7483,10 +7486,13 @@ function setupSettingsForm() {
   const defaultScreenState = state => {
     if (!state || typeof state !== 'object') return false;
     const defaultScreen = DEFAULT_SCREEN.slice(0, 4);
-    const needsReset = state.screenSource === 'manual'
+    const hasValidScreen = Array.isArray(state.screen) && state.screen.length === 4;
+    const hasExplicitScreen = hasValidScreen && state.screenSource === 'manual';
+
+    if (hasExplicitScreen) return false;
+
+    const needsReset = !hasValidScreen
       || state.screenSource == null
-      || !Array.isArray(state.screen)
-      || state.screen.length !== 4
       || !screensEqual(state.screen, defaultScreen);
     if (!needsReset) return false;
     state.screen = defaultScreen;
