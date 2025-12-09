@@ -6,7 +6,7 @@
   --diagram-text-scale: 1;
   --diagram-axis-color: #000000;
   --diagram-axis-text-color: #000000;
-  --diagram-grid-color: #999999;
+  --diagram-grid-color: #e5e7eb;
   --diagram-text-color: #000000;
   --diagram-bar-stroke: #000000;
   --diagram-series-0: #574595;
@@ -90,7 +90,7 @@
 .axis-group{pointer-events:none}
 .axis-arrow{fill:none;stroke:var(--diagram-axis-color);stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round}
 .axis-label-text{fill:var(--diagram-axis-text-color);font-weight:600;letter-spacing:.02em;font-size:calc(var(--diagram-text-scale, 1) * 20px);dominant-baseline:middle}
-.gridline{stroke:var(--diagram-grid-color);stroke-width:1;opacity:.6}
+.gridline{stroke:var(--diagram-grid-color);stroke-width:1;opacity:1}
 .yTickText{fill:var(--diagram-text-color);font-size:calc(var(--diagram-text-scale, 1) * 20px);text-anchor:end}
 .xLabel{fill:var(--diagram-text-color);font-size:calc(var(--diagram-text-scale, 1) * 20px);text-anchor:middle}
 
