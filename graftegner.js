@@ -2478,6 +2478,42 @@ function computeAutoScreenPoints() {
   return calculateCorrectedScreen(DEFAULT_SCREEN.slice());
 }
 
+const BOARD_ASPECT_TOLERANCE = 1e-6;
+let BOARD_MEASUREMENT_CACHE = { width: null, height: null, pixelRatio: null, cycle: 0 };
+let BOARD_MEASUREMENT_RESET = null;
+const scheduleBoardMeasurementReset = () => {
+  if (BOARD_MEASUREMENT_RESET) return;
+  const scheduler = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : fn => setTimeout(fn, 0);
+  BOARD_MEASUREMENT_RESET = scheduler(() => {
+    BOARD_MEASUREMENT_CACHE = { width: null, height: null, pixelRatio: null, cycle: BOARD_MEASUREMENT_CACHE.cycle + 1 };
+    BOARD_MEASUREMENT_RESET = null;
+  });
+};
+function getCachedBoardMeasurement() {
+  if (!BOARD_MEASUREMENT_CACHE) return null;
+  const { width, height, pixelRatio } = BOARD_MEASUREMENT_CACHE;
+  if (!(width > 0 && height > 0 && Number.isFinite(pixelRatio))) {
+    return null;
+  }
+  return BOARD_MEASUREMENT_CACHE;
+}
+function measureBoardDimensions() {
+  const cached = getCachedBoardMeasurement();
+  if (cached) return cached;
+  const board = typeof document !== 'undefined' ? document.getElementById('board') : null;
+  const cssWidth = board ? board.clientWidth : 800;
+  const cssHeight = board ? board.clientHeight : 800;
+  const pixelRatio = cssWidth > 0 && cssHeight > 0 ? cssWidth / cssHeight : null;
+  BOARD_MEASUREMENT_CACHE = { width: cssWidth, height: cssHeight, pixelRatio, cycle: BOARD_MEASUREMENT_CACHE.cycle };
+  scheduleBoardMeasurementReset();
+  return BOARD_MEASUREMENT_CACHE;
+}
+function ratiosMatch(a, b, tolerance = BOARD_ASPECT_TOLERANCE) {
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+  const scale = Math.max(1, Math.abs(a), Math.abs(b));
+  return Math.abs(a - b) <= tolerance * scale;
+}
+
 /**
  * Hovedhjernen for utsnitt.
  * Tar inn et ønsket utsnitt og korrigerer det basert på:
@@ -2514,45 +2550,55 @@ function calculateCorrectedScreen(requestedScreen) {
   // --- REGEL A & B: LÅS AKSENE 1:1 ---
   // Dette må skje ETTER at vi har bestemt xmin/ymin (ankeret)
   if (ADV.lockAspect) { // Sjekker om "Lås aksene 1:1" er true
-    const board = document.getElementById('board');
-    // Hvis vi ikke finner brettet (første load), anta et bredt format (f.eks. 2:1) eller kvadratisk
-    const cssWidth = board ? board.clientWidth : 800; 
-    const cssHeight = board ? board.clientHeight : 800;
-    
-    if (cssWidth > 0 && cssHeight > 0) {
-      const width = xmax - xmin;
-      const height = ymax - ymin;
-      
-      const pixRatio = cssWidth / cssHeight;   // Fysisk forhold
-      const worldRatio = width / height;       // Matematisk forhold
+    const width = xmax - xmin;
+    const height = ymax - ymin;
+    const worldRatio = width / height;       // Matematisk forhold
 
-      // Hvis verden er "smalere" enn skjermen, må vi øke bredden (x)
-      if (worldRatio < pixRatio) {
-        const newWidth = height * pixRatio;
-        const diff = newWidth - width;
-        
-        if (ADV.firstQuadrant) {
-           // I 1. kvadrant: Utvid KUN mot høyre (endre xmax)
-           xmax = xmin + newWidth;
-        } else {
-           // Normalt: Utvid til begge sider (sentrert)
-           xmin -= diff / 2;
-           xmax += diff / 2;
-        }
-      } 
-      // Hvis verden er "flatere" enn skjermen, må vi øke høyden (y)
-      else if (worldRatio > pixRatio) {
-        const newHeight = width / pixRatio;
-        const diff = newHeight - height;
-        
-        if (ADV.firstQuadrant) {
-           // I 1. kvadrant: Utvid KUN oppover (endre ymax)
-           ymax = ymin + newHeight;
-        } else {
-           // Normalt: Utvid til begge sider (sentrert)
-           ymin -= diff / 2;
-           ymax += diff / 2;
-        }
+    if (!(width > 0 && height > 0)) {
+      return [xmin, xmax, ymin, ymax];
+    }
+
+    const cached = getCachedBoardMeasurement();
+    if (cached && ratiosMatch(worldRatio, cached.pixelRatio)) {
+      return [xmin, xmax, ymin, ymax];
+    }
+
+    const measurement = measureBoardDimensions();
+    if (!(measurement && measurement.width > 0 && measurement.height > 0 && Number.isFinite(measurement.pixelRatio))) {
+      return [xmin, xmax, ymin, ymax];
+    }
+
+    const pixRatio = measurement.pixelRatio;   // Fysisk forhold
+    if (ratiosMatch(worldRatio, pixRatio)) {
+      return [xmin, xmax, ymin, ymax];
+    }
+
+    // Hvis verden er "smalere" enn skjermen, må vi øke bredden (x)
+    if (worldRatio < pixRatio) {
+      const newWidth = height * pixRatio;
+      const diff = newWidth - width;
+
+      if (ADV.firstQuadrant) {
+         // I 1. kvadrant: Utvid KUN mot høyre (endre xmax)
+         xmax = xmin + newWidth;
+      } else {
+         // Normalt: Utvid til begge sider (sentrert)
+         xmin -= diff / 2;
+         xmax += diff / 2;
+      }
+    }
+    // Hvis verden er "flatere" enn skjermen, må vi øke høyden (y)
+    else if (worldRatio > pixRatio) {
+      const newHeight = width / pixRatio;
+      const diff = newHeight - height;
+
+      if (ADV.firstQuadrant) {
+         // I 1. kvadrant: Utvid KUN oppover (endre ymax)
+         ymax = ymin + newHeight;
+      } else {
+         // Normalt: Utvid til begge sider (sentrert)
+         ymin -= diff / 2;
+         ymax += diff / 2;
       }
     }
   }
@@ -9723,10 +9769,15 @@ function setupSettingsForm() {
        if (screenInput) {
          screenInput.value = formatScreenForInput(corrected);
        }
-       
+
        // Oppdater boardet
        if (appState.board) {
-          appState.board.setBoundingBox(toBB(corrected), false); // false = ikke tving aspect i JXG, vi har allerede regnet det ut
+          const current = typeof appState.board.getBoundingBox === 'function'
+            ? fromBoundingBox(appState.board.getBoundingBox())
+            : null;
+          if (!screensEqual(current, corrected)) {
+            appState.board.setBoundingBox(toBB(corrected), false); // false = ikke tving aspect i JXG, vi har allerede regnet det ut
+          }
        }
        
        if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
