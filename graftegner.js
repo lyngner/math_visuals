@@ -775,9 +775,10 @@ const FONT_LIMITS = {
 const FONT_DEFAULT = 20;
 const FONT_SIZE_OPTIONS = {
   large: 24,
-  normal: FONT_DEFAULT,
+  medium: FONT_DEFAULT,
   small: 16
 };
+const LEGACY_FONT_SIZE_ALIASES = { normal: 'medium' };
 const FONT_PARAM_KEYS = ['fontSize', 'font', 'axisFont', 'tickFont', 'curveFont'];
 const SHOW_CURVE_NAMES = params.has('showNames') ? paramBool('showNames') : true;
 const SHOW_CURVE_EXPRESSIONS = params.has('showExpr') ? paramBool('showExpr') : false;
@@ -797,16 +798,26 @@ function sanitizeFontSize(val, fallback) {
 function resolveSharedFontSize() {
   for (const key of FONT_PARAM_KEYS) {
     const candidate = clampFontSize(paramNumber(key, null));
-    if (candidate != null) {
-      return candidate;
+    if (candidate != null) return candidate;
+    const candidateStr = paramStr(key, null);
+    if (candidateStr) {
+      const resolved = resolveFontSizeFromKey(candidateStr, null);
+      if (resolved != null) return resolved;
     }
   }
   return FONT_DEFAULT;
 }
-const FONT_SIZE_PRESET_KEYS = Object.keys(FONT_SIZE_OPTIONS);
+const FONT_SIZE_PRESET_KEYS = ['small', 'medium', 'large'];
 function resolveFontSizeFromKey(key, fallback = FONT_DEFAULT) {
   const normalized = typeof key === 'string' ? key.trim().toLowerCase() : '';
-  const mapped = FONT_SIZE_OPTIONS[normalized];
+  const aliased = LEGACY_FONT_SIZE_ALIASES[normalized] || normalized;
+  if (Number.isFinite(Number.parseFloat(normalized))) {
+    const numeric = Number.parseFloat(normalized);
+    if (Number.isFinite(numeric)) {
+      return sanitizeFontSize(numeric, fallback);
+    }
+  }
+  const mapped = FONT_SIZE_OPTIONS[aliased];
   return sanitizeFontSize(mapped, fallback);
 }
 function getFontSizeKeyFromValue(value) {
