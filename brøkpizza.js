@@ -2451,6 +2451,150 @@ function applyExamplesConfig() {
   initFromHtml();
 }
 
+function clampVisiblePizzaCount(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  return Math.min(3, Math.max(1, Math.round(num)));
+}
+
+function sanitizeStringValue(value) {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed || null;
+}
+
+function normalizePizzaState(pizza, index, visibleCount) {
+  const base = pizza && typeof pizza === 'object' ? pizza : {};
+  const minN = Number.isFinite(base.minN) && base.minN > 0 ? Math.trunc(base.minN) : 1;
+  const maxNRaw = Number.isFinite(base.maksN)
+    ? base.maksN
+    : Number.isFinite(base.maxN)
+      ? base.maxN
+      : null;
+  const maxN = Math.max(minN, Number.isFinite(maxNRaw) && maxNRaw > 0 ? Math.trunc(maxNRaw) : 24);
+  const n = Number.isFinite(base.n) && base.n > 0 ? Math.trunc(base.n) : 1;
+  const tValue = Number.isFinite(base.t) ? base.t : Number.isFinite(base.k) ? base.k : 0;
+  const text = sanitizeStringValue(base.text) || 'none';
+  const visible = visibleCount != null ? index < visibleCount : index === 0 || !!base.visible;
+  return {
+    t: Math.max(0, Math.trunc(tValue)),
+    n,
+    lockN: !!base.lockN,
+    lockT: !!base.lockT,
+    text,
+    hideNVal: !!base.hideNVal,
+    minN,
+    maksN: maxN,
+    visible
+  };
+}
+
+function sanitizeOpsArray(rawOps) {
+  const ops = Array.isArray(rawOps) ? rawOps : [];
+  const validOps = new Set(['+', '-', '=', '']);
+  return Array.from({ length: 2 }, (_, idx) => {
+    const op = sanitizeStringValue(ops[idx]) || '';
+    return validOps.has(op) ? op : '';
+  });
+}
+
+function getPaletteThemeSelectionState() {
+  if (typeof document === 'undefined' || !document.documentElement) return null;
+  const root = document.documentElement;
+  const project =
+    sanitizeStringValue(root.getAttribute('data-project')) ||
+    sanitizeStringValue(root.getAttribute('data-mv-active-project')) ||
+    sanitizeStringValue(resolvePaletteProjectName());
+  const themeProfile = sanitizeStringValue(root.getAttribute('data-theme-profile'));
+  if (!project && !themeProfile) return null;
+  return { project, themeProfile };
+}
+
+function createCleanState() {
+  const pizzas = Array.from({ length: 3 }, (_, idx) => normalizePizzaState(SIMPLE.pizzas[idx], idx, clampVisiblePizzaCount(SIMPLE.visibleCount)));
+  const visibleCount = clampVisiblePizzaCount(SIMPLE.visibleCount) || Math.max(1, pizzas.filter(p => p.visible).length || 0);
+  const state = {
+    pizzas,
+    ops: sanitizeOpsArray(SIMPLE.ops),
+    solution: normalizeSolution(SIMPLE.solution),
+    visibleCount,
+    altText: typeof SIMPLE.altText === 'string' ? SIMPLE.altText : '',
+    altTextSource: SIMPLE.altTextSource === 'manual' ? 'manual' : 'auto'
+  };
+  const palette = getPaletteThemeSelectionState();
+  if (palette) {
+    state.palette = palette;
+  }
+  return { v: 1, ...state };
+}
+
+function normalizePaletteSelection(selection) {
+  if (!selection || typeof selection !== 'object') return null;
+  const project = sanitizeStringValue(selection.project || selection.paletteProject);
+  const themeProfile = sanitizeStringValue(selection.themeProfile || selection.profile || selection.theme);
+  if (!project && !themeProfile) return null;
+  return { project, themeProfile };
+}
+
+function normalizeCleanStatePayload(payload) {
+  const parseCandidate = candidate => {
+    if (candidate == null) return null;
+    if (typeof candidate === 'string') {
+      try {
+        return JSON.parse(candidate);
+      } catch (_) {
+        return null;
+      }
+    }
+    return candidate;
+  };
+  const parsed = parseCandidate(payload);
+  const state = parsed && parsed.v === 1 ? parsed : parsed && parsed.state && parsed.state.v === 1 ? parsed.state : null;
+  if (!state || state.v !== 1) return null;
+  const visibleCount = clampVisiblePizzaCount(state.visibleCount);
+  const pizzas = Array.from({ length: 3 }, (_, idx) => normalizePizzaState(Array.isArray(state.pizzas) ? state.pizzas[idx] : null, idx, visibleCount));
+  const resolvedVisibleCount = visibleCount || Math.max(1, pizzas.filter(p => p.visible).length || 0);
+  return {
+    pizzas,
+    ops: sanitizeOpsArray(state.ops),
+    solution: normalizeSolution(state.solution),
+    visibleCount: resolvedVisibleCount,
+    altText: typeof state.altText === 'string' ? state.altText : '',
+    altTextSource: state.altTextSource === 'manual' ? 'manual' : 'auto',
+    palette: normalizePaletteSelection(state.palette)
+  };
+}
+
+function applyPaletteThemeSelection(selection) {
+  const palette = normalizePaletteSelection(selection);
+  if (!palette) return;
+  if (typeof document === 'undefined' || !document.documentElement) return;
+  const root = document.documentElement;
+  if (palette.project) {
+    root.setAttribute('data-project', palette.project);
+    root.setAttribute('data-mv-active-project', palette.project);
+  }
+  if (palette.themeProfile) {
+    root.setAttribute('data-theme-profile', palette.themeProfile);
+  }
+  applyThemeToDocument();
+}
+
+function loadCleanState(payload) {
+  const state = normalizeCleanStatePayload(payload);
+  if (!state) return false;
+  SIMPLE.pizzas = state.pizzas;
+  SIMPLE.ops = state.ops;
+  SIMPLE.solution = state.solution;
+  SIMPLE.visibleCount = state.visibleCount;
+  SIMPLE.altText = state.altText;
+  SIMPLE.altTextSource = state.altTextSource;
+  applyPaletteThemeSelection(state.palette);
+  applyExamplesConfig();
+  refreshAltText('manual-load');
+  return true;
+}
+
 /* =======================
    SETUP & SYNC (ANTI-FLIMMER & DOM-OVERVÅKNING)
    ======================= */
@@ -2526,6 +2670,7 @@ function setupThemeSync() {
 if (typeof window !== 'undefined') {
   window.applyConfig = applyExamplesConfig;
   window.render = applyExamplesConfig;
-  
+  window.brøkpizzaApi = { createCleanState, loadCleanState };
+
   setupThemeSync();
 }
