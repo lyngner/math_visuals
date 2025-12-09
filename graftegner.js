@@ -7249,6 +7249,7 @@ function setupSettingsForm() {
       : !!fallback
   );
   let lastLoadedExampleIndex = null;
+  let pendingExampleScreenReset = false;
   const clearManualScreenState = state => {
     if (!state || typeof state !== 'object') return false;
     if (state.screenSource === 'manual' || state.screenSource == null) {
@@ -7269,8 +7270,12 @@ function setupSettingsForm() {
         : null;
       clearManualScreenState(windowState);
       clearManualScreenState(EXAMPLE_STATE);
+      ADV.screen = null;
       LAST_COMPUTED_SCREEN = null;
       LAST_SCREEN_SOURCE = null;
+      START_SCREEN = null;
+      LAST_FUNCTION_VIEW_SCREEN = null;
+      pendingExampleScreenReset = true;
     }
     if (normalizedIndex !== null) {
       lastLoadedExampleIndex = normalizedIndex;
@@ -7278,6 +7283,23 @@ function setupSettingsForm() {
   };
   const applyExampleStateToControls = () => {
     const exampleState = getExampleState();
+    if (pendingExampleScreenReset) {
+      pendingExampleScreenReset = false;
+      const hasScreen = exampleState && Array.isArray(exampleState.screen) && exampleState.screen.length === 4;
+      if (!hasScreen) {
+        const defaultScreen = DEFAULT_SCREEN.slice(0, 4);
+        ADV.screen = defaultScreen.slice(0, 4);
+        LAST_COMPUTED_SCREEN = null;
+        LAST_SCREEN_SOURCE = null;
+        START_SCREEN = null;
+        LAST_FUNCTION_VIEW_SCREEN = null;
+        if (appState.board && typeof appState.board.setBoundingBox === 'function') {
+          try {
+            appState.board.setBoundingBox(toBB(defaultScreen), false);
+          } catch (_) {}
+        }
+      }
+    }
     hydrateCurveLabelStateFromExample();
     hydrateAxisLabelStateFromExample();
     const axisLabelConfig = exampleState && typeof exampleState.axisLabels === 'object'
