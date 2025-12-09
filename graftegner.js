@@ -872,6 +872,68 @@ function buildStorageSnapshotV2(meta = STORAGE_STATE_V2 && STORAGE_STATE_V2.meta
     meta: safeMeta
   };
 }
+function buildCleanSaveOptionsSnapshot(adv, defaults = CLEAN_SAVE_DEFAULTS) {
+  const diff = {};
+  const resolvedDefaults = defaults || CLEAN_SAVE_DEFAULTS;
+
+  const grid = !!(adv && adv.axis && adv.axis.grid && adv.axis.grid.show);
+  const defaultGrid = !!(resolvedDefaults && resolvedDefaults.grid);
+  if (grid !== defaultGrid) {
+    diff.grid = grid;
+  }
+
+  const lockAspect = adv && adv.lockAspect === false ? false : true;
+  const defaultLock = resolvedDefaults && resolvedDefaults.lockAspect === false ? false : true;
+  if (lockAspect !== defaultLock) {
+    diff.lockAspect = lockAspect;
+  }
+
+  const firstQuadrant = !!(adv && adv.firstQuadrant);
+  const defaultFirstQuadrant = !!(resolvedDefaults && resolvedDefaults.firstQuadrant);
+  if (firstQuadrant !== defaultFirstQuadrant) {
+    diff.firstQuadrant = firstQuadrant;
+  }
+
+  const labelDefaults = resolvedDefaults && resolvedDefaults.axisLabels && typeof resolvedDefaults.axisLabels === 'object'
+    ? resolvedDefaults.axisLabels
+    : STORAGE_V2_DEFAULTS.axisLabels;
+  const labels = adv && adv.axis && adv.axis.labels ? adv.axis.labels : {};
+  const labelDiff = {};
+  if (typeof labels.x === 'string' && labels.x.trim() && labels.x !== labelDefaults.x) {
+    labelDiff.x = labels.x;
+  }
+  if (typeof labels.y === 'string' && labels.y.trim() && labels.y !== labelDefaults.y) {
+    labelDiff.y = labels.y;
+  }
+  if (Object.keys(labelDiff).length) {
+    diff.axisLabels = labelDiff;
+  }
+
+  return diff;
+}
+function createCleanSaveState(meta, defaults = CLEAN_SAVE_DEFAULTS) {
+  const code = typeof appState === 'object'
+    && appState
+    && appState.simple
+    && typeof appState.simple.value === 'string'
+    ? appState.simple.value
+    : '';
+  const view = normalizeStorageView(ADV && ADV.screen);
+  const options = buildCleanSaveOptionsSnapshot(ADV, defaults);
+
+  const cleanState = {
+    v: STORAGE_SCHEMA_VERSION,
+    code,
+    view,
+    options
+  };
+
+  if (meta && typeof meta === 'object') {
+    cleanState.meta = { ...meta };
+  }
+
+  return cleanState;
+}
 function clampFontSize(val) {
   if (!Number.isFinite(val)) return null;
   if (val < FONT_LIMITS.min) return FONT_LIMITS.min;
@@ -1370,6 +1432,12 @@ const INITIAL_SHOW_AXIS_NUMBERS = !!(ADV.axis && ADV.axis.ticks && ADV.axis.tick
 const INITIAL_SHOW_GRID = !!(ADV.axis && ADV.axis.grid && ADV.axis.grid.show);
 const INITIAL_FORCE_TICKS = !!FORCE_TICKS_REQUESTED;
 const INITIAL_SNAP_ENABLED = !!(ADV.points && ADV.points.snap && ADV.points.snap.enabled);
+const CLEAN_SAVE_DEFAULTS = {
+  grid: STORAGE_V2_DEFAULTS.grid,
+  lockAspect: STORAGE_V2_DEFAULTS.lockAspect,
+  firstQuadrant: INITIAL_FIRST_QUADRANT,
+  axisLabels: STORAGE_V2_DEFAULTS.axisLabels
+};
 
 function buildExampleStateFromStorageV2(storageState) {
   if (!storageState || storageState.v !== STORAGE_SCHEMA_VERSION) return null;
