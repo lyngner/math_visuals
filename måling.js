@@ -1691,6 +1691,93 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
     return false;
   }
 
+  function createCleanState() {
+    const normalizedSettings = normalizeSettings(appState.settings);
+    const safeSettings = normalizedSettings
+      ? typeof structuredClone === 'function'
+        ? structuredClone(normalizedSettings)
+        : JSON.parse(JSON.stringify(normalizedSettings))
+      : null;
+
+    return {
+      v: 1,
+      measurement: {
+        settings: safeSettings || {}
+      }
+    };
+  }
+
+  function normalizeCleanStatePayload(payload) {
+    if (payload == null) {
+      return null;
+    }
+    let candidate = payload;
+    if (typeof candidate === 'string') {
+      try {
+        candidate = JSON.parse(candidate);
+      } catch (_) {
+        return null;
+      }
+    }
+    if (!candidate || typeof candidate !== 'object') {
+      return null;
+    }
+    if (candidate.measurement && typeof candidate.measurement === 'object') {
+      candidate = candidate.measurement;
+    }
+    if (candidate.settings && typeof candidate.settings === 'object') {
+      candidate = candidate.settings;
+    }
+    if (candidate.v != null && typeof candidate === 'object') {
+      const { v: _version, ...rest } = candidate;
+      candidate = rest;
+    }
+    if (!candidate || typeof candidate !== 'object') {
+      return null;
+    }
+    return candidate;
+  }
+
+  function loadCleanState(rawState) {
+    const normalizedPayload = normalizeCleanStatePayload(rawState);
+    if (!normalizedPayload) {
+      return false;
+    }
+
+    const nextSettings = normalizeSettings(normalizedPayload);
+    if (!nextSettings) {
+      return false;
+    }
+
+    const activeToolKey = sanitizeActiveTool(nextSettings.activeTool, defaultActiveTool);
+    const initialTransform = sanitizeRulerTransform(
+      isTapeToolKey(activeToolKey) ? nextSettings.tapeMeasureTransform : nextSettings.rulerTransform,
+      null
+    );
+
+    appState.activeTool = activeToolKey;
+    appState.settings = nextSettings;
+    appState.measurementTargetAuto = shouldUseAutoMeasurementTarget(nextSettings);
+    initializeUnitLabelCache(nextSettings);
+
+    suspendTransformPersistence = true;
+    try {
+      applySettings(nextSettings);
+      syncInputs(nextSettings);
+    } finally {
+      suspendTransformPersistence = false;
+    }
+
+    if (initialTransform) {
+      applyInstrumentTransform(initialTransform, { allowSnap: false, persist: false }, activeToolKey);
+      persistActiveInstrumentState();
+    } else {
+      centerRuler();
+    }
+
+    return true;
+  }
+
   function parseScaleRatio(label) {
     if (typeof label !== 'string') {
       return null;
@@ -7571,6 +7658,13 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
       anchor.click();
       anchor.remove();
     }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.målingApi = {
+      createCleanState: (...args) => createCleanState(...args),
+      loadCleanState: (...args) => loadCleanState(...args)
+    };
   }
 })().catch(error => {
   if (typeof console !== 'undefined' && typeof console.error === 'function') {
