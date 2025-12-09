@@ -38,6 +38,8 @@ Eksempeltjenesten er navet som binder appene sammen. Den gjør det mulig å lagr
 
 Detaljer om hvordan hemmelighetene hentes, injiseres og verifiseres finner du i [`docs/examples-storage.md`](docs/examples-storage.md) og [verifiseringsguiden](docs/examples-storage-verification.md). Seeding og manuell import skjer via den nye AWS-stacken – `npm run seed-examples` minner deg på hvilke `REDIS_*`-nøkler som trengs før du bruker `examples-viewer`/`scripts/check-examples-api.mjs`.
 
+Struktur og versjonering av lagrede eksempel-JSON-er (v2) er beskrevet i [`docs/storage.md`](docs/storage.md), inkludert hvordan Map/Set/Date/RegExp blir serialisert og rehydrert når klientene henter data.
+
 Flere funksjoner (for eksempel `api/diagram-alt-text.js` og `api/figurtall-alt-text.js`) bygger videre på de lagrede dataene for å gjøre materialet tilgjengelig i universelle utformingskontekster.
 
 ### Figurbiblioteket
