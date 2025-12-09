@@ -7745,7 +7745,11 @@
     };
 
     const cfg = ex.config && typeof ex.config === 'object' ? ex.config : {};
-    const versionedExampleData = cfg && typeof cfg === 'object' && cfg.v === 1 ? cfg : null;
+    const versionedExampleData = (() => {
+      if (!cfg || typeof cfg !== 'object') return null;
+      const version = typeof cfg.v === 'number' ? cfg.v : null;
+      return Number.isFinite(version) && version >= 1 ? cfg : null;
+    })();
     const diagramHydration = versionedExampleData ? { applied: false, description: null } : hydrateDiagramExample(ex);
     const descriptionFromVersioned = (() => {
       if (!versionedExampleData) return null;
