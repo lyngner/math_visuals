@@ -7021,18 +7021,97 @@ function serializeBoardSvg(clone) {
     };
   }
 
-  function getSuggestedFilename() {
-    const sanitize = getFilenameSanitizer('Koordinatsystem');
+  function generateSmartFilename(items, defaultName = 'Graftegning') {
+    if (!Array.isArray(items) || items.length === 0) return defaultName;
+    const filtered = items.map(item => (typeof item === 'string' ? item.trim() : '')).filter(Boolean);
+    if (!filtered.length) return defaultName;
 
-    if (appState.simple.parsed && Array.isArray(appState.simple.parsed.funcs) && appState.simple.parsed.funcs.length > 0) {
-      const f = appState.simple.parsed.funcs[0];
-      const name = f && typeof f.name === 'string' && f.name.trim() ? f.name : 'f';
-      const rhs = f && typeof f.rhs === 'string' ? f.rhs : f && f.rhs != null ? String(f.rhs) : '';
-
-      return sanitize(`Graf_${name}=${rhs}`);
+    if (filtered.length > 4) {
+      const funcs = filtered.filter(i => i.includes('=') && !i.includes('(')).length;
+      const points = filtered.filter(i => i.includes('(') && i.includes(',')).length;
+      return `Figur_med_${funcs}_funksjoner_og_${points}_punkter`;
     }
 
-    return sanitize('Koordinatsystem');
+    const cleanParts = filtered.map(item => {
+      let clean = item.trim();
+
+      if (/^\(.*\)|^[A-Z]\s*=\s*\(.*\)/i.test(clean)) {
+        clean = clean.replace(/^([A-Za-z\u00C0-\u024F]+\w*)\s*=\s*/, '$1_');
+        clean = clean.replace(/[()]/g, '');
+        clean = clean.replace(/\s*,\s*/g, '_');
+        clean = clean.replace(/\./g, '-');
+        clean = clean.replace(/\s/g, '');
+        return `Pt_${clean}`;
+      }
+
+      clean = clean.toLowerCase();
+      clean = clean.replace(/^[a-z]\(x\)=|^y=/, '');
+      clean = clean.replace(/\s+/g, '').replace(/\*/g, '');
+      clean = clean.replace(/x\^(\d+)/g, 'x$1');
+      clean = clean.replace(/\^/g, 'p');
+      clean = clean.replace(/\+/g, '_');
+      clean = clean.replace(/-/g, '-');
+
+      return clean;
+    });
+
+    const baseName = cleanParts.join('__og__');
+    const maxLength = 120;
+    const finalName = baseName.length > maxLength ? baseName.substring(0, maxLength) : baseName;
+
+    return `Graf_${finalName}`;
+  }
+
+  function getSuggestedFilename() {
+    const sanitize = getFilenameSanitizer('Koordinatsystem');
+    const parsed = appState.simple && typeof appState.simple === 'object' ? appState.simple.parsed || {} : {};
+    const funcs = Array.isArray(parsed.funcs) ? parsed.funcs : [];
+    const extraPoints = Array.isArray(parsed.extraPoints) ? parsed.extraPoints : [];
+    const pointNames = Array.isArray(parsed.pointNames) ? parsed.pointNames : [];
+    const linePoints = Array.isArray(parsed.linePoints) ? parsed.linePoints : [];
+
+    const items = [];
+
+    funcs.forEach(func => {
+      if (!func || typeof func !== 'object') return;
+      const label = typeof func.label === 'string' && func.label.trim()
+        ? func.label.trim()
+        : typeof func.name === 'string' && func.name.trim()
+          ? `${func.name.trim()}(x)`
+          : 'f(x)';
+      const rhs = typeof func.rhs === 'string'
+        ? func.rhs
+        : func && func.rhs != null
+          ? String(func.rhs)
+          : '';
+      if (rhs) {
+        items.push(`${label}=${rhs}`);
+      }
+    });
+
+    const formatPoint = (coords, name) => {
+      if (!Array.isArray(coords) || coords.length < 2) return null;
+      const [x, y] = coords;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      const coordStr = `(${x}, ${y})`;
+      if (name && typeof name === 'string' && name.trim()) {
+        return `${name.trim()}=${coordStr}`;
+      }
+      return coordStr;
+    };
+
+    extraPoints.forEach((pt, idx) => {
+      const formatted = formatPoint(pt, pointNames[idx]);
+      if (formatted) items.push(formatted);
+    });
+
+    linePoints.forEach(pt => {
+      const formatted = formatPoint(pt, null);
+      if (formatted) items.push(formatted);
+    });
+
+    const smartName = generateSmartFilename(items, 'Koordinatsystem');
+    return sanitize(smartName);
   }
 const btnSvg = document.getElementById('btnSvg');
 if (btnSvg) {
