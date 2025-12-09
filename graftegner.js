@@ -3250,6 +3250,17 @@ function appendAxisLabelsToSvgClone(node) {
     const worldPos = computeAxisLabelWorldPosition(axisKey);
     const screenPos = worldToScreenPoint(worldPos);
     if (!screenPos) return null;
+    const latex = convertExpressionToLatex(label) || label;
+    const katexHtml = latex ? renderLatexToHtml(latex) : '';
+    if (katexHtml && ensureKatexStyleInSvg(node)) {
+      const katexNode = createKatexExportLabel(doc, katexHtml, screenPos, {
+        color,
+        fontSize,
+        alignH: axisKey === 'x' ? 'end' : 'start',
+        alignV: axisKey === 'x' ? 'after-edge' : 'before-edge'
+      });
+      if (katexNode) return katexNode;
+    }
     const textEl = doc.createElementNS('http://www.w3.org/2000/svg', 'text');
     textEl.setAttribute('x', String(screenPos.x));
     textEl.setAttribute('y', String(screenPos.y));
@@ -3308,6 +3319,20 @@ function appendCurveLabelsToSvgClone(node) {
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     const screenPos = worldToScreenPoint({ x, y });
     if (!screenPos) return;
+    const latex = convertExpressionToLatex(textContent) || formatPointLabelLatex(textContent);
+    const katexHtml = latex ? renderLatexToHtml(latex) : '';
+    if (katexHtml && ensureKatexStyleInSvg(node)) {
+      const katexNode = createKatexExportLabel(doc, katexHtml, screenPos, {
+        color: normalizeColorValue(g && g.color) || '#111827',
+        fontSize,
+        alignH: 'start',
+        alignV: 'middle'
+      });
+      if (katexNode) {
+        group.appendChild(katexNode);
+        return;
+      }
+    }
     const textEl = doc.createElementNS('http://www.w3.org/2000/svg', 'text');
     textEl.setAttribute('x', String(screenPos.x));
     textEl.setAttribute('y', String(screenPos.y));
@@ -4152,6 +4177,85 @@ function renderLatexToHtml(latex) {
     }
   }
   return '';
+}
+
+function extractKatexStyles(doc) {
+  if (!doc || !doc.styleSheets) return '';
+  const parts = [];
+  Array.from(doc.styleSheets).forEach(sheet => {
+    const href = sheet && sheet.href ? String(sheet.href) : '';
+    const owner = sheet && sheet.ownerNode && sheet.ownerNode.getAttribute ? sheet.ownerNode.getAttribute('id') : '';
+    if (!/katex/i.test(href || owner)) return;
+    try {
+      const rules = sheet.cssRules || sheet.rules;
+      if (!rules) return;
+      Array.from(rules).forEach(rule => {
+        if (rule && rule.cssText) {
+          parts.push(rule.cssText);
+        }
+      });
+    } catch (_) {}
+  });
+  return parts.join('\n');
+}
+
+function ensureKatexStyleInSvg(node) {
+  if (!node) return false;
+  const doc = node.ownerDocument || (typeof document !== 'undefined' ? document : null);
+  if (!doc) return false;
+  if (node.querySelector('[data-export-katex-style]')) return true;
+  const cssText = extractKatexStyles(doc);
+  if (!cssText) return false;
+  const defs = node.querySelector('defs') || doc.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  if (!defs.parentNode) {
+    node.insertBefore(defs, node.firstChild);
+  }
+  const style = doc.createElementNS('http://www.w3.org/2000/svg', 'style');
+  style.setAttribute('data-export-katex-style', '');
+  style.setAttribute('type', 'text/css');
+  style.textContent = cssText;
+  defs.appendChild(style);
+  return true;
+}
+
+function createKatexExportLabel(doc, html, screenPos, options = {}) {
+  if (!doc || !html || !screenPos || typeof screenPos.x !== 'number' || typeof screenPos.y !== 'number') return null;
+  if (typeof document === 'undefined' || !document.body) return null;
+  const fontSizeRaw = Number.parseFloat(options.fontSize);
+  const fontSize = Number.isFinite(fontSizeRaw) ? fontSizeRaw : 15;
+  const temp = document.createElement('div');
+  temp.style.position = 'absolute';
+  temp.style.visibility = 'hidden';
+  temp.style.pointerEvents = 'none';
+  temp.style.fontSize = `${fontSize}px`;
+  temp.style.lineHeight = '1.2';
+  temp.style.color = options.color || '#111827';
+  temp.innerHTML = html;
+  document.body.appendChild(temp);
+  const rect = temp.getBoundingClientRect();
+  document.body.removeChild(temp);
+  const width = Math.max(1, Math.ceil(rect.width));
+  const height = Math.max(1, Math.ceil(rect.height));
+  if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
+  const alignH = options.alignH || 'start';
+  const alignV = options.alignV || 'before-edge';
+  const offsetX = alignH === 'end' ? -width : alignH === 'middle' ? -(width / 2) : 0;
+  const offsetY = alignV === 'after-edge' ? -height : alignV === 'middle' ? -(height / 2) : 0;
+  const fo = doc.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+  fo.setAttribute('width', `${width}`);
+  fo.setAttribute('height', `${height}`);
+  fo.setAttribute('x', `${screenPos.x + offsetX}`);
+  fo.setAttribute('y', `${screenPos.y + offsetY}`);
+  const body = doc.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+  body.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+  body.style.display = 'inline-block';
+  body.style.color = options.color || '#111827';
+  body.style.fontSize = `${fontSize}px`;
+  body.style.lineHeight = '1.2';
+  body.style.fontFamily = 'KaTeX_Main, "Times New Roman", serif';
+  body.innerHTML = html;
+  fo.appendChild(body);
+  return fo;
 }
 const KATEX_TEXT_ESCAPE_REGEX = /([#%&$^_{}\\])/g;
 function escapeKatexPlainText(text) {
@@ -6814,6 +6918,23 @@ function normalizeBoardSvgForExport(node, dims) {
       wrapper.appendChild(node.firstChild);
     }
     node.appendChild(wrapper);
+  }
+  if (doc && wrapper) {
+    const defs = node.querySelector('defs') || doc.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    if (!defs.parentNode) {
+      node.appendChild(defs);
+    }
+    const clipId = `mv-clip-${Math.random().toString(36).slice(2, 8)}`;
+    const clip = doc.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+    clip.setAttribute('id', clipId);
+    const clipRect = doc.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    clipRect.setAttribute('x', '0');
+    clipRect.setAttribute('y', '0');
+    clipRect.setAttribute('width', String(dims.width));
+    clipRect.setAttribute('height', String(dims.height));
+    clip.appendChild(clipRect);
+    defs.appendChild(clip);
+    wrapper.setAttribute('clip-path', `url(#${clipId})`);
   }
   if (doc) {
     const rect = doc.createElementNS('http://www.w3.org/2000/svg', 'rect');
