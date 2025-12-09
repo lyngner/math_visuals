@@ -785,6 +785,93 @@ const SHOW_CURVE_EXPRESSIONS = params.has('showExpr') ? paramBool('showExpr') : 
 const SHOW_DOMAIN_MARKERS = params.has('brackets') ? paramBool('brackets') : true;
 const SHOW_AXIS_NUMBERS = params.has('axisNumbers') ? paramBool('axisNumbers') : true;
 const SHOW_GRID = params.has('grid') ? paramBool('grid') : true;
+const STORAGE_SCHEMA_VERSION = 2;
+const STORAGE_V2_DEFAULTS = {
+  grid: SHOW_GRID,
+  axisNumbers: SHOW_AXIS_NUMBERS,
+  lockAspect: params.has('lock') ? paramBool('lock') : true,
+  axisLabels: {
+    x: paramStr('xName', 'x'),
+    y: paramStr('yName', 'y')
+  }
+};
+function normalizeStorageNumber(value) {
+  const num = typeof value === 'number' ? value : Number.parseFloat(value);
+  return Number.isFinite(num) ? num : null;
+}
+function normalizeStorageView(view) {
+  if (!Array.isArray(view) || view.length < 4) return null;
+  const normalized = view.slice(0, 4).map(normalizeStorageNumber);
+  return normalized.some(entry => entry == null) ? null : normalized;
+}
+function normalizeStorageAxisLabels(labels) {
+  if (!labels || typeof labels !== 'object') return null;
+  const normalized = {};
+  if (typeof labels.x === 'string' && labels.x.trim()) {
+    normalized.x = labels.x;
+  }
+  if (typeof labels.y === 'string' && labels.y.trim()) {
+    normalized.y = labels.y;
+  }
+  return Object.keys(normalized).length ? normalized : null;
+}
+function normalizeStorageState(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  if (!Object.prototype.hasOwnProperty.call(raw, 'v')) return null;
+  if (Number(raw.v) !== STORAGE_SCHEMA_VERSION) return null;
+  const options = raw.options && typeof raw.options === 'object' ? raw.options : {};
+  return {
+    v: STORAGE_SCHEMA_VERSION,
+    code: typeof raw.code === 'string' ? raw.code : '',
+    view: normalizeStorageView(raw.view),
+    options: {
+      grid: options.grid == null ? undefined : !!options.grid,
+      axisNumbers: options.axisNumbers == null ? undefined : !!options.axisNumbers,
+      lockAspect: options.lockAspect == null ? undefined : !!options.lockAspect,
+      axisLabels: normalizeStorageAxisLabels(options.axisLabels)
+    },
+    meta: raw.meta && typeof raw.meta === 'object' ? raw.meta : {}
+  };
+}
+const STORAGE_STATE_V2 = normalizeStorageState(typeof window !== 'undefined' ? window.STATE : null);
+function buildStorageOptionsSnapshot(adv, defaults = STORAGE_V2_DEFAULTS) {
+  const diff = {};
+  const grid = !!(adv && adv.axis && adv.axis.grid && adv.axis.grid.show);
+  if (grid !== !!defaults.grid) {
+    diff.grid = grid;
+  }
+  const axisNumbers = !!(adv && adv.axis && adv.axis.ticks && adv.axis.ticks.showNumbers);
+  if (axisNumbers !== !!defaults.axisNumbers) {
+    diff.axisNumbers = axisNumbers;
+  }
+  const lockAspect = adv && adv.lockAspect === false ? false : true;
+  if (lockAspect !== (defaults && defaults.lockAspect === false ? false : true)) {
+    diff.lockAspect = lockAspect;
+  }
+  const labels = adv && adv.axis && adv.axis.labels ? adv.axis.labels : {};
+  const labelDiff = {};
+  if (typeof labels.x === 'string' && labels.x.trim() && labels.x !== defaults.axisLabels.x) {
+    labelDiff.x = labels.x;
+  }
+  if (typeof labels.y === 'string' && labels.y.trim() && labels.y !== defaults.axisLabels.y) {
+    labelDiff.y = labels.y;
+  }
+  if (Object.keys(labelDiff).length) {
+    diff.axisLabels = labelDiff;
+  }
+  return diff;
+}
+function buildStorageSnapshotV2(meta = STORAGE_STATE_V2 && STORAGE_STATE_V2.meta) {
+  const view = Array.isArray(ADV.screen) && ADV.screen.length === 4 ? ADV.screen.slice(0, 4) : null;
+  const safeMeta = meta && typeof meta === 'object' ? meta : {};
+  return {
+    v: STORAGE_SCHEMA_VERSION,
+    code: appState.simple.value,
+    view,
+    options: buildStorageOptionsSnapshot(ADV),
+    meta: safeMeta
+  };
+}
 function clampFontSize(val) {
   if (!Number.isFinite(val)) return null;
   if (val < FONT_LIMITS.min) return FONT_LIMITS.min;
@@ -1097,6 +1184,12 @@ if (typeof window !== 'undefined') {
   window.GRAF_ALT_TEXT = appState.altText;
 }
 
+if (typeof STORAGE_STATE_V2 === 'object' && STORAGE_STATE_V2 && typeof STORAGE_STATE_V2.code === 'string') {
+  if (typeof window !== 'undefined') {
+    window.SIMPLE = STORAGE_STATE_V2.code;
+  }
+}
+
 appState.simple.value = typeof window !== 'undefined' && typeof window.SIMPLE !== 'undefined' ? window.SIMPLE : buildSimple();
 appState.simple.lastRendered = appState.simple.value;
 appState.simple.parsed = parseSimple(appState.simple.value);
@@ -1221,6 +1314,30 @@ const ADV = {
   }
 };
 
+if (STORAGE_STATE_V2) {
+  const opts = STORAGE_STATE_V2.options || {};
+  if (Array.isArray(STORAGE_STATE_V2.view) && STORAGE_STATE_V2.view.length === 4) {
+    ADV.screen = STORAGE_STATE_V2.view.slice(0, 4);
+  }
+  if (opts.lockAspect !== undefined) {
+    ADV.lockAspect = opts.lockAspect;
+  }
+  if (opts.grid !== undefined && ADV.axis && ADV.axis.grid) {
+    ADV.axis.grid.show = opts.grid;
+  }
+  if (opts.axisNumbers !== undefined && ADV.axis && ADV.axis.ticks) {
+    ADV.axis.ticks.showNumbers = opts.axisNumbers;
+  }
+  if (opts.axisLabels && ADV.axis && ADV.axis.labels) {
+    if (typeof opts.axisLabels.x === 'string') {
+      ADV.axis.labels.x = opts.axisLabels.x;
+    }
+    if (typeof opts.axisLabels.y === 'string') {
+      ADV.axis.labels.y = opts.axisLabels.y;
+    }
+  }
+}
+
 if (typeof window !== "undefined") {
   window.addEventListener("math-visuals:settings-changed", scheduleThemeRefresh);
   window.addEventListener("math-visuals:profile-change", scheduleThemeRefresh);
@@ -1254,11 +1371,42 @@ const INITIAL_SHOW_GRID = !!(ADV.axis && ADV.axis.grid && ADV.axis.grid.show);
 const INITIAL_FORCE_TICKS = !!FORCE_TICKS_REQUESTED;
 const INITIAL_SNAP_ENABLED = !!(ADV.points && ADV.points.snap && ADV.points.snap.enabled);
 
+function buildExampleStateFromStorageV2(storageState) {
+  if (!storageState || storageState.v !== STORAGE_SCHEMA_VERSION) return null;
+  const opts = storageState.options || {};
+  const exampleState = {};
+  if (Array.isArray(storageState.view) && storageState.view.length === 4) {
+    exampleState.screen = storageState.view.slice(0, 4);
+    exampleState.screenSource = 'manual';
+  }
+  if (opts.lockAspect !== undefined) {
+    exampleState.lockAspect = !!opts.lockAspect;
+  }
+  if (opts.grid !== undefined) {
+    exampleState.showGrid = !!opts.grid;
+  }
+  if (opts.axisNumbers !== undefined) {
+    exampleState.showAxisNumbers = !!opts.axisNumbers;
+  }
+  if (opts.axisLabels) {
+    exampleState.axisLabels = {
+      x: typeof opts.axisLabels.x === 'string' ? opts.axisLabels.x : ADV.axis.labels.x,
+      y: typeof opts.axisLabels.y === 'string' ? opts.axisLabels.y : ADV.axis.labels.y,
+      fontSize: ADV.axis.labels.fontSize
+    };
+  }
+  return Object.keys(exampleState).length ? exampleState : null;
+}
+
 const EXAMPLE_STATE = (() => {
-  const existing = typeof window !== 'undefined' && window.STATE && typeof window.STATE === 'object'
-    ? window.STATE
-    : {};
+  const existing = buildExampleStateFromStorageV2(STORAGE_STATE_V2)
+    || (typeof window !== 'undefined' && window.STATE && typeof window.STATE === 'object'
+      ? window.STATE
+      : {});
   if (typeof window !== 'undefined') {
+    if (STORAGE_STATE_V2) {
+      window.STATE_V2 = STORAGE_STATE_V2;
+    }
     window.STATE = existing;
   }
   if (!Object.prototype.hasOwnProperty.call(existing, 'showNames')) {
@@ -7229,9 +7377,16 @@ function setupSettingsForm() {
   const axisYInputElement = g('cfgAxisY');
   const snapCheckbox = g('cfgSnap');
   const getExampleState = () => {
-    const state = typeof window !== 'undefined' && window.STATE && typeof window.STATE === 'object'
-      ? window.STATE
-      : EXAMPLE_STATE;
+    const stateV2 = typeof window !== 'undefined' ? normalizeStorageState(window.STATE) : null;
+    const baseState = stateV2
+      ? buildExampleStateFromStorageV2(stateV2)
+      : typeof window !== 'undefined' && window.STATE && typeof window.STATE === 'object'
+        ? window.STATE
+        : EXAMPLE_STATE;
+    const state = baseState || EXAMPLE_STATE;
+    if (stateV2 && typeof window !== 'undefined') {
+      window.STATE_V2 = stateV2;
+    }
     if (state !== EXAMPLE_STATE && EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
       Object.keys(EXAMPLE_STATE).forEach(key => {
         if (!Object.prototype.hasOwnProperty.call(state, key)) {
@@ -9214,6 +9369,9 @@ function setupSettingsForm() {
       try {
         syncSimpleFromForm();
       } catch (_) {}
+      if (typeof window !== 'undefined') {
+        window.STATE_V2 = buildStorageSnapshotV2();
+      }
       if (!event || !event.detail) return;
       if (event.detail.svgOverride) return;
       const clone = cloneBoardSvgRoot();
