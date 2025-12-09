@@ -7684,6 +7684,35 @@
       ensureTaskModeDescriptionRendered();
     }
     const cfg = ex.config && typeof ex.config === 'object' ? ex.config : {};
+    const applyCfgAxisBounds = () => {
+      const cfgBinding =
+        cfg.CFG && typeof cfg.CFG === 'object'
+          ? cfg.CFG
+          : cfg.cfg && typeof cfg.cfg === 'object'
+            ? cfg.cfg
+            : null;
+      if (!cfgBinding) return false;
+      const axisBounds = {};
+      for (const key of ['yMin', 'yMax']) {
+        if (cfgBinding[key] != null) {
+          axisBounds[key] = cfgBinding[key];
+        }
+      }
+      if (!Object.keys(axisBounds).length) return false;
+      const targetCfg = getBinding('CFG');
+      let updated = false;
+      if (targetCfg && typeof targetCfg === 'object') {
+        for (const [key, value] of Object.entries(axisBounds)) {
+          if (targetCfg[key] !== value) {
+            targetCfg[key] = value;
+            updated = true;
+          }
+        }
+        return updated;
+      }
+      applyBinding('CFG', { ...axisBounds });
+      return true;
+    };
     let applied = false;
     const providedBindings = new Set();
     const shouldApplyBindings = !skipReloadIfActive && !diagramHydration.applied;
@@ -7699,6 +7728,12 @@
       }
       if (!providedBindings.has('STATE')) {
         applyBinding('STATE', {});
+      }
+    }
+    if (!shouldApplyBindings && diagramHydration.applied) {
+      if (applyCfgAxisBounds()) {
+        applied = true;
+        providedBindings.add('CFG');
       }
     }
     if (diagramHydration.applied) {
