@@ -2124,7 +2124,7 @@ function syncScreenInputFromState() {
 function rememberScreenState(screen, source) {
   const normalized = calculateCorrectedScreen(screen);
   LAST_COMPUTED_SCREEN = normalized;
-  LAST_SCREEN_SOURCE = 'manual';
+  LAST_SCREEN_SOURCE = typeof source === 'string' && source ? source : 'manual';
   if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
     EXAMPLE_STATE.screen = normalized ? normalized.slice(0, 4) : null;
     EXAMPLE_STATE.screenSource = LAST_SCREEN_SOURCE;
@@ -9788,6 +9788,8 @@ function setupSettingsForm() {
     const q1Input = g('cfgQ1');
     const prevLock = ADV.lockAspect;
     const prevFirstQuadrant = ADV.firstQuadrant;
+
+    // Les råverdi fra feltet før vi rører checkboxene
     const screenTrimmed = screenInput ? screenInput.value.trim() : '';
     let nextScreen = null;
     let forceRebuild = false;
@@ -9795,30 +9797,29 @@ function setupSettingsForm() {
     // REGEL A: Hvis forfatter sletter innholdet -> Reset til Default + Lås 1:1
     if (!screenTrimmed) {
       nextScreen = DEFAULT_SCREEN.slice(); // [-5, 5, -5, 5]
-      
+
       // Oppdater UI-elementene
-      if (lockInput) lockInput.checked = true;
       ADV.lockAspect = true;
-      
+      if (lockInput) lockInput.checked = true;
+
       if (screenInput) {
         screenInput.classList.add('is-auto'); // Visuelt hint om at dette er default
       }
-    } 
+    }
     // REGEL B: Hvis forfatter skriver inn tall
     else {
       const parsed = parseScreen(screenTrimmed);
       if (parsed) {
-        // Sjekk om dette er en endring fra forrige state
-        const prevScreen = ADV.screen || DEFAULT_SCREEN;
-        if (!screensEqual(parsed, prevScreen)) {
-           // Bruker har endret tallene manuelt -> Sett Lås 1:1 til FALSE
-           if (lockInput) lockInput.checked = false;
-           ADV.lockAspect = false;
-        }
         nextScreen = parsed;
-        
+
         if (screenInput) {
           screenInput.classList.remove('is-auto');
+        }
+
+        // Bruker har oppgitt eksakte tall -> lås av aspekt før vi regner på utsnittet
+        if (ADV.lockAspect) {
+          ADV.lockAspect = false;
+          if (lockInput) lockInput.checked = false;
         }
       }
     }
