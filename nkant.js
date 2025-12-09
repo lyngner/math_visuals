@@ -4773,8 +4773,8 @@ function drawPolygonWithArcToGroup(g, rect, spec, adv, decorations, labelCtx) {
 }
 
 /* ---------- ORKESTRERING ---------- */
-const BASE_W = 600,
-  BASE_H = 420,
+const BASE_W = 900,
+  BASE_H = 560,
   GAP = 60,
   TIGHT_VIEWBOX_MARGIN = 24;
 async function collectJobsFromSpecs(specInput) {
