@@ -33,8 +33,12 @@ try {
 
   const result = await seedFigures({ dryRun: false });
 
-  assert.equal(ensureCategoryCalls.length, 0, 'Forventer ingen forhåndsdefinerte mengdekategorier');
-  assert.equal(setFigureCalls.length, 0, 'Forventer ingen forhåndsdefinerte mengdefigurer');
+  assert.equal(ensureCategoryCalls.length, 1, 'Forventer at den egendefinerte kategorien sikres');
+  assert.equal(ensureCategoryCalls[0].id, 'custom', 'Egendefinert kategori skal ha id custom');
+  assert.equal(ensureCategoryCalls[0].label, 'Egendefinert', 'Egendefinert kategori skal bruke visningsnavn');
+
+  assert.equal(setFigureCalls.length, 1, 'Forventer at den egendefinerte figuren lagres');
+  assert.equal(setFigureCalls[0].slug, 'custom', 'Egendefinert figur skal ha slug custom');
 
   const measurementCategories = ensureCategoryCalls.filter((entry) => entry.type === 'measurement');
   assert.equal(measurementCategories.length, 0, 'Forventet ingen forhåndsbundne målekategorier');
