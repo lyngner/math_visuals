@@ -5115,6 +5115,164 @@ function buildNkantExportMeta(summary) {
     defaultBaseName: slug || 'nkant'
   };
 }
+
+function createCleanNKantSaveState() {
+  ensureStateDefaults();
+  const defaults = getGlobalDefaults();
+  const baseDefaults = (DEFAULT_STATE && DEFAULT_STATE.defaults) || DEFAULT_GLOBAL_DEFAULTS;
+  const opt = {};
+
+  const normalizedTextSize = sanitizeTextSize(STATE.textSize);
+  const defaultTextSize = sanitizeTextSize(DEFAULT_STATE && DEFAULT_STATE.textSize);
+  if (normalizedTextSize !== defaultTextSize) {
+    opt.textSize = normalizedTextSize;
+  }
+
+  const rotateText = shouldRotateText();
+  const defaultRotate = DEFAULT_STATE && DEFAULT_STATE.rotateText === false ? false : true;
+  if (rotateText !== defaultRotate) {
+    opt.rotateText = rotateText;
+  }
+
+  const defaultsDiff = {};
+  if (defaults.sides && defaults.sides !== baseDefaults.sides) {
+    defaultsDiff.sides = defaults.sides;
+  }
+  if (defaults.angles && defaults.angles !== baseDefaults.angles) {
+    defaultsDiff.angles = defaults.angles;
+  }
+  if (Object.keys(defaultsDiff).length) {
+    opt.defaults = defaultsDiff;
+  }
+
+  if (STATE.layout && STATE.layout !== DEFAULT_STATE.layout) {
+    opt.layout = STATE.layout;
+  }
+
+  const cleanedLabelAdjustments = {};
+  if (STATE.labelAdjustments && typeof STATE.labelAdjustments === 'object') {
+    Object.entries(STATE.labelAdjustments).forEach(([key, adjustment]) => {
+      if (!adjustment || typeof adjustment !== 'object') return;
+      const dx = Number.isFinite(adjustment.dx) ? adjustment.dx : undefined;
+      const dy = Number.isFinite(adjustment.dy) ? adjustment.dy : undefined;
+      const rotation = Number.isFinite(adjustment.rotation) ? adjustment.rotation : undefined;
+      const cleaned = {};
+      if (dx !== undefined) cleaned.dx = dx;
+      if (dy !== undefined) cleaned.dy = dy;
+      if (rotation !== undefined) cleaned.rotation = rotation;
+      if (Object.keys(cleaned).length) {
+        cleanedLabelAdjustments[key] = cleaned;
+      }
+    });
+    if (Object.keys(cleanedLabelAdjustments).length) {
+      opt.labels = cleanedLabelAdjustments;
+    }
+  }
+
+  const figureCount = Array.isArray(STATE.figures) ? STATE.figures.length : 0;
+  const figures = Array.isArray(STATE.figures) ? STATE.figures.map((fig, idx) => {
+    const baseFig = createDefaultFigureState(idx, '', defaults);
+    const entry = {
+      spec: fig && typeof fig.specText === 'string' ? fig.specText : ''
+    };
+
+    if (fig && typeof fig.color === 'string' && fig.color.trim()) {
+      entry.color = fig.color.trim();
+    }
+
+    const labelOverrides = {};
+    const sideModeDiff = {};
+    const sideTextDiff = {};
+    if (fig && fig.sides) {
+      ['a', 'b', 'c', 'd'].forEach(key => {
+        const mode = fig.sides[key];
+        const baseMode = baseFig.sides[key];
+        if (mode && mode !== baseMode) {
+          sideModeDiff[key] = mode;
+        }
+        const textKey = `${key}Text`;
+        const text = fig.sides[textKey];
+        const baseText = baseFig.sides[textKey];
+        if (typeof text === 'string' && text !== baseText) {
+          sideTextDiff[textKey] = text;
+        }
+      });
+    }
+    if (Object.keys(sideModeDiff).length || Object.keys(sideTextDiff).length) {
+      labelOverrides.sides = {};
+      if (Object.keys(sideModeDiff).length) {
+        labelOverrides.sides.mode = sideModeDiff;
+      }
+      if (Object.keys(sideTextDiff).length) {
+        labelOverrides.sides.text = sideTextDiff;
+      }
+    }
+
+    const angleModeDiff = {};
+    const angleTextDiff = {};
+    if (fig && fig.angles) {
+      ['A', 'B', 'C', 'D'].forEach(key => {
+        const mode = fig.angles[key];
+        const baseMode = baseFig.angles[key];
+        if (mode && mode !== baseMode) {
+          angleModeDiff[key] = mode;
+        }
+        const textKey = `${key}Text`;
+        const text = fig.angles[textKey];
+        const baseText = baseFig.angles[textKey];
+        if (typeof text === 'string' && text !== baseText) {
+          angleTextDiff[textKey] = text;
+        }
+      });
+    }
+    if (Object.keys(angleModeDiff).length || Object.keys(angleTextDiff).length) {
+      labelOverrides.angles = {};
+      if (Object.keys(angleModeDiff).length) {
+        labelOverrides.angles.mode = angleModeDiff;
+      }
+      if (Object.keys(angleTextDiff).length) {
+        labelOverrides.angles.text = angleTextDiff;
+      }
+    }
+
+    if (Object.keys(labelOverrides).length) {
+      entry.labels = labelOverrides;
+    }
+
+    const anchor = fig && (fig.anchor != null ? fig.anchor : fig.position);
+    if (anchor != null) {
+      entry.anchor = anchor;
+    } else {
+      const layout = STATE.layout || DEFAULT_STATE.layout || 'grid';
+      if (layout === 'row') {
+        entry.anchor = { row: 0, col: idx };
+      } else if (layout === 'col') {
+        entry.anchor = { row: idx, col: 0 };
+      } else {
+        const columns = Math.min(2, Math.max(1, figureCount === 1 ? 1 : 2));
+        const col = idx % columns;
+        const row = Math.floor(idx / columns);
+        entry.anchor = { row, col };
+      }
+    }
+
+    return entry;
+  }) : [];
+
+  const view = getNkantAltSummary();
+  const desc = {
+    text: getActiveNkantAltText(),
+    source: STATE.altTextSource === 'manual' ? 'manual' : 'auto'
+  };
+
+  return {
+    v: 1,
+    view,
+    opt,
+    figures,
+    desc
+  };
+}
 async function downloadSVG(svgEl, filename) {
   const suggestedName = typeof filename === 'string' && filename ? filename : 'nkant.svg';
   const data = svgToString(svgEl);
@@ -5773,7 +5931,15 @@ window.addEventListener("examples:loaded", () => {
   }
 });
 
-window.addEventListener("examples:collect", () => {
+window.addEventListener("examples:collect", event => {
+  const cleanState = createCleanNKantSaveState();
+  if (event && event.detail && typeof event.detail === 'object') {
+    event.detail.state = cleanState;
+  }
+  if (typeof window !== 'undefined') {
+    window.STATE_V2 = cleanState;
+    window.STATE = cleanState;
+  }
   if (altTextManager) {
     altTextManager.applyCurrent();
   }
@@ -5814,6 +5980,7 @@ if (typeof window !== "undefined") {
   window.applyState = applyExamplesConfig;
   window.render = applyExamplesConfig;
   window.renderCombined = renderCombined;
+  window.createCleanNKantSaveState = createCleanNKantSaveState;
 }
 
 /* ---------- GEOMETRI ---------- */
