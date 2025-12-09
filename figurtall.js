@@ -2036,6 +2036,91 @@ function isValidColor(value) {
     figurtallAiPendingSignature = null;
     figurtallAiAppliedSignature = null;
   }
+  function createCleanState() {
+    sanitizeState();
+    const colors = getColors();
+    const figures = Array.isArray(STATE.figures)
+      ? STATE.figures.map(fig => ({
+          name: typeof (fig === null || fig === void 0 ? void 0 : fig.name) === 'string' ? fig.name : '',
+          cells: normalizeCells(fig === null || fig === void 0 ? void 0 : fig.cells, rows, cols)
+        }))
+      : [];
+    return {
+      v: 1,
+      rows,
+      cols,
+      figureType: normalizeFigureType(STATE.figureType) || 'square',
+      offset: !!STATE.offset,
+      showGrid: !!STATE.showGrid,
+      gridOnlyOnLast: !!STATE.gridOnlyOnLast,
+      lastFigureIsAnswer: !!STATE.lastFigureIsAnswer,
+      labelMode: STATE.labelMode,
+      colorCount: colors.length,
+      colors,
+      figures,
+      answerText: typeof STATE.answerText === 'string' ? STATE.answerText : '',
+      altText: {
+        text: typeof STATE.altText === 'string' ? STATE.altText : '',
+        source: STATE.altTextSource === 'manual' ? 'manual' : 'auto'
+      }
+    };
+  }
+  function loadCleanState(rawState) {
+    if (!rawState || typeof rawState !== 'object' || rawState.v !== 1) return false;
+
+    sanitizeState();
+
+    const nextRows = clampInt(rawState.rows != null ? rawState.rows : rows, 1, MAX_DIM);
+    const nextCols = clampInt(rawState.cols != null ? rawState.cols : cols, 1, MAX_DIM);
+    STATE.rows = rows = nextRows;
+    STATE.cols = cols = nextCols;
+
+    const nextType = normalizeFigureType(rawState.figureType) || (rawState.circleMode ? 'circle' : STATE.figureType);
+    STATE.figureType = nextType;
+    STATE.circleMode = isCircleFigureType(nextType);
+    STATE.offset = rawState.offset !== false;
+    STATE.showGrid = rawState.showGrid !== false;
+    STATE.gridOnlyOnLast = rawState.gridOnlyOnLast === true;
+    STATE.lastFigureIsAnswer = rawState.lastFigureIsAnswer === true;
+    STATE.labelMode = normalizeLabelMode(rawState.labelMode);
+
+    const maxColors = colorInputs.length || MAX_COLORS;
+    const nextColorCount = clampInt(rawState.colorCount != null ? rawState.colorCount : STATE.colorCount, 1, maxColors);
+    STATE.colorCount = nextColorCount;
+    ensureColors(nextColorCount);
+    modifiedColorIndexes.clear();
+
+    const incomingColors = Array.isArray(rawState.colors) ? rawState.colors.slice(0, nextColorCount) : [];
+    incomingColors.forEach((color, idx) => {
+      if (typeof color === 'string' && color.trim()) {
+        STATE.colors[idx] = color;
+        modifiedColorIndexes.add(idx);
+      }
+    });
+    autoPaletteEnabled = modifiedColorIndexes.size === 0;
+
+    if (Array.isArray(rawState.figures)) {
+      STATE.figures = rawState.figures.map((fig, idx) => ({
+        name: typeof (fig === null || fig === void 0 ? void 0 : fig.name) === 'string' && fig.name.trim() ? fig.name : `Figur ${idx + 1}`,
+        cells: normalizeCells(fig === null || fig === void 0 ? void 0 : fig.cells, nextRows, nextCols)
+      }));
+    }
+
+    if (typeof rawState.answerText === 'number' || typeof rawState.answerText === 'string') {
+      const normalized = typeof rawState.answerText === 'number' ? String(rawState.answerText) : rawState.answerText;
+      STATE.answerText = typeof normalized === 'string' ? normalized : STATE.answerText;
+    }
+
+    if (rawState.altText && typeof rawState.altText === 'object') {
+      const altText = typeof rawState.altText.text === 'string' ? rawState.altText.text : STATE.altText;
+      const altSource = rawState.altText.source === 'manual' ? 'manual' : rawState.altText.source === 'auto' ? 'auto' : STATE.altTextSource;
+      STATE.altText = altText;
+      STATE.altTextSource = altSource;
+    }
+
+    render();
+    return true;
+  }
   function render() {
     sanitizeState();
     applyStateToControls();
@@ -2058,6 +2143,12 @@ function isValidColor(value) {
     render();
   }
   window.render = render;
+  window.createCleanFigurtallState = createCleanState;
+  window.loadCleanFigurtallState = loadCleanState;
+  window.figurtallApi = {
+    createCleanState: (...args) => createCleanState(...args),
+    loadCleanState: (...args) => loadCleanState(...args)
+  };
   function handleProjectProfileMessage(event) {
     const data = event && event.data;
     const type = typeof data === 'string' ? data : data && data.type;
