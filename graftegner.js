@@ -6939,6 +6939,7 @@ function setupSettingsForm() {
   const showGridInput = g('cfgShowGrid');
   const forceTicksInput = g('cfgForceTicks');
   const q1Input = g('cfgQ1');
+  const lockInput = g('cfgLock');
   const screenInput = g('cfgScreen');
   const zoomInput = g('cfgZoom');
   const panInput = g('cfgPan');
@@ -7018,16 +7019,15 @@ function setupSettingsForm() {
       ADV.curveName.show = showAny;
       changed = true;
     }
-    const lockInput = g('cfgLock');
-    if (Object.prototype.hasOwnProperty.call(exampleState, 'lockAspect')) {
-      const resolvedLock = !!exampleState.lockAspect;
-      if (lockInput && lockInput.checked !== resolvedLock) {
-        lockInput.checked = resolvedLock;
-      }
-      if (ADV.lockAspect !== resolvedLock) {
-        ADV.lockAspect = resolvedLock;
-        changed = true;
-      }
+    const resolvedLock = Object.prototype.hasOwnProperty.call(exampleState, 'lockAspect')
+      ? !!exampleState.lockAspect
+      : (lockInput ? !!lockInput.checked : INITIAL_LOCK_ASPECT);
+    if (lockInput && lockInput.checked !== resolvedLock) {
+      lockInput.checked = resolvedLock;
+    }
+    if (ADV.lockAspect !== resolvedLock) {
+      ADV.lockAspect = resolvedLock;
+      changed = true;
     }
     if (Object.prototype.hasOwnProperty.call(exampleState, 'firstQuadrant')) {
       const resolvedQ1 = resolveExampleStateFlag(exampleState, 'firstQuadrant', INITIAL_FIRST_QUADRANT);
@@ -7098,7 +7098,8 @@ function setupSettingsForm() {
     const resolvedShowExpr = showExprInput ? !!showExprInput.checked : !!(ADV.curveName && ADV.curveName.showExpression);
     exampleState.showNames = resolvedShowNames;
     exampleState.showExpression = resolvedShowExpr;
-    exampleState.lockAspect = ADV.lockAspect !== false;
+    const resolvedLock = lockInput ? !!lockInput.checked : ADV.lockAspect !== false;
+    exampleState.lockAspect = resolvedLock;
     exampleState.firstQuadrant = q1Input ? !!q1Input.checked : !!ADV.firstQuadrant;
     exampleState.showAxisNumbers = showAxisNumbersInput ? !!showAxisNumbersInput.checked : !!(ADV.axis && ADV.axis.ticks && ADV.axis.ticks.showNumbers);
     exampleState.showGrid = showGridInput ? !!showGridInput.checked : !!(ADV.axis && ADV.axis.grid && ADV.axis.grid.show);
