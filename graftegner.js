@@ -839,17 +839,6 @@ const migrateStorageState = raw => {
 };
 const STORAGE_STATE_V2 = migrateStorageState(typeof window !== 'undefined' ? window.STATE : null)
   || migrateStorageState(typeof window !== 'undefined' ? window.ADV : null);
-function buildStorageSnapshotV2(meta = STORAGE_STATE_V2 && STORAGE_STATE_V2.meta) {
-  const view = Array.isArray(ADV.screen) && ADV.screen.length === 4 ? ADV.screen.slice(0, 4) : null;
-  const safeMeta = meta && typeof meta === 'object' ? meta : {};
-  return {
-    v: STORAGE_SCHEMA_VERSION,
-    code: appState.simple.value,
-    view,
-    options: typeof normalizeDiffOptions === 'function' ? normalizeDiffOptions(ADV, STORAGE_V2_DEFAULTS) : {},
-    meta: safeMeta
-  };
-}
 function buildCleanSaveOptionsSnapshot(adv, defaults = CLEAN_SAVE_DEFAULTS) {
   const diff = {};
   const resolvedDefaults = defaults || CLEAN_SAVE_DEFAULTS;
