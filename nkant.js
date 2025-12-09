@@ -6029,10 +6029,13 @@ window.addEventListener("examples:loaded", event => {
   const candidateState = event && event.detail && typeof event.detail === "object" && event.detail.state
     ? event.detail.state
     : (typeof STATE_V2 !== "undefined" && STATE_V2 ? STATE_V2 : STATE);
-  if (!loadCleanNKantState(candidateState)) {
-    ensureStateDefaults();
+  if (candidateState) {
+    if (typeof window !== "undefined") {
+      window.STATE_V2 = candidateState;
+      window.STATE = candidateState;
+    }
   }
-  applyStateToUI();
+  applyExamplesConfig();
   if (!altTextManager) {
     initAltTextManager();
   }
