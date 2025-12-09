@@ -1245,6 +1245,155 @@ function buildKulerExportMeta(exportData) {
     a.click();
   }
 
+/* ===== STATE EXPORT/IMPORT ===== */
+function createCleanState() {
+  syncSimpleFromFigures();
+  const bowlCount = Math.max(1, Math.min(MAX_FIGURES, Array.isArray(SIMPLE.bowls) ? SIMPLE.bowls.length : 0));
+  const bowls = [];
+  for (let i = 0; i < bowlCount; i++) {
+    const bowl = ensureSimpleBowl(i);
+    const beadRadius = Math.min(60, Math.max(5, Number.isFinite(bowl === null || bowl === void 0 ? void 0 : bowl.beadRadius) ? bowl.beadRadius : ADV.beadRadius));
+    const items = Array.isArray(bowl.items) ? bowl.items.map(item => ({
+      id: typeof (item === null || item === void 0 ? void 0 : item.id) === "string" && item.id ? item.id : createTypeId(),
+      emoji: sanitizeEmoji(item === null || item === void 0 ? void 0 : item.emoji),
+      label: sanitizeLabel(item === null || item === void 0 ? void 0 : item.label),
+      count: sanitizeCount(item === null || item === void 0 ? void 0 : item.count)
+    })) : cloneDefaultItems();
+    const bowlEntry = {
+      beadRadius,
+      items
+    };
+    const bowlState = getBowlState(i);
+    const positions = {};
+    items.forEach(item => {
+      const arr = Array.isArray(bowlState.byType[item.id]) ? bowlState.byType[item.id] : null;
+      if (!arr) return;
+      const coords = arr.map(pos => {
+        const x = Number(pos === null || pos === void 0 ? void 0 : pos.x);
+        const y = Number(pos === null || pos === void 0 ? void 0 : pos.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+        return {
+          x,
+          y
+        };
+      }).filter(Boolean);
+      if (coords.length) positions[item.id] = coords.slice(0, Math.max(item.count, coords.length));
+    });
+    if (Object.keys(positions).length) {
+      bowlEntry.layout = {
+        positions
+      };
+    }
+    bowls.push(bowlEntry);
+  }
+  return {
+    v: 1,
+    bowls,
+    desc: {
+      text: typeof SIMPLE.altText === "string" ? SIMPLE.altText : "",
+      source: SIMPLE.altTextSource === "manual" ? "manual" : "auto"
+    }
+  };
+}
+
+function loadCleanState(rawState) {
+  if (!rawState || typeof rawState !== "object" || rawState.v !== 1) return false;
+  const requestedVisible = Number.isFinite(rawState.visibleCount) ? clampVisibleCount(rawState.visibleCount) : null;
+  const rawBowls = Array.isArray(rawState.bowls) ? rawState.bowls.slice(0, MAX_FIGURES) : [];
+  const seenIds = new Set();
+  let nextCounter = typeIdCounter;
+  const allocateTypeId = candidate => {
+    let id = typeof candidate === "string" && candidate.trim() ? candidate.trim() : "";
+    const match = /(\d+)$/.exec(id);
+    if (match) {
+      const num = Number.parseInt(match[1], 10);
+      if (Number.isFinite(num)) nextCounter = Math.max(nextCounter, num);
+    }
+    if (!id || seenIds.has(id)) {
+      nextCounter += 1;
+      id = `emoji-type-${nextCounter}`;
+    }
+    seenIds.add(id);
+    return id;
+  };
+  const defaultRadius = Math.min(60, Math.max(5, Number.isFinite(SIMPLE.beadRadius) ? SIMPLE.beadRadius : ADV.beadRadius));
+  const sanitizeItems = rawItems => {
+    const items = Array.isArray(rawItems) ? rawItems : [];
+    const cleaned = items.map(item => ({
+      id: allocateTypeId(item === null || item === void 0 ? void 0 : item.id),
+      emoji: sanitizeEmoji(item === null || item === void 0 ? void 0 : item.emoji),
+      label: sanitizeLabel(item === null || item === void 0 ? void 0 : item.label),
+      count: sanitizeCount(item === null || item === void 0 ? void 0 : item.count)
+    })).filter(entry => entry.id);
+    if (cleaned.length) return cleaned;
+    return DEFAULT_ITEM_CONFIG.map(cfg => ({
+      id: allocateTypeId(),
+      emoji: sanitizeEmoji(cfg.emoji),
+      label: sanitizeLabel(cfg.label),
+      count: sanitizeCount(cfg.count)
+    }));
+  };
+  const nextBowls = rawBowls.map(entry => {
+    const beadRadius = Math.min(60, Math.max(5, Number.isFinite(entry === null || entry === void 0 ? void 0 : entry.beadRadius) ? entry.beadRadius : defaultRadius));
+    const items = sanitizeItems(entry === null || entry === void 0 ? void 0 : entry.items);
+    const rawPositions = entry && entry.layout && entry.layout.positions && typeof entry.layout.positions === "object" ? entry.layout.positions : null;
+    const positions = {};
+    if (rawPositions) {
+      items.forEach(item => {
+        const arr = Array.isArray(rawPositions[item.id]) ? rawPositions[item.id] : null;
+        if (!arr) return;
+        const coords = arr.map(pos => {
+          const x = Number(pos === null || pos === void 0 ? void 0 : pos.x);
+          const y = Number(pos === null || pos === void 0 ? void 0 : pos.y);
+          if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+          return {
+            x,
+            y
+          };
+        }).filter(Boolean);
+        if (coords.length) positions[item.id] = coords.slice(0, Math.max(item.count, coords.length));
+      });
+    }
+    const bowlEntry = {
+      beadRadius,
+      items
+    };
+    if (Object.keys(positions).length) {
+      bowlEntry.layout = {
+        positions
+      };
+    }
+    return bowlEntry;
+  });
+  if (!nextBowls.length) {
+    nextBowls.push({
+      beadRadius: defaultRadius,
+      items: sanitizeItems(null)
+    });
+  }
+  typeIdCounter = Math.max(typeIdCounter, nextCounter);
+  SIMPLE.bowls = nextBowls.map(bowl => ({
+    beadRadius: bowl.beadRadius,
+    items: bowl.items.map(item => ({
+      id: item.id,
+      emoji: item.emoji,
+      label: item.label,
+      count: item.count
+    }))
+  }));
+  SIMPLE.beadRadius = SIMPLE.bowls[0] ? SIMPLE.bowls[0].beadRadius : defaultRadius;
+  const desc = rawState.desc && typeof rawState.desc === "object" ? rawState.desc : {};
+  SIMPLE.altText = typeof desc.text === "string" ? desc.text : "";
+  SIMPLE.altTextSource = desc.source === "manual" ? "manual" : "auto";
+  STATE.bowls = nextBowls.map(bowl => ({
+    byType: bowl.layout && bowl.layout.positions && typeof bowl.layout.positions === "object" ? { ...bowl.layout.positions } : {}
+  }));
+  setVisibleCount(requestedVisible == null ? nextBowls.length : Math.min(nextBowls.length, requestedVisible));
+  dragState = null;
+  render();
+  return true;
+}
+
 /* ===== ALT-TEKST ===== */
 function getAltTextState() {
   return {
@@ -1555,4 +1704,13 @@ async function inlineImages(svgEl) {
     });
     img.setAttribute("href", dataUrl);
   }));
+}
+
+if (typeof window !== "undefined") {
+  window.kulerApi = {
+    createCleanState: (...args) => createCleanState(...args),
+    loadCleanState: (...args) => loadCleanState(...args)
+  };
+  window.createCleanState = createCleanState;
+  window.loadCleanState = loadCleanState;
 }
