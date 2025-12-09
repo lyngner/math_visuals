@@ -22,6 +22,30 @@ let jxgConfigured = false;
 const jxgReadyQueue = [];
 let jxgCheckScheduled = false;
 let refreshFunctionColorDefaults = () => {};
+const storageSchemaModule = (() => {
+  try {
+    if (typeof require === 'function') {
+      return require('./graftegner/storage-schema.js');
+    }
+  } catch (_) {}
+  return null;
+})();
+const {
+  STORAGE_SCHEMA_V2 = {
+    version: 2,
+    defaults: {
+      options: {
+        grid: true,
+        axisNumbers: true,
+        lockAspect: true,
+        axisLabels: { x: 'x', y: 'y' }
+      }
+    }
+  },
+  migrateToStorageV2,
+  normalizeViewArray,
+  normalizeDiffOptions
+} = storageSchemaModule || {};
 function getJXG() {
   if (JXG_INSTANCE && typeof JXG_INSTANCE === 'object') {
     return JXG_INSTANCE;
@@ -780,121 +804,41 @@ const FONT_SIZE_OPTIONS = {
 };
 const LEGACY_FONT_SIZE_ALIASES = { normal: 'medium' };
 const FONT_PARAM_KEYS = ['fontSize', 'font', 'axisFont', 'tickFont', 'curveFont'];
+const STORAGE_OPTIONS_DEFAULTS = STORAGE_SCHEMA_V2 && STORAGE_SCHEMA_V2.defaults && STORAGE_SCHEMA_V2.defaults.options
+  ? STORAGE_SCHEMA_V2.defaults.options
+  : { grid: true, axisNumbers: true, lockAspect: true, axisLabels: { x: 'x', y: 'y' } };
 const SHOW_CURVE_NAMES = params.has('showNames') ? paramBool('showNames') : true;
 const SHOW_CURVE_EXPRESSIONS = params.has('showExpr') ? paramBool('showExpr') : false;
 const SHOW_DOMAIN_MARKERS = params.has('brackets') ? paramBool('brackets') : true;
-const SHOW_AXIS_NUMBERS = params.has('axisNumbers') ? paramBool('axisNumbers') : true;
-const SHOW_GRID = params.has('grid') ? paramBool('grid') : true;
-const STORAGE_SCHEMA_VERSION = 2;
+const SHOW_AXIS_NUMBERS = params.has('axisNumbers') ? paramBool('axisNumbers') : !!STORAGE_OPTIONS_DEFAULTS.axisNumbers;
+const SHOW_GRID = params.has('grid') ? paramBool('grid') : !!STORAGE_OPTIONS_DEFAULTS.grid;
+const STORAGE_SCHEMA_VERSION = STORAGE_SCHEMA_V2.version;
 const STORAGE_V2_DEFAULTS = {
   grid: SHOW_GRID,
   axisNumbers: SHOW_AXIS_NUMBERS,
-  lockAspect: params.has('lock') ? paramBool('lock') : true,
+  lockAspect: params.has('lock') ? paramBool('lock') : (STORAGE_OPTIONS_DEFAULTS.lockAspect !== false),
   axisLabels: {
-    x: paramStr('xName', 'x'),
-    y: paramStr('yName', 'y')
+    x: paramStr('xName', (STORAGE_OPTIONS_DEFAULTS.axisLabels && STORAGE_OPTIONS_DEFAULTS.axisLabels.x) || 'x'),
+    y: paramStr('yName', (STORAGE_OPTIONS_DEFAULTS.axisLabels && STORAGE_OPTIONS_DEFAULTS.axisLabels.y) || 'y')
   }
 };
-function normalizeStorageNumber(value) {
-  const num = typeof value === 'number' ? value : Number.parseFloat(value);
-  return Number.isFinite(num) ? num : null;
-}
-function normalizeStorageView(view) {
-  if (!Array.isArray(view) || view.length < 4) return null;
-  const normalized = view.slice(0, 4).map(normalizeStorageNumber);
-  return normalized.some(entry => entry == null) ? null : normalized;
-}
-function normalizeStorageAxisLabels(labels) {
-  if (!labels || typeof labels !== 'object') return null;
-  const normalized = {};
-  if (typeof labels.x === 'string' && labels.x.trim()) {
-    normalized.x = labels.x;
-  }
-  if (typeof labels.y === 'string' && labels.y.trim()) {
-    normalized.y = labels.y;
-  }
-  return Object.keys(normalized).length ? normalized : null;
-}
-function normalizeStorageState(raw) {
-  if (!raw || typeof raw !== 'object') return null;
-  if (!Object.prototype.hasOwnProperty.call(raw, 'v')) return null;
-  if (Number(raw.v) !== STORAGE_SCHEMA_VERSION) return null;
-  const options = raw.options && typeof raw.options === 'object' ? raw.options : {};
-  return {
-    v: STORAGE_SCHEMA_VERSION,
-    code: typeof raw.code === 'string' ? raw.code : '',
-    view: normalizeStorageView(raw.view),
-    options: {
-      grid: options.grid == null ? undefined : !!options.grid,
-      axisNumbers: options.axisNumbers == null ? undefined : !!options.axisNumbers,
-      lockAspect: options.lockAspect == null ? undefined : !!options.lockAspect,
-      axisLabels: normalizeStorageAxisLabels(options.axisLabels)
-    },
-    meta: raw.meta && typeof raw.meta === 'object' ? raw.meta : {}
+const normalizeStorageView = typeof normalizeViewArray === 'function'
+  ? normalizeViewArray
+  : view => {
+    if (!Array.isArray(view) || view.length < 4) return null;
+    const normalized = view.slice(0, 4).map(value => {
+      const num = typeof value === 'number' ? value : Number.parseFloat(value);
+      return Number.isFinite(num) ? num : null;
+    });
+    return normalized.some(entry => entry == null) ? null : normalized;
   };
-}
-function migrateLegacySaveState(snapshot = {}) {
-  if (!snapshot || typeof snapshot !== 'object') return null;
-  const state = snapshot.state || snapshot.STATE || snapshot;
-  const advSnapshot = snapshot.adv || snapshot.ADV || null;
-  const defaults = snapshot.defaults || STORAGE_V2_DEFAULTS;
-  const codeCandidates = [
-    snapshot.code,
-    state && state.code,
-    snapshot.appState && snapshot.appState.simple && snapshot.appState.simple.value
-  ];
-  const code = codeCandidates.find(value => typeof value === 'string') || '';
-  const view = normalizeStorageView(
-    (state && state.view) || snapshot.view || (advSnapshot && advSnapshot.screen)
-  );
-  const options = buildStorageOptionsSnapshot(advSnapshot, defaults);
-  const meta = snapshot.meta && typeof snapshot.meta === 'object' ? { ...snapshot.meta } : {};
-
-  return {
-    v: STORAGE_SCHEMA_VERSION,
-    code,
-    view,
-    options,
-    meta
-  };
-}
-
-function normalizeImportedSaveState(raw) {
-  const normalized = normalizeStorageState(raw);
-  if (normalized) return normalized;
-  const migrated = migrateLegacySaveState(raw);
-  return normalizeStorageState(migrated);
-}
-
-const STORAGE_STATE_V2 = normalizeImportedSaveState(typeof window !== 'undefined' ? window.STATE : null)
-  || normalizeImportedSaveState(typeof window !== 'undefined' ? window.ADV : null);
-function buildStorageOptionsSnapshot(adv, defaults = STORAGE_V2_DEFAULTS) {
-  const diff = {};
-  const grid = !!(adv && adv.axis && adv.axis.grid && adv.axis.grid.show);
-  if (grid !== !!defaults.grid) {
-    diff.grid = grid;
-  }
-  const axisNumbers = !!(adv && adv.axis && adv.axis.ticks && adv.axis.ticks.showNumbers);
-  if (axisNumbers !== !!defaults.axisNumbers) {
-    diff.axisNumbers = axisNumbers;
-  }
-  const lockAspect = adv && adv.lockAspect === false ? false : true;
-  if (lockAspect !== (defaults && defaults.lockAspect === false ? false : true)) {
-    diff.lockAspect = lockAspect;
-  }
-  const labels = adv && adv.axis && adv.axis.labels ? adv.axis.labels : {};
-  const labelDiff = {};
-  if (typeof labels.x === 'string' && labels.x.trim() && labels.x !== defaults.axisLabels.x) {
-    labelDiff.x = labels.x;
-  }
-  if (typeof labels.y === 'string' && labels.y.trim() && labels.y !== defaults.axisLabels.y) {
-    labelDiff.y = labels.y;
-  }
-  if (Object.keys(labelDiff).length) {
-    diff.axisLabels = labelDiff;
-  }
-  return diff;
-}
+const migrateStorageState = raw => {
+  if (typeof migrateToStorageV2 !== 'function') return null;
+  const migrated = migrateToStorageV2(raw);
+  return migrated && migrated.v === STORAGE_SCHEMA_VERSION ? migrated : null;
+};
+const STORAGE_STATE_V2 = migrateStorageState(typeof window !== 'undefined' ? window.STATE : null)
+  || migrateStorageState(typeof window !== 'undefined' ? window.ADV : null);
 function buildStorageSnapshotV2(meta = STORAGE_STATE_V2 && STORAGE_STATE_V2.meta) {
   const view = Array.isArray(ADV.screen) && ADV.screen.length === 4 ? ADV.screen.slice(0, 4) : null;
   const safeMeta = meta && typeof meta === 'object' ? meta : {};
@@ -902,7 +846,7 @@ function buildStorageSnapshotV2(meta = STORAGE_STATE_V2 && STORAGE_STATE_V2.meta
     v: STORAGE_SCHEMA_VERSION,
     code: appState.simple.value,
     view,
-    options: buildStorageOptionsSnapshot(ADV),
+    options: typeof normalizeDiffOptions === 'function' ? normalizeDiffOptions(ADV, STORAGE_V2_DEFAULTS) : {},
     meta: safeMeta
   };
 }
@@ -7489,7 +7433,7 @@ function setupSettingsForm() {
   const axisYInputElement = g('cfgAxisY');
   const snapCheckbox = g('cfgSnap');
   const getExampleState = () => {
-    const stateV2 = typeof window !== 'undefined' ? normalizeStorageState(window.STATE) : null;
+    const stateV2 = typeof window !== 'undefined' ? migrateStorageState(window.STATE) : null;
     const baseState = stateV2
       ? buildExampleStateFromStorageV2(stateV2)
       : typeof window !== 'undefined' && window.STATE && typeof window.STATE === 'object'
@@ -10831,9 +10775,9 @@ function setupSettingsForm() {
     });
   }
   const loadCleanSaveState = rawState => {
-    const normalized = normalizeImportedSaveState(rawState)
-      || normalizeImportedSaveState({ state: rawState, adv: ADV })
-      || normalizeImportedSaveState({ adv: ADV });
+    const normalized = migrateStorageState(rawState)
+      || migrateStorageState({ state: rawState, adv: ADV })
+      || migrateStorageState({ adv: ADV });
     if (!normalized) return false;
 
     if (typeof window !== 'undefined') {
