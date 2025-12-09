@@ -91,6 +91,249 @@ function normalizeGuidelineSelection(value) {
   return GUIDELINE_OPTIONS[normalized] ? normalized : 'horizontal';
 }
 
+function sanitizeDiagramType(value, hasSecondSeries) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  const allowed = hasSecondSeries ? ['bar', 'grouped', 'stacked', 'line'] : ['bar', 'grouped', 'stacked', 'line', 'pie'];
+  return allowed.includes(normalized) ? normalized : 'bar';
+}
+
+function normalizeNumberArray(value) {
+  if (Array.isArray(value)) return value.map(v => Number(v) || 0);
+  if (typeof value === 'string') return parseNumList(value);
+  return [];
+}
+
+function normalizeLabelArray(value, desiredLength) {
+  const labels = Array.isArray(value) ? value.slice() : [];
+  const aligned = alignLength(labels, desiredLength, '');
+  return aligned.map(label => {
+    if (typeof label === 'string') return label;
+    if (label == null) return '';
+    return String(label);
+  });
+}
+
+function normalizeLockedArray(value, desiredLength) {
+  if (Array.isArray(value) && value.length) {
+    return alignLength(value.map(v => !!v), desiredLength, true);
+  }
+  return Array(desiredLength).fill(true);
+}
+
+function createCleanDiagramState() {
+  const labelInput = document.getElementById('cfgLabels');
+  const startInput1 = document.getElementById('cfgStart');
+  const startInput2 = document.getElementById('cfgStart2');
+  const answerInput1 = document.getElementById('cfgAnswer');
+  const answerInput2 = document.getElementById('cfgAnswer2');
+  const series1Input = document.getElementById('cfgSeries1');
+  const series2Input = document.getElementById('cfgSeries2');
+  const typeInput = document.getElementById('cfgType');
+  const titleInput = document.getElementById('cfgTitle');
+  const axisXInput = document.getElementById('cfgAxisXLabel');
+  const axisYInput = document.getElementById('cfgAxisYLabel');
+  const guidelineSelect = document.getElementById('cfgGuidelines');
+  const valueDisplaySelect = document.getElementById('cfgValueDisplay');
+  const pieLabelPositionSelect = document.getElementById('cfgPieLabelPosition');
+  const snapInput = document.getElementById('cfgSnap');
+  const tolInput = document.getElementById('cfgTolerance');
+  const textSizeSelect = document.getElementById('cfgFontSize');
+  const lockedField = document.getElementById('cfgLocked');
+
+  const labels = labelInput ? parseList(labelInput.value) : CFG.labels.slice();
+  const start1 = startInput1 ? parseNumList(startInput1.value) : CFG.start.slice();
+  const start2 = series2Enabled && startInput2 ? parseNumList(startInput2.value) : CFG.start2 || [];
+  const answer1 = answerInput1 ? parseNumList(answerInput1.value) : CFG.answer.slice();
+  const answer2 = series2Enabled && answerInput2 ? parseNumList(answerInput2.value) : CFG.answer2 || [];
+  const baseLength = Math.max(labels.length, start1.length, start2.length, answer1.length, answer2.length, 0);
+  const normalizedLabels = normalizeLabelArray(labels, baseLength);
+  const normalizedStart1 = alignLength(start1, baseLength, 0);
+  const normalizedStart2 = series2Enabled ? alignLength(start2, baseLength, 0) : [];
+  const normalizedAnswer1 = alignLength(answer1, baseLength, 0);
+  const normalizedAnswer2 = series2Enabled ? alignLength(answer2, baseLength, 0) : [];
+  const guidelineSelection = normalizeGuidelineSelection(
+    guidelineSelect ? guidelineSelect.value : getGuidelineSelectionFromFlags(CFG.showHorizontalGrid, CFG.showVerticalGrid)
+  );
+  const guidelineFlags = GUIDELINE_OPTIONS[guidelineSelection] || GUIDELINE_OPTIONS.horizontal;
+  const lockedRaw = lockedField ? lockedField.value.trim() : '';
+  const lockedParsed = lockedRaw ? parseNumList(lockedRaw).map(v => !(v !== 0)) : [];
+  const lockedFlags = normalizeLockedArray(lockedParsed, baseLength);
+  const hasSecondSeries = series2Enabled && (normalizedStart2.length > 0 || normalizedAnswer2.length > 0);
+  const chartType = sanitizeDiagramType(typeInput ? typeInput.value : CFG.type, hasSecondSeries);
+  const altText = altTextField ? altTextField.value : CFG.altText;
+  const textSize = sanitizeTextSize(textSizeSelect ? textSizeSelect.value : CFG.textSize);
+  const snapVal = snapInput ? parseFloat(snapInput.value) : CFG.snap;
+  const tolVal = tolInput ? parseFloat(tolInput.value) : CFG.tolerance;
+
+  return {
+    version: 1,
+    tool: { id: 'diagram', name: 'Diagram', version: 'v1' },
+    chart: {
+      type: chartType,
+      title: titleInput ? titleInput.value : CFG.title,
+      textSize,
+      valueDisplay: sanitizeValueDisplay(valueDisplaySelect ? valueDisplaySelect.value : CFG.valueDisplay),
+      pieLabelPosition: sanitizePieLabelPosition(pieLabelPositionSelect ? pieLabelPositionSelect.value : CFG.pieLabelPosition)
+    },
+    axes: {
+      x: axisXInput ? axisXInput.value : CFG.axisXLabel,
+      y: axisYInput ? axisYInput.value : CFG.axisYLabel
+    },
+    grid: {
+      horizontal: guidelineFlags.horizontal,
+      vertical: guidelineFlags.vertical
+    },
+    legend: {
+      seriesNames: [series1Input ? series1Input.value : CFG.series1, hasSecondSeries ? (series2Input ? series2Input.value : CFG.series2) : '']
+    },
+    colors: {
+      series: []
+    },
+    data: {
+      labels: normalizedLabels,
+      rows: [
+        {
+          key: 'series1',
+          name: series1Input ? series1Input.value : CFG.series1,
+          start: normalizedStart1,
+          answer: normalizedAnswer1
+        },
+        ...(hasSecondSeries
+          ? [
+              {
+                key: 'series2',
+                name: series2Input ? series2Input.value : CFG.series2,
+                start: normalizedStart2,
+                answer: normalizedAnswer2
+              }
+            ]
+          : [])
+      ],
+      locked: lockedFlags,
+      snap: Number.isFinite(snapVal) ? snapVal : CFG.snap,
+      tolerance: Number.isFinite(tolVal) ? tolVal : CFG.tolerance
+    },
+    description: {
+      text: typeof altText === 'string' ? altText : '',
+      source: typeof CFG.altTextSource === 'string' ? CFG.altTextSource : 'auto'
+    }
+  };
+}
+
+function loadCleanDiagramState(json) {
+  let state = json;
+  if (typeof state === 'string') {
+    try {
+      state = JSON.parse(state);
+    } catch (_) {
+      return false;
+    }
+  }
+  if (!state || typeof state !== 'object') return false;
+
+  const chart = state.chart || {};
+  const data = state.data || {};
+  const axes = state.axes || {};
+  const grid = state.grid || {};
+  const legend = state.legend || {};
+  const description = state.description || {};
+  const rows = Array.isArray(data.rows) ? data.rows : Array.isArray(data.series) ? data.series : [];
+  const primary = rows[0] || {};
+  const secondary = rows[1] || {};
+  const rawLabels = Array.isArray(data.labels) ? data.labels : [];
+  const start1 = normalizeNumberArray(primary.start || primary.values || data.start || []);
+  const answer1 = normalizeNumberArray(primary.answer || primary.answers || data.answer || []);
+  const start2 = normalizeNumberArray(secondary.start || secondary.values || data.start2 || []);
+  const answer2 = normalizeNumberArray(secondary.answer || secondary.answers || data.answer2 || []);
+  const baseLength = Math.max(rawLabels.length, start1.length, answer1.length, start2.length, answer2.length, 0);
+  const labels = normalizeLabelArray(rawLabels, baseLength);
+  const locked = normalizeLockedArray(data.locked || state.locked, baseLength);
+  const hasSecondSeries = !!(
+    (secondary && Object.keys(secondary).length) ||
+    start2.length ||
+    answer2.length ||
+    (legend.seriesNames && legend.seriesNames[1])
+  );
+  const type = sanitizeDiagramType(chart.type || state.type || CFG.type, hasSecondSeries);
+  const textSize = sanitizeTextSize(chart.textSize || chart.fontSize || CFG.textSize);
+  const altText = typeof description.text === 'string' ? description.text : CFG.altText;
+  const altTextSource = typeof description.source === 'string' ? description.source : CFG.altTextSource || 'auto';
+  const guidelineSelection = getGuidelineSelectionFromFlags(
+    sanitizeGridFlag(grid.horizontal, CFG.showHorizontalGrid),
+    sanitizeGridFlag(grid.vertical, CFG.showVerticalGrid)
+  );
+
+  const settingsContainer = document.querySelector('.settings');
+  if (settingsContainer && typeof settingsContainer.reset === 'function') {
+    settingsContainer.reset();
+  }
+
+  const typeInput = document.getElementById('cfgType');
+  const titleInput = document.getElementById('cfgTitle');
+  const labelInput = document.getElementById('cfgLabels');
+  const startInput1 = document.getElementById('cfgStart');
+  const startInput2 = document.getElementById('cfgStart2');
+  const answerInput1 = document.getElementById('cfgAnswer');
+  const answerInput2 = document.getElementById('cfgAnswer2');
+  const series1Input = document.getElementById('cfgSeries1');
+  const series2Input = document.getElementById('cfgSeries2');
+  const axisXInput = document.getElementById('cfgAxisXLabel');
+  const axisYInput = document.getElementById('cfgAxisYLabel');
+  const valueDisplaySelect = document.getElementById('cfgValueDisplay');
+  const pieLabelPositionSelect = document.getElementById('cfgPieLabelPosition');
+  const snapInput = document.getElementById('cfgSnap');
+  const tolInput = document.getElementById('cfgTolerance');
+  const textSizeSelect = document.getElementById('cfgFontSize');
+  const lockedField = document.getElementById('cfgLocked');
+  const guidelineSelect = document.getElementById('cfgGuidelines');
+
+  if (typeInput) typeInput.value = type;
+  if (titleInput) titleInput.value = typeof chart.title === 'string' ? chart.title : CFG.title;
+  if (labelInput) labelInput.value = labels.join(',');
+  if (startInput1) startInput1.value = formatNumberList(alignLength(start1, baseLength, 0));
+  if (answerInput1) answerInput1.value = formatNumberList(alignLength(answer1, baseLength, 0));
+  if (series1Input) series1Input.value = typeof primary.name === 'string' ? primary.name : (legend.seriesNames && legend.seriesNames[0]) || CFG.series1;
+
+  series2Enabled = hasSecondSeries;
+  if (series2Enabled) {
+    if (series2Fields) series2Fields.style.display = '';
+    if (addSeriesBtn) addSeriesBtn.style.display = 'none';
+    if (removeSeriesBtn) removeSeriesBtn.style.display = '';
+  } else {
+    if (series2Fields) series2Fields.style.display = 'none';
+    if (addSeriesBtn) addSeriesBtn.style.display = '';
+    if (removeSeriesBtn) removeSeriesBtn.style.display = 'none';
+  }
+
+  const alignedStart2 = series2Enabled ? alignLength(start2, baseLength, 0) : [];
+  const alignedAnswer2 = series2Enabled ? alignLength(answer2, baseLength, 0) : [];
+  if (series2Input) series2Input.value = series2Enabled ? (typeof secondary.name === 'string' ? secondary.name : (legend.seriesNames && legend.seriesNames[1]) || CFG.series2 || '') : '';
+  if (startInput2) startInput2.value = series2Enabled ? formatNumberList(alignedStart2) : '';
+  if (answerInput2) answerInput2.value = series2Enabled ? formatNumberList(alignedAnswer2) : '';
+
+  if (axisXInput) axisXInput.value = typeof axes.x === 'string' ? axes.x : CFG.axisXLabel;
+  if (axisYInput) axisYInput.value = typeof axes.y === 'string' ? axes.y : CFG.axisYLabel;
+  if (valueDisplaySelect) valueDisplaySelect.value = sanitizeValueDisplay(chart.valueDisplay || CFG.valueDisplay);
+  if (pieLabelPositionSelect) pieLabelPositionSelect.value = sanitizePieLabelPosition(chart.pieLabelPosition || CFG.pieLabelPosition);
+  if (snapInput) snapInput.value = Number.isFinite(data.snap) ? formatNumber(data.snap) : formatNumber(CFG.snap);
+  if (tolInput) tolInput.value = Number.isFinite(data.tolerance) ? formatNumber(data.tolerance) : formatNumber(CFG.tolerance);
+  if (textSizeSelect) textSizeSelect.value = textSize;
+  if (guidelineSelect) guidelineSelect.value = normalizeGuidelineSelection(guidelineSelection);
+
+  if (lockedField) {
+    const unlockFlags = alignLength(locked, baseLength, true).map(v => (v ? 0 : 1));
+    const hasUnlocked = unlockFlags.some(flag => flag === 1);
+    lockedField.value = hasUnlocked ? unlockFlags.join(',') : '';
+  }
+
+  if (altTextField) altTextField.value = typeof altText === 'string' ? altText : '';
+  CFG.altText = typeof altText === 'string' ? altText : '';
+  CFG.altTextSource = typeof altTextSource === 'string' ? altTextSource : 'auto';
+
+  applyCfg();
+  return true;
+}
+
 function getGuidelineSelectionFromFlags(horizontal, vertical) {
   if (horizontal && vertical) return 'both';
   if (horizontal) return 'horizontal';
@@ -158,6 +401,29 @@ const LEGACY_VALUE_COLOR = '#111111';
 const LEGACY_PIE_LABEL_COLOR = '#333333';
 const LEGACY_LEGEND_BACKGROUND = '#ffffff';
 const LEGACY_LEGEND_TEXT_COLOR = '#000000';
+
+// Clean diagram state schema (v1)
+// {
+//   version: 1,
+//   tool: { id: 'diagram', name: 'Diagram', version: 'v1' },
+//   chart: { type, title, textSize, valueDisplay, pieLabelPosition },
+//   axes: { x, y },
+//   grid: { horizontal, vertical },
+//   legend: { seriesNames: [string] },
+//   colors: { series: [string] },
+//   data: {
+//     labels: [string],
+//     rows: [
+//       { key: 'series1', name, start: [number], answer: [number] },
+//       { key: 'series2', name, start: [number], answer: [number] }
+//     ],
+//     locked: [boolean],
+//     snap: number,
+//     tolerance: number
+//   },
+//   description: { text, source }
+// }
+// Unknown fields are ignored when loading to remain backward compatible.
 
 const X_AXIS_ARROW_SVG_TEMPLATE =
   '<svg width="17" height="30" viewBox="0 0 17 30" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 2 L15 15 L2 28" stroke="{{COLOR}}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -963,6 +1229,10 @@ function initFromCfg() {
   }
   updateStatus(statusMessage, 'info');
   scheduleAltTextUpdate('config');
+}
+
+function drawDiagram() {
+  initFromCfg();
 }
 
 /* =========================================================
