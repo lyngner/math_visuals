@@ -10881,6 +10881,10 @@ function setupSettingsForm() {
   };
   if (typeof window !== 'undefined') {
     window.loadCleanSaveState = loadCleanSaveState;
+    window.graftegnerApi = {
+      createCleanState: (...args) => createCleanSaveState(...args),
+      loadCleanState: (...args) => loadCleanSaveState(...args)
+    };
   }
   refreshFunctionColorDefaults = refreshFunctionColorDefaultsLocal;
   root.addEventListener('change', apply);

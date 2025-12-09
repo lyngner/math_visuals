@@ -6098,6 +6098,10 @@ if (typeof window !== "undefined") {
   window.renderCombined = renderCombined;
   window.createCleanNKantSaveState = createCleanNKantSaveState;
   window.loadCleanNKantState = loadCleanNKantState;
+  window.nkantApi = {
+    createCleanState: (...args) => createCleanNKantSaveState(...args),
+    loadCleanState: (...args) => loadCleanNKantState(...args)
+  };
 }
 
 /* ---------- GEOMETRI ---------- */

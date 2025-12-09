@@ -3564,3 +3564,10 @@ async function downloadPNG(svgEl, filename, scale = 2, bg = '#fff') {
   };
   img.src = url;
 }
+
+if (typeof window !== 'undefined') {
+  window.diagramApi = {
+    createCleanState: (...args) => createCleanDiagramState(...args),
+    loadCleanState: (...args) => loadCleanDiagramState(...args)
+  };
+}
