@@ -7249,6 +7249,20 @@ function setupSettingsForm() {
       : !!fallback
   );
   let lastLoadedExampleIndex = null;
+  let pendingExampleScreenReset = false;
+  const resetScreenStateToDefault = (applyBoundingBox = false) => {
+    const defaultScreen = DEFAULT_SCREEN.slice(0, 4);
+    ADV.screen = defaultScreen.slice(0, 4);
+    LAST_COMPUTED_SCREEN = null;
+    LAST_SCREEN_SOURCE = null;
+    START_SCREEN = null;
+    LAST_FUNCTION_VIEW_SCREEN = null;
+    if (applyBoundingBox && appState.board && typeof appState.board.setBoundingBox === 'function') {
+      try {
+        appState.board.setBoundingBox(toBB(defaultScreen), false);
+      } catch (_) {}
+    }
+  };
   const clearManualScreenState = state => {
     if (!state || typeof state !== 'object') return false;
     if (state.screenSource === 'manual' || state.screenSource == null) {
@@ -7267,10 +7281,17 @@ function setupSettingsForm() {
       const windowState = typeof window !== 'undefined' && window.STATE && typeof window.STATE === 'object'
         ? window.STATE
         : null;
-      clearManualScreenState(windowState);
+      if (windowState && typeof windowState === 'object') {
+        windowState.screen = null;
+        windowState.screenSource = null;
+      }
       clearManualScreenState(EXAMPLE_STATE);
-      LAST_COMPUTED_SCREEN = null;
-      LAST_SCREEN_SOURCE = null;
+      if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
+        EXAMPLE_STATE.screen = null;
+        EXAMPLE_STATE.screenSource = null;
+      }
+      resetScreenStateToDefault();
+      pendingExampleScreenReset = true;
     }
     if (normalizedIndex !== null) {
       lastLoadedExampleIndex = normalizedIndex;
@@ -7278,6 +7299,11 @@ function setupSettingsForm() {
   };
   const applyExampleStateToControls = () => {
     const exampleState = getExampleState();
+    if (pendingExampleScreenReset) {
+      pendingExampleScreenReset = false;
+      const hasScreen = exampleState && Array.isArray(exampleState.screen) && exampleState.screen.length === 4;
+      if (!hasScreen) resetScreenStateToDefault(true);
+    }
     hydrateCurveLabelStateFromExample();
     hydrateAxisLabelStateFromExample();
     const axisLabelConfig = exampleState && typeof exampleState.axisLabels === 'object'
