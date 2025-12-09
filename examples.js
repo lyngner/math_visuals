@@ -7673,37 +7673,72 @@
       }
       return { applied: false, description: null };
     };
+    const getActiveCleanStateLoader = () => {
+      if (typeof window === 'undefined') return null;
+      const candidates = [window.graftegnerApi, window.nkantApi, window.diagramApi];
+      for (const candidate of candidates) {
+        if (candidate && typeof candidate.loadCleanState === 'function') {
+          return candidate.loadCleanState;
+        }
+      }
+      return null;
+    };
 
-    const diagramHydration = hydrateDiagramExample(ex);
+    const cfg = ex.config && typeof ex.config === 'object' ? ex.config : {};
+    const versionedExampleData = cfg && typeof cfg === 'object' && cfg.v === 1 ? cfg : null;
+    const diagramHydration = versionedExampleData ? { applied: false, description: null } : hydrateDiagramExample(ex);
+    const descriptionFromVersioned = (() => {
+      if (!versionedExampleData) return null;
+      const desc = versionedExampleData.desc && typeof versionedExampleData.desc === 'object' ? versionedExampleData.desc : {};
+      if (typeof desc.text === 'string' && desc.text.trim()) {
+        return desc.text;
+      }
+      if (typeof versionedExampleData.description === 'string' && versionedExampleData.description.trim()) {
+        return versionedExampleData.description;
+      }
+      return null;
+    })();
     const description =
-      diagramHydration.description != null
+      descriptionFromVersioned != null
+        ? normalizeDescriptionString(descriptionFromVersioned)
+        : diagramHydration.description != null
         ? normalizeDescriptionString(diagramHydration.description)
         : extractDescriptionFromExample(ex);
     setDescriptionValue(description);
     if (currentAppMode === 'task') {
       ensureTaskModeDescriptionRendered();
     }
-    const cfg = ex.config && typeof ex.config === 'object' ? ex.config : {};
     let applied = false;
     const providedBindings = new Set();
-    const shouldApplyBindings = !skipReloadIfActive && !diagramHydration.applied;
-    if (shouldApplyBindings) {
-      for (const name of BINDING_NAMES) {
-        const value = cfg[name];
-        const normalizedValue = value != null ? value : cfg[String(name).toLowerCase()];
-        if (normalizedValue != null) {
-          applyBinding(name, normalizedValue);
-          providedBindings.add(name);
-          applied = true;
+    const shouldApplyBindings = !skipReloadIfActive && !diagramHydration.applied && !versionedExampleData;
+    if (versionedExampleData) {
+      const loader = getActiveCleanStateLoader();
+      if (typeof loader === 'function') {
+        try {
+          applied = !!loader(versionedExampleData);
+        } catch (_) {
+          applied = false;
         }
       }
-      if (!providedBindings.has('STATE')) {
-        applyBinding('STATE', {});
+    } else {
+      if (shouldApplyBindings) {
+        for (const name of BINDING_NAMES) {
+          const value = cfg[name];
+          const normalizedValue = value != null ? value : cfg[String(name).toLowerCase()];
+          if (normalizedValue != null) {
+            applyBinding(name, normalizedValue);
+            providedBindings.add(name);
+            applied = true;
+          }
+        }
+        if (!providedBindings.has('STATE')) {
+          applyBinding('STATE', {});
+        }
       }
-    }
-    if (diagramHydration.applied) {
-      applied = true;
-      providedBindings.add('CFG');
+      if (diagramHydration.applied) {
+        applied = true;
+        providedBindings.add('CFG');
+      }
     }
     if (applied || skipReloadIfActive) {
       currentExampleIndex = index;
