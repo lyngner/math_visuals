@@ -89,10 +89,10 @@
 .axis{stroke:var(--diagram-axis-color);stroke-width:3.5;fill:none}
 .axis-group{pointer-events:none}
 .axis-arrow{fill:none;stroke:var(--diagram-axis-color);stroke-width:3.5;stroke-linecap:round;stroke-linejoin:round}
-.axis-label-text{fill:var(--diagram-axis-text-color);font-weight:600;letter-spacing:.02em;font-size:calc(var(--diagram-text-scale, 1) * 18px);dominant-baseline:middle}
+.axis-label-text{fill:var(--diagram-axis-text-color);font-weight:600;letter-spacing:.02em;font-size:calc(var(--diagram-text-scale, 1) * 20px);dominant-baseline:middle}
 .gridline{stroke:var(--diagram-grid-color);stroke-width:1;opacity:.6}
-.yTickText{fill:var(--diagram-text-color);font-size:calc(var(--diagram-text-scale, 1) * 14px);text-anchor:end}
-.xLabel{fill:var(--diagram-text-color);font-size:calc(var(--diagram-text-scale, 1) * 14px);text-anchor:middle}
+.yTickText{fill:var(--diagram-text-color);font-size:calc(var(--diagram-text-scale, 1) * 20px);text-anchor:end}
+.xLabel{fill:var(--diagram-text-color);font-size:calc(var(--diagram-text-scale, 1) * 20px);text-anchor:middle}
 
 /* Søyler + vurderingsrammer */
 .bar{stroke:var(--diagram-bar-stroke);stroke-width:4;opacity:1;fill-opacity:1}
@@ -111,12 +111,12 @@
 .line-dot.series1{fill:var(--diagram-line-series-1)}
 
 /* Legend */
-.legend-root{font-size:calc(var(--diagram-text-scale, 1) * 16px)}
+.legend-root{font-size:calc(var(--diagram-text-scale, 1) * 20px)}
 .legend-frame{fill:var(--diagram-legend-background,#ffffff);stroke:var(--diagram-legend-border,var(--diagram-legend-text-color,#000000));stroke-width:1.5}
 .legendbox.series0{fill:var(--diagram-series-0)}
 .legendbox.series1{fill:var(--diagram-series-1)}
-.legendtext{fill:var(--diagram-legend-text-color,#000000);font-size:calc(var(--diagram-text-scale, 1) * 16px)}
-.legend-separator{fill:var(--diagram-legend-text-color,#000000);font-size:calc(var(--diagram-text-scale, 1) * 16px)}
+.legendtext{fill:var(--diagram-legend-text-color,#000000);font-size:calc(var(--diagram-text-scale, 1) * 20px)}
+.legend-separator{fill:var(--diagram-legend-text-color,#000000);font-size:calc(var(--diagram-text-scale, 1) * 20px)}
 
 /* Håndtak */
 .handle{cursor:grab;user-select:none;touch-action:none}
@@ -125,9 +125,9 @@
 /* Sektordiagram */
 .pie-slice{stroke:var(--diagram-pie-stroke);stroke-width:2;cursor:pointer}
 .pie-divider{stroke:var(--diagram-pie-divider);stroke-width:2;stroke-dasharray:6 6;opacity:.6}
-.pie-label{fill:var(--diagram-pie-label-color);font-size:calc(var(--diagram-text-scale, 1) * 16px);font-weight:600;pointer-events:none}
+.pie-label{fill:var(--diagram-pie-label-color);font-size:calc(var(--diagram-text-scale, 1) * 20px);font-weight:600;pointer-events:none}
 .pie-label--inside{fill:var(--diagram-pie-label-inside-color);text-shadow:0 1px 2px rgba(0,0,0,.4)}
-.pie-label__value{font-size:calc(var(--diagram-text-scale, 1) * 14px);font-weight:400;pointer-events:none}
+.pie-label__value{font-size:calc(var(--diagram-text-scale, 1) * 20px);font-weight:400;pointer-events:none}
 .pie-slice-0{fill:var(--diagram-pie-0)}
 .pie-slice-1{fill:var(--diagram-pie-1)}
 .pie-slice-2{fill:var(--diagram-pie-2)}
@@ -156,7 +156,7 @@
 .a11y{cursor:ns-resize;fill:transparent;stroke:none}
 .a11y:focus{outline:none;stroke:var(--diagram-focus-outline);stroke-width:3}
 
-.xAxisLabel{fill:var(--diagram-text-color);font-size:calc(var(--diagram-text-scale, 1) * 18px);text-anchor:middle}
+.xAxisLabel{fill:var(--diagram-text-color);font-size:calc(var(--diagram-text-scale, 1) * 20px);text-anchor:middle}
 
 .alt-text{display:flex;flex-direction:column;gap:8px;margin-top:4px}
 .alt-text label{font-size:13px;color:#4b5563;font-weight:600}

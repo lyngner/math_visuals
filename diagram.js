@@ -39,9 +39,9 @@ function sanitizePieLabelPosition(value) {
   return PIE_LABEL_POSITIONS.includes(normalized) ? normalized : 'outside';
 }
 const TEXT_SIZE_SCALE = {
-  large: 1.5,
+  large: 1.2,
   normal: 1,
-  small: 0.5
+  small: 0.8
 };
 function sanitizeTextSize(value) {
   if (typeof value !== 'string') return 'normal';
