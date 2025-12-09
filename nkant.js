@@ -5273,6 +5273,99 @@ function createCleanNKantSaveState() {
     desc
   };
 }
+
+function loadCleanNKantState(rawState) {
+  const normalized = rawState && typeof rawState === 'object'
+    ? (rawState.state && typeof rawState.state === 'object' ? rawState.state : rawState)
+    : null;
+  if (!normalized) return false;
+
+  const opts = normalized.opt || {};
+  const defaults = {
+    sides: opts.defaults && typeof opts.defaults.sides === 'string' ? opts.defaults.sides : DEFAULT_GLOBAL_DEFAULTS.sides,
+    angles: opts.defaults && typeof opts.defaults.angles === 'string' ? opts.defaults.angles : DEFAULT_GLOBAL_DEFAULTS.angles
+  };
+
+  const savedFigures = Array.isArray(normalized.figures) ? normalized.figures.slice(0, 4) : [];
+  const figures = savedFigures.map((fig, idx) => {
+    const specText = fig && typeof fig.spec === 'string' ? fig.spec : '';
+    const entry = createDefaultFigureState(idx, specText, defaults);
+
+    if (fig && typeof fig.color === 'string' && fig.color.trim()) {
+      entry.color = fig.color.trim();
+    }
+
+    if (fig && fig.labels && typeof fig.labels === 'object') {
+      const { labels } = fig;
+      if (labels.sides && typeof labels.sides === 'object') {
+        if (labels.sides.mode && typeof labels.sides.mode === 'object') {
+          Object.entries(labels.sides.mode).forEach(([key, value]) => {
+            if (typeof value === 'string' && entry.sides && Object.prototype.hasOwnProperty.call(entry.sides, key)) {
+              entry.sides[key] = value;
+            }
+          });
+        }
+        if (labels.sides.text && typeof labels.sides.text === 'object') {
+          Object.entries(labels.sides.text).forEach(([key, value]) => {
+            if (typeof value === 'string' && entry.sides && Object.prototype.hasOwnProperty.call(entry.sides, key)) {
+              entry.sides[key] = value;
+            }
+          });
+        }
+      }
+      if (labels.angles && typeof labels.angles === 'object') {
+        if (labels.angles.mode && typeof labels.angles.mode === 'object') {
+          Object.entries(labels.angles.mode).forEach(([key, value]) => {
+            if (typeof value === 'string' && entry.angles && Object.prototype.hasOwnProperty.call(entry.angles, key)) {
+              entry.angles[key] = value;
+            }
+          });
+        }
+        if (labels.angles.text && typeof labels.angles.text === 'object') {
+          Object.entries(labels.angles.text).forEach(([key, value]) => {
+            if (typeof value === 'string' && entry.angles && Object.prototype.hasOwnProperty.call(entry.angles, key)) {
+              entry.angles[key] = value;
+            }
+          });
+        }
+      }
+    }
+
+    if (fig && fig.anchor != null) {
+      entry.anchor = fig.anchor;
+    }
+
+    return entry;
+  });
+
+  const labelAdjustments = opts.labels && typeof opts.labels === 'object' ? { ...opts.labels } : {};
+
+  updateState(state => {
+    state.textSize = sanitizeTextSize(opts.textSize !== undefined ? opts.textSize : DEFAULT_STATE.textSize);
+    state.rotateText = opts.rotateText !== undefined ? !!opts.rotateText : DEFAULT_STATE.rotateText !== false;
+    state.defaults = defaults;
+    state.layout = typeof opts.layout === 'string' && opts.layout.trim() ? opts.layout.trim() : DEFAULT_STATE.layout;
+    state.labelAdjustments = labelAdjustments;
+    state.figures = figures;
+    syncSpecsTextFromFigures();
+
+    if (normalized.desc && typeof normalized.desc === 'object') {
+      const { text, source } = normalized.desc;
+      state.altText = typeof text === 'string' ? text : '';
+      state.altTextSource = source === 'manual' ? 'manual' : 'auto';
+    }
+  }, { onUpdate: applyStateToUI });
+
+  if (normalized.view && typeof normalized.view === 'object') {
+    const jobs = Array.isArray(normalized.view.jobs) ? normalized.view.jobs : [];
+    const layoutMode = typeof normalized.view.layoutMode === 'string' ? normalized.view.layoutMode : STATE.layout || 'grid';
+    const count = typeof normalized.view.count === 'number' ? normalized.view.count : jobs.length;
+    lastRenderSummary = { layoutMode, count, jobs };
+  }
+
+  maybeRefreshAltText('load');
+  return true;
+}
 async function downloadSVG(svgEl, filename) {
   const suggestedName = typeof filename === 'string' && filename ? filename : 'nkant.svg';
   const data = svgToString(svgEl);
@@ -5981,6 +6074,7 @@ if (typeof window !== "undefined") {
   window.render = applyExamplesConfig;
   window.renderCombined = renderCombined;
   window.createCleanNKantSaveState = createCleanNKantSaveState;
+  window.loadCleanNKantState = loadCleanNKantState;
 }
 
 /* ---------- GEOMETRI ---------- */
