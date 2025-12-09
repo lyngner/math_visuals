@@ -4979,17 +4979,17 @@ const EXPORT_BASE_SIZE = 800;
 
 function getNormalizedExportDimensions(svgEl) {
   const vb = svgEl && svgEl.viewBox ? svgEl.viewBox.baseVal : null;
-  const width = (vb === null || vb === void 0 ? void 0 : vb.width) || svgEl.clientWidth || EXPORT_BASE_SIZE;
-  const height = (vb === null || vb === void 0 ? void 0 : vb.height) || svgEl.clientHeight || EXPORT_BASE_SIZE;
+  const width = Math.max((vb === null || vb === void 0 ? void 0 : vb.width) || svgEl.clientWidth || EXPORT_BASE_SIZE, 1);
+  const height = Math.max((vb === null || vb === void 0 ? void 0 : vb.height) || svgEl.clientHeight || EXPORT_BASE_SIZE, 1);
   const maxDim = Math.max(width, height, 1);
   const scale = EXPORT_BASE_SIZE / maxDim;
   const normalizedWidth = width * scale;
   const normalizedHeight = height * scale;
   return {
-    width: EXPORT_BASE_SIZE,
-    height: EXPORT_BASE_SIZE,
-    offsetX: (EXPORT_BASE_SIZE - normalizedWidth) / 2,
-    offsetY: (EXPORT_BASE_SIZE - normalizedHeight) / 2,
+    width: normalizedWidth,
+    height: normalizedHeight,
+    offsetX: 0,
+    offsetY: 0,
     scale
   };
 }
@@ -5042,12 +5042,6 @@ function svgToString(svgEl) {
   const removeSelector = '[data-ignore-export="true"], .label-rotation-handle';
   const removable = clone.querySelectorAll(removeSelector);
   removable.forEach(el => el.remove());
-  const exportLabels = clone.querySelectorAll('text[data-label-key]');
-  exportLabels.forEach(el => {
-    if (!el.getAttribute('font-style')) {
-      el.setAttribute('font-style', 'italic');
-    }
-  });
   const selectedLabels = clone.querySelectorAll('.label-selected');
   selectedLabels.forEach(el => el.classList.remove('label-selected'));
   const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
