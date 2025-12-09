@@ -9353,6 +9353,10 @@ function setupSettingsForm() {
     ADV.screen = DEFAULT_SCREEN.slice(0, 4);
     LAST_COMPUTED_SCREEN = DEFAULT_SCREEN.slice(0, 4);
     LAST_SCREEN_SOURCE = 'manual';
+    if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
+      EXAMPLE_STATE.screen = null;
+      EXAMPLE_STATE.screenSource = 'manual';
+    }
     if (appState.board && typeof appState.board.setBoundingBox === 'function') {
       try {
         appState.board.setBoundingBox(toBB(DEFAULT_SCREEN), false);
@@ -9572,6 +9576,15 @@ function setupSettingsForm() {
       hydrateCurveLabelStateFromExample();
       resetScreenStateForExample();
       fillFormFromSimple(window.SIMPLE);
+      if (screenInput && (!EXAMPLE_STATE || !Array.isArray(EXAMPLE_STATE.screen) || EXAMPLE_STATE.screen.length !== 4)) {
+        const formattedDefault = formatScreenForInput(DEFAULT_SCREEN);
+        if (screenInput.value !== formattedDefault) {
+          screenInput.value = formattedDefault;
+        }
+        if (screenInput.defaultValue !== formattedDefault) {
+          screenInput.defaultValue = formattedDefault;
+        }
+      }
       apply();
     };
     const scheduleExampleHydration = () => {
