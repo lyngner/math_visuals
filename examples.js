@@ -8332,15 +8332,28 @@
       }
       const hasConfig = payload.config && typeof payload.config === 'object';
       const hasState = payload.state && typeof payload.state === 'object';
-      if (!hasConfig && !hasState) {
-        const fallback = collectCurrentConfig();
-        payload.config = fallback && fallback.config && typeof fallback.config === 'object' ? fallback.config : {};
-        if (!Object.prototype.hasOwnProperty.call(payload, 'svg')) {
-          payload.svg = fallback && typeof fallback.svg === 'string' ? fallback.svg : '';
+      let fallback = null;
+      const getFallbackConfig = () => {
+        if (!fallback) fallback = collectCurrentConfig();
+        return fallback;
+      };
+      if (!hasConfig) {
+        if (hasState) {
+          payload.config = { state: payload.state };
+        } else {
+          const fallbackConfig = getFallbackConfig();
+          payload.config = fallbackConfig && fallbackConfig.config && typeof fallbackConfig.config === 'object'
+            ? fallbackConfig.config
+            : {};
         }
-        if (!Object.prototype.hasOwnProperty.call(payload, 'description')) {
-          payload.description = fallback ? fallback.description : getDescriptionValue();
-        }
+      }
+      if (!Object.prototype.hasOwnProperty.call(payload, 'svg')) {
+        const fallbackConfig = getFallbackConfig();
+        payload.svg = fallbackConfig && typeof fallbackConfig.svg === 'string' ? fallbackConfig.svg : '';
+      }
+      if (!Object.prototype.hasOwnProperty.call(payload, 'description')) {
+        const fallbackConfig = getFallbackConfig();
+        payload.description = fallbackConfig ? fallbackConfig.description : getDescriptionValue();
       }
       return payload;
     }
