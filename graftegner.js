@@ -6751,6 +6751,65 @@ function ensureAxisArrowsInSvgClone(node) {
   });
 }
 
+const EXPORT_BASE_SIZE = 800;
+
+function getNormalizedBoardExportDimensions(width, height) {
+  const safeWidth = Number.isFinite(width) && width > 0 ? width : EXPORT_BASE_SIZE;
+  const safeHeight = Number.isFinite(height) && height > 0 ? height : EXPORT_BASE_SIZE;
+  const maxDim = Math.max(safeWidth, safeHeight, 1);
+  const scale = EXPORT_BASE_SIZE / maxDim;
+  const normalizedWidth = safeWidth * scale;
+  const normalizedHeight = safeHeight * scale;
+  return {
+    width: EXPORT_BASE_SIZE,
+    height: EXPORT_BASE_SIZE,
+    offsetX: (EXPORT_BASE_SIZE - normalizedWidth) / 2,
+    offsetY: (EXPORT_BASE_SIZE - normalizedHeight) / 2,
+    scale
+  };
+}
+
+function normalizeFontSizesForExport(node, scale) {
+  if (!node || !Number.isFinite(scale) || scale === 1) return;
+  const normalizeSize = el => {
+    const attr = el.getAttribute('font-size');
+    let size = attr && attr.trim() ? parseFloat(attr) : NaN;
+    if (!Number.isFinite(size) && typeof window !== 'undefined' && typeof getComputedStyle === 'function') {
+      size = parseFloat(getComputedStyle(el).fontSize);
+    }
+    if (Number.isFinite(size) && size > 0) {
+      el.setAttribute('font-size', `${size / scale}px`);
+    }
+  };
+  node.querySelectorAll('text, tspan').forEach(normalizeSize);
+}
+
+function normalizeBoardSvgForExport(node, dims) {
+  if (!node || !dims) return dims;
+  const doc = node.ownerDocument || (typeof document !== 'undefined' ? document : null);
+  const wrapper = doc ? doc.createElementNS('http://www.w3.org/2000/svg', 'g') : null;
+  if (wrapper) {
+    wrapper.setAttribute('transform', `translate(${dims.offsetX} ${dims.offsetY}) scale(${dims.scale})`);
+    while (node.firstChild) {
+      wrapper.appendChild(node.firstChild);
+    }
+    node.appendChild(wrapper);
+  }
+  if (doc) {
+    const rect = doc.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', '0');
+    rect.setAttribute('y', '0');
+    rect.setAttribute('width', String(dims.width));
+    rect.setAttribute('height', String(dims.height));
+    rect.setAttribute('fill', '#ffffff');
+    node.insertBefore(rect, node.firstChild);
+  }
+  node.setAttribute('width', String(dims.width));
+  node.setAttribute('height', String(dims.height));
+  node.setAttribute('viewBox', `0 0 ${dims.width} ${dims.height}`);
+  return dims;
+}
+
 function cloneBoardSvgRoot() {
   if (!appState.board || !appState.board.renderer || !appState.board.renderer.svgRoot) return null;
   const width = appState.board.canvasWidth;
@@ -6780,7 +6839,10 @@ function cloneBoardSvgRoot() {
     rect.setAttribute('fill', '#ffffff');
     node.insertBefore(rect, node.firstChild);
   }
-  return { node, width, height };
+  const exportDims = getNormalizedBoardExportDimensions(width, height);
+  normalizeBoardSvgForExport(node, exportDims);
+  normalizeFontSizesForExport(node, exportDims.scale);
+  return { node, width: exportDims.width, height: exportDims.height };
 }
 function serializeBoardSvg(clone) {
   if (!clone || !clone.node) return '';

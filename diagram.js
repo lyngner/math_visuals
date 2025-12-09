@@ -2919,12 +2919,72 @@ function isCorrect(vs, ans, tol) {
   if (vs.length !== ans.length) return false;
   return vs.every((v, i) => Math.abs(v - ans[i]) <= tol);
 }
+const EXPORT_BASE_SIZE = 800;
+
+function getNormalizedExportDimensions(svgEl) {
+  const vb = svgEl && svgEl.viewBox ? svgEl.viewBox.baseVal : null;
+  const width = (vb === null || vb === void 0 ? void 0 : vb.width) || svgEl.clientWidth || EXPORT_BASE_SIZE;
+  const height = (vb === null || vb === void 0 ? void 0 : vb.height) || svgEl.clientHeight || EXPORT_BASE_SIZE;
+  const maxDim = Math.max(width, height, 1);
+  const scale = EXPORT_BASE_SIZE / maxDim;
+  const normalizedWidth = width * scale;
+  const normalizedHeight = height * scale;
+  return {
+    width: EXPORT_BASE_SIZE,
+    height: EXPORT_BASE_SIZE,
+    offsetX: (EXPORT_BASE_SIZE - normalizedWidth) / 2,
+    offsetY: (EXPORT_BASE_SIZE - normalizedHeight) / 2,
+    scale
+  };
+}
+
+function normalizeFontSizesForExport(clone, scale) {
+  if (!clone || !Number.isFinite(scale) || scale === 1) return;
+  const normalizeSize = node => {
+    const attr = node.getAttribute('font-size');
+    let size = attr && attr.trim() ? parseFloat(attr) : NaN;
+    if (!Number.isFinite(size) && typeof window !== 'undefined' && typeof getComputedStyle === 'function') {
+      size = parseFloat(getComputedStyle(node).fontSize);
+    }
+    if (Number.isFinite(size) && size > 0) {
+      node.setAttribute('font-size', `${size / scale}px`);
+    }
+  };
+  clone.querySelectorAll('text, tspan').forEach(normalizeSize);
+}
+
+function normalizeSvgForExport(clone, dims) {
+  if (!clone || !dims) return;
+  const doc = clone.ownerDocument || (typeof document !== 'undefined' ? document : null);
+  const wrapper = doc ? doc.createElementNS('http://www.w3.org/2000/svg', 'g') : null;
+  if (wrapper) {
+    wrapper.setAttribute('transform', `translate(${dims.offsetX} ${dims.offsetY}) scale(${dims.scale})`);
+    while (clone.firstChild) {
+      wrapper.appendChild(clone.firstChild);
+    }
+    clone.appendChild(wrapper);
+  }
+  if (doc) {
+    const background = doc.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    background.setAttribute('x', '0');
+    background.setAttribute('y', '0');
+    background.setAttribute('width', String(dims.width));
+    background.setAttribute('height', String(dims.height));
+    background.setAttribute('fill', '#ffffff');
+    clone.insertBefore(background, clone.firstChild);
+  }
+  clone.setAttribute('width', String(dims.width));
+  clone.setAttribute('height', String(dims.height));
+  clone.setAttribute('viewBox', `0 0 ${dims.width} ${dims.height}`);
+}
+
 async function svgToString(svgEl) {
   var _titleEl$textContent;
   if (!svgEl) return '';
   const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
   const clone = helper && typeof helper.cloneSvgForExport === 'function' ? helper.cloneSvgForExport(svgEl) : svgEl.cloneNode(true);
   if (!clone) return '';
+  const exportDims = getNormalizedExportDimensions(svgEl);
   const exportTitle = (CFG.title || '').trim() || 'Diagram';
   const currentContext = collectAltTextContext();
   const exportDesc = (CFG.altText || '').trim() || buildHeuristicAltText(currentContext);
@@ -2987,6 +3047,8 @@ async function svgToString(svgEl) {
 
   // fjern interaktive håndtak før eksport
   clone.querySelectorAll('.handle, .handleShadow').forEach(el => el.remove());
+  normalizeSvgForExport(clone, exportDims);
+  normalizeFontSizesForExport(clone, exportDims.scale);
   if (!clone.getAttribute('xmlns')) {
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   }
@@ -3046,9 +3108,9 @@ async function downloadSVG(svgEl, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 async function downloadPNG(svgEl, filename, scale = 2, bg = '#fff') {
-  const vb = svgEl.viewBox.baseVal;
-  const w = (vb === null || vb === void 0 ? void 0 : vb.width) || svgEl.clientWidth || 900;
-  const h = (vb === null || vb === void 0 ? void 0 : vb.height) || svgEl.clientHeight || 560;
+  const exportDims = getNormalizedExportDimensions(svgEl);
+  const w = exportDims.width;
+  const h = exportDims.height;
   const data = await svgToString(svgEl);
   const blob = new Blob([data], {
     type: 'image/svg+xml;charset=utf-8'
