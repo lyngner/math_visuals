@@ -3873,7 +3873,7 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     const hideOutline = normalizeHideOutline(
       existing && 'hideOutline' in existing ? existing.hideOutline : DEFAULT_STATE.hideOutline
     );
-    const randomisering = true;
+    const randomisering = existing && 'randomisering' in existing ? !!existing.randomisering : true;
     const altText = existing && typeof existing.altText === 'string' ? existing.altText : DEFAULT_STATE.altText;
     const altTextSource = existing && existing.altTextSource === 'manual' ? 'manual' : DEFAULT_STATE.altTextSource;
 
@@ -3923,6 +3923,94 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     updateLayout();
     const options = state.randomisering ? { randomize: true } : { resetToBase: true };
     applyOrder(options);
+  }
+
+  function createCleanState() {
+    const source = state || createState();
+    const items = buildItems(source && Array.isArray(source.items) ? source.items : []);
+    const order = sanitizeOrder(items, source && Array.isArray(source.order) ? source.order : []);
+    const direction = normalizeDirection(source && source.retning ? source.retning : DEFAULT_STATE.retning);
+    const gap = normalizeGap(source && 'gap' in source ? source.gap : Number.NaN, DEFAULT_STATE.gap);
+    const hideOutline = normalizeHideOutline(
+      source && 'hideOutline' in source ? source.hideOutline : DEFAULT_STATE.hideOutline
+    );
+    const randomize = !!(source && 'randomisering' in source ? source.randomisering : DEFAULT_STATE.randomisering);
+    const altText = source && typeof source.altText === 'string' ? source.altText : DEFAULT_STATE.altText;
+    const altTextSource = source && source.altTextSource === 'manual' ? 'manual' : DEFAULT_STATE.altTextSource;
+
+    return {
+      v: 1,
+      items: items.map(cloneItem),
+      order,
+      config: {
+        direction,
+        gap,
+        hideOutline,
+        randomize
+      },
+      altText,
+      altTextSource
+    };
+  }
+
+  function loadCleanState(json) {
+    let payload = json;
+    if (typeof payload === 'string') {
+      try {
+        payload = JSON.parse(payload);
+      } catch (error) {
+        if (globalObj && globalObj.console && typeof globalObj.console.warn === 'function') {
+          globalObj.console.warn('mathVisSortering: kunne ikke parse lagret tilstand', error);
+        }
+        return false;
+      }
+    }
+
+    if (!payload || typeof payload !== 'object') return false;
+    const versionValue = 'v' in payload ? payload.v : payload.version;
+    const version = typeof versionValue === 'number' ? versionValue : Number.parseInt(versionValue, 10);
+    if (version !== 1) return false;
+
+    const items = buildItems(Array.isArray(payload.items) ? payload.items : []);
+    if (!items.length) return false;
+
+    const config = payload.config && typeof payload.config === 'object' ? payload.config : {};
+    const direction = normalizeDirection(config.direction || payload.retning || DEFAULT_STATE.retning);
+    const gap = normalizeGap(
+      'gap' in config ? config.gap : payload && 'gap' in payload ? payload.gap : Number.NaN,
+      DEFAULT_STATE.gap
+    );
+    const hideOutline = normalizeHideOutline(
+      'hideOutline' in config ? config.hideOutline : payload && 'hideOutline' in payload ? payload.hideOutline : undefined
+    );
+    const randomize = 'randomize' in config ? !!config.randomize : DEFAULT_STATE.randomisering;
+    const altText = typeof payload.altText === 'string' ? payload.altText : DEFAULT_STATE.altText;
+    const altTextSource = payload.altTextSource === 'manual' ? 'manual' : DEFAULT_STATE.altTextSource;
+    const orderSource = Array.isArray(payload.order) ? payload.order : [];
+    const order = sanitizeOrder(items, orderSource.length ? orderSource : items.map(item => item.id));
+
+    const rootState = globalObj.STATE && typeof globalObj.STATE === 'object' ? globalObj.STATE : {};
+    globalObj.STATE = rootState;
+    rootState.sortering = {
+      items,
+      order,
+      retning: direction,
+      gap,
+      hideOutline,
+      randomisering: randomize,
+      altText,
+      altTextSource
+    };
+
+    applyStateFromGlobal();
+    return true;
+  }
+
+  if (globalObj && typeof globalObj === 'object') {
+    globalObj.sorteringApi = {
+      createCleanState: (...args) => createCleanState(...args),
+      loadCleanState: (...args) => loadCleanState(...args)
+    };
   }
 
   function init() {
