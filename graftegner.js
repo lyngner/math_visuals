@@ -7249,15 +7249,18 @@ function setupSettingsForm() {
       : !!fallback
   );
   let lastLoadedExampleIndex = null;
-  let pendingExampleScreenReset = false;
-  const clearManualScreenState = state => {
+  const defaultScreenState = state => {
     if (!state || typeof state !== 'object') return false;
-    if (state.screenSource === 'manual' || state.screenSource == null) {
-      state.screen = null;
-      state.screenSource = null;
-      return true;
-    }
-    return false;
+    const defaultScreen = DEFAULT_SCREEN.slice(0, 4);
+    const needsReset = state.screenSource === 'manual'
+      || state.screenSource == null
+      || !Array.isArray(state.screen)
+      || state.screen.length !== 4
+      || !screensEqual(state.screen, defaultScreen);
+    if (!needsReset) return false;
+    state.screen = defaultScreen;
+    state.screenSource = 'default';
+    return true;
   };
   const registerExampleChange = incomingIndex => {
     const normalizedIndex = Number.isInteger(incomingIndex) && incomingIndex >= 0
@@ -7268,14 +7271,14 @@ function setupSettingsForm() {
       const windowState = typeof window !== 'undefined' && window.STATE && typeof window.STATE === 'object'
         ? window.STATE
         : null;
-      clearManualScreenState(windowState);
-      clearManualScreenState(EXAMPLE_STATE);
-      ADV.screen = null;
+      defaultScreenState(windowState);
+      defaultScreenState(EXAMPLE_STATE);
+      const defaultScreen = DEFAULT_SCREEN.slice(0, 4);
+      ADV.screen = defaultScreen.slice(0, 4);
       LAST_COMPUTED_SCREEN = null;
-      LAST_SCREEN_SOURCE = null;
+      LAST_SCREEN_SOURCE = 'default';
       START_SCREEN = null;
       LAST_FUNCTION_VIEW_SCREEN = null;
-      pendingExampleScreenReset = true;
     }
     if (normalizedIndex !== null) {
       lastLoadedExampleIndex = normalizedIndex;
@@ -7283,22 +7286,11 @@ function setupSettingsForm() {
   };
   const applyExampleStateToControls = () => {
     const exampleState = getExampleState();
-    if (pendingExampleScreenReset) {
-      pendingExampleScreenReset = false;
-      const hasScreen = exampleState && Array.isArray(exampleState.screen) && exampleState.screen.length === 4;
-      if (!hasScreen) {
-        const defaultScreen = DEFAULT_SCREEN.slice(0, 4);
-        ADV.screen = defaultScreen.slice(0, 4);
-        LAST_COMPUTED_SCREEN = null;
-        LAST_SCREEN_SOURCE = null;
-        START_SCREEN = null;
-        LAST_FUNCTION_VIEW_SCREEN = null;
-        if (appState.board && typeof appState.board.setBoundingBox === 'function') {
-          try {
-            appState.board.setBoundingBox(toBB(defaultScreen), false);
-          } catch (_) {}
-        }
-      }
+    const defaultScreen = DEFAULT_SCREEN.slice(0, 4);
+    const hasScreen = exampleState && Array.isArray(exampleState.screen) && exampleState.screen.length === 4;
+    if (exampleState && !hasScreen) {
+      exampleState.screen = defaultScreen.slice(0, 4);
+      exampleState.screenSource = 'default';
     }
     hydrateCurveLabelStateFromExample();
     hydrateAxisLabelStateFromExample();
@@ -7404,14 +7396,17 @@ function setupSettingsForm() {
       ADV.points.snap.enabled = effectiveSnap;
       changed = true;
     }
-    if (Array.isArray(exampleState.screen) && exampleState.screen.length === 4) {
-      const normalized = calculateCorrectedScreen(exampleState.screen);
+    const exampleScreen = exampleState && Array.isArray(exampleState.screen) && exampleState.screen.length === 4
+      ? exampleState.screen
+      : defaultScreen;
+    if (exampleScreen && exampleScreen.length === 4) {
+      const normalized = calculateCorrectedScreen(exampleScreen);
       if (normalized && normalized.length === 4) {
         ADV.screen = normalized.slice(0, 4);
         LAST_COMPUTED_SCREEN = ADV.screen.slice(0, 4);
         LAST_SCREEN_SOURCE = typeof exampleState.screenSource === 'string'
           ? exampleState.screenSource
-          : 'manual';
+          : 'default';
         syncScreenInputFromState();
         if (appState.board && typeof appState.board.getBoundingBox === 'function') {
           const currentScreen = fromBoundingBox(appState.board.getBoundingBox());
@@ -9728,16 +9723,12 @@ function setupSettingsForm() {
   };
   const resetScreenStateForExample = () => {
     if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
-      EXAMPLE_STATE.screen = null;
-      EXAMPLE_STATE.screenSource = null;
+      EXAMPLE_STATE.screen = DEFAULT_SCREEN.slice(0, 4);
+      EXAMPLE_STATE.screenSource = 'default';
     }
     ADV.screen = DEFAULT_SCREEN.slice(0, 4);
     LAST_COMPUTED_SCREEN = DEFAULT_SCREEN.slice(0, 4);
-    LAST_SCREEN_SOURCE = 'manual';
-    if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
-      EXAMPLE_STATE.screen = null;
-      EXAMPLE_STATE.screenSource = 'manual';
-    }
+    LAST_SCREEN_SOURCE = 'default';
     if (appState.board && typeof appState.board.setBoundingBox === 'function') {
       try {
         appState.board.setBoundingBox(toBB(DEFAULT_SCREEN), false);
