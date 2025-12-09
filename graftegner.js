@@ -6323,7 +6323,16 @@ function queueFunctionViewUpdate(screen) {
         input.value = formatScreenForInput(currentScreen);
         input.classList.remove('is-auto');
     }
-    
+
+    if (Array.isArray(currentScreen) && currentScreen.length === 4 && currentScreen.every(Number.isFinite)) {
+      LAST_COMPUTED_SCREEN = currentScreen.slice(0, 4);
+      LAST_SCREEN_SOURCE = 'manual';
+      if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
+        EXAMPLE_STATE.screen = currentScreen.slice(0, 4);
+        EXAMPLE_STATE.screenSource = LAST_SCREEN_SOURCE;
+      }
+    }
+
     ADV.screen = currentScreen;
     
     applyTickSettings();
@@ -9693,8 +9702,44 @@ function setupSettingsForm() {
   }
   if (typeof window !== 'undefined') {
     const runExampleHydration = () => {
+      // 1. Ta backup av utsnitt som ble lastet inn fra eksempelet
+      const loadedScreen = (EXAMPLE_STATE && Array.isArray(EXAMPLE_STATE.screen)) ? EXAMPLE_STATE.screen.slice() : null;
+      const loadedLock = (EXAMPLE_STATE && typeof EXAMPLE_STATE.lockAspect === 'boolean') ? EXAMPLE_STATE.lockAspect : null;
+      const loadedQ1 = (EXAMPLE_STATE && typeof EXAMPLE_STATE.firstQuadrant === 'boolean') ? EXAMPLE_STATE.firstQuadrant : null;
+
       hydrateCurveLabelStateFromExample();
+      
+      // 2. Kjør reset (som nullstiller UI og globale variabler)
       resetScreenStateForExample();
+
+      // 3. Gjenopprett utsnittet hvis det fantes i eksempelet
+      if (loadedScreen) {
+        if (EXAMPLE_STATE) {
+          EXAMPLE_STATE.screen = loadedScreen;
+          if (loadedLock !== null) EXAMPLE_STATE.lockAspect = loadedLock;
+          if (loadedQ1 !== null) EXAMPLE_STATE.firstQuadrant = loadedQ1;
+        }
+        // Oppdater ADV (motoren) direkte også, så apply() plukker det opp
+        ADV.screen = loadedScreen;
+        LAST_COMPUTED_SCREEN = loadedScreen; // Hindre at den tror det er endret
+        
+        if (loadedLock !== null) ADV.lockAspect = loadedLock;
+        if (loadedQ1 !== null) ADV.firstQuadrant = loadedQ1;
+
+        // Oppdater UIet umiddelbart for å matche dataene
+        const screenInput = document.getElementById('cfgScreen');
+        if (screenInput) {
+          screenInput.value = formatScreenForInput(loadedScreen);
+          screenInput.classList.remove('is-auto');
+          if (screenInput.dataset) delete screenInput.dataset.autoscreen;
+        }
+        const lockInput = document.getElementById('cfgLock');
+        if (lockInput && loadedLock !== null) lockInput.checked = loadedLock;
+        
+        const q1Input = document.getElementById('cfgQ1');
+        if (q1Input && loadedQ1 !== null) q1Input.checked = loadedQ1;
+      }
+
       fillFormFromSimple(window.SIMPLE);
       if (screenInput && (!EXAMPLE_STATE || !Array.isArray(EXAMPLE_STATE.screen) || EXAMPLE_STATE.screen.length !== 4)) {
         const formattedDefault = formatScreenForInput(DEFAULT_SCREEN);
