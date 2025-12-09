@@ -95,5 +95,8 @@ function migrateToStorageV2(snapshot = {}) {
 
 module.exports = {
   STORAGE_SCHEMA_V2,
-  migrateToStorageV2
+  migrateToStorageV2,
+  normalizeAxisLabels,
+  normalizeDiffOptions,
+  normalizeViewArray
 };
