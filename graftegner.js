@@ -860,6 +860,12 @@ function buildCleanSaveOptionsSnapshot(adv, defaults = CLEAN_SAVE_DEFAULTS) {
     diff.grid = grid;
   }
 
+  const axisNumbers = !!(adv && adv.axis && adv.axis.ticks && adv.axis.ticks.showNumbers);
+  const defaultAxisNumbers = !!(resolvedDefaults && resolvedDefaults.axisNumbers);
+  if (axisNumbers !== defaultAxisNumbers) {
+    diff.axisNumbers = axisNumbers;
+  }
+
   const lockAspect = adv && adv.lockAspect === false ? false : true;
   const defaultLock = resolvedDefaults && resolvedDefaults.lockAspect === false ? false : true;
   if (lockAspect !== defaultLock) {
@@ -890,6 +896,7 @@ function buildCleanSaveOptionsSnapshot(adv, defaults = CLEAN_SAVE_DEFAULTS) {
   return diff;
 }
 function createCleanSaveState(meta, defaults = CLEAN_SAVE_DEFAULTS) {
+  syncCurveLabelStateToExample();
   const code = typeof appState === 'object'
     && appState
     && appState.simple
@@ -898,12 +905,21 @@ function createCleanSaveState(meta, defaults = CLEAN_SAVE_DEFAULTS) {
     : '';
   const view = normalizeStorageView(ADV && ADV.screen);
   const options = buildCleanSaveOptionsSnapshot(ADV, defaults);
+  const curveLabels = Array.isArray(EXAMPLE_STATE && EXAMPLE_STATE.curveLabels)
+    ? EXAMPLE_STATE.curveLabels.map(entry => ({
+      manual: !!(entry && entry.manual),
+      position: entry && Array.isArray(entry.position) && entry.position.length >= 2
+        ? entry.position.slice(0, 2)
+        : null
+    }))
+    : undefined;
 
   const cleanState = {
     v: STORAGE_SCHEMA_VERSION,
     code,
     view,
-    options
+    options,
+    curveLabels
   };
 
   if (meta && typeof meta === 'object') {
@@ -1412,6 +1428,7 @@ const INITIAL_FORCE_TICKS = !!FORCE_TICKS_REQUESTED;
 const INITIAL_SNAP_ENABLED = !!(ADV.points && ADV.points.snap && ADV.points.snap.enabled);
 const CLEAN_SAVE_DEFAULTS = {
   grid: STORAGE_V2_DEFAULTS.grid,
+  axisNumbers: STORAGE_V2_DEFAULTS.axisNumbers,
   lockAspect: STORAGE_V2_DEFAULTS.lockAspect,
   firstQuadrant: INITIAL_FIRST_QUADRANT,
   axisLabels: STORAGE_V2_DEFAULTS.axisLabels
@@ -1440,6 +1457,20 @@ function buildExampleStateFromStorageV2(storageState) {
       y: typeof opts.axisLabels.y === 'string' ? opts.axisLabels.y : ADV.axis.labels.y,
       fontSize: ADV.axis.labels.fontSize
     };
+  }
+  if (Array.isArray(storageState.curveLabels)) {
+    exampleState.curveLabels = storageState.curveLabels
+      .filter(entry => entry && typeof entry === 'object')
+      .map(entry => {
+        const pos = Array.isArray(entry.position) && entry.position.length >= 2
+          ? [Number.parseFloat(entry.position[0]), Number.parseFloat(entry.position[1])]
+          : null;
+        const normalizedPos = pos && pos.every(Number.isFinite) ? pos : null;
+        return {
+          manual: !!entry.manual,
+          position: normalizedPos
+        };
+      });
   }
   return Object.keys(exampleState).length ? exampleState : null;
 }
@@ -9988,6 +10019,19 @@ function setupSettingsForm() {
       ADV.axis.grid.show = showGrid;
       if (exampleState && typeof exampleState === 'object') {
         exampleState.showGrid = showGrid;
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(cleanOptions, 'axisNumbers')) {
+      const axisNumbers = !!cleanOptions.axisNumbers;
+      if (showAxisNumbersInput) {
+        showAxisNumbersInput.checked = axisNumbers;
+      }
+      if (ADV.axis && ADV.axis.ticks) {
+        ADV.axis.ticks.showNumbers = axisNumbers;
+      }
+      if (exampleState && typeof exampleState === 'object') {
+        exampleState.showAxisNumbers = axisNumbers;
       }
     }
 
