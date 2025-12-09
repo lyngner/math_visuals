@@ -1543,17 +1543,74 @@
   }
   render();
   initAltTextManager();
-  const kvikkbilderPalette = buildBrickPalette(getKvikkbilderBaseColor());
-  Promise.allSettled([
-    fetch('images/brick1.svg').then(r => r.text()).then(txt => {
-      const svg = applyBrickPalette(txt, kvikkbilderPalette);
-      BRICK_SRC = `data:image/svg+xml;base64,${btoa(svg)}`;
-    }),
-    fetch('images/block1.svg').then(r => r.text()).then(txt => {
-      const svg = applyBrickPalette(txt, kvikkbilderPalette);
-      BLOCK_SRC = `data:image/svg+xml;base64,${btoa(svg)}`;
-    })
-  ]).then(() => {
+  let kvikkbilderPalette = buildBrickPalette(getKvikkbilderBaseColor());
+  function loadBrickAndBlockAssets(paletteOverride, assets = {}) {
+    if (assets && typeof assets === 'object') {
+      if (typeof assets.brickSrc === 'string') {
+        BRICK_SRC = assets.brickSrc;
+      }
+      if (typeof assets.blockSrc === 'string') {
+        BLOCK_SRC = assets.blockSrc;
+      }
+    }
+    const activePalette = paletteOverride && typeof paletteOverride === 'object' ? paletteOverride : kvikkbilderPalette;
+    if (BRICK_SRC && BLOCK_SRC) {
+      return Promise.resolve(true);
+    }
+    return Promise.allSettled([
+      fetch('images/brick1.svg').then(r => r.text()).then(txt => {
+        const svg = applyBrickPalette(txt, activePalette);
+        BRICK_SRC = `data:image/svg+xml;base64,${btoa(svg)}`;
+      }),
+      fetch('images/block1.svg').then(r => r.text()).then(txt => {
+        const svg = applyBrickPalette(txt, activePalette);
+        BLOCK_SRC = `data:image/svg+xml;base64,${btoa(svg)}`;
+      })
+    ]).then(() => true);
+  }
+  function createCleanState() {
+    sanitizeCfg();
+    const state = {
+      v: 1,
+      cfg: deepClone(CFG),
+      palette: deepClone(kvikkbilderPalette)
+    };
+    if (typeof BRICK_SRC === 'string' && BRICK_SRC) {
+      state.brickSrc = BRICK_SRC;
+    }
+    if (typeof BLOCK_SRC === 'string' && BLOCK_SRC) {
+      state.blockSrc = BLOCK_SRC;
+    }
+    return state;
+  }
+  function loadCleanState(cleanState) {
+    if (!cleanState || typeof cleanState !== 'object') return false;
+    if (cleanState.v && cleanState.v !== 1) return false;
+    const cfgFromState = deepClone(cleanState.cfg) || {};
+    const mergedCfg = createExampleCfg(cfgFromState);
+    if (typeof cfgFromState.altText === 'string') {
+      mergedCfg.altText = cfgFromState.altText;
+    }
+    if (cfgFromState.altTextSource === 'manual') {
+      mergedCfg.altTextSource = 'manual';
+    }
+    Object.keys(CFG).forEach(key => delete CFG[key]);
+    Object.assign(CFG, mergedCfg);
+    sanitizeCfg();
+    if (cleanState.palette && typeof cleanState.palette === 'object') {
+      kvikkbilderPalette = { ...DEFAULT_BRICK_PALETTE, ...cleanState.palette };
+    }
+    render();
+    return loadBrickAndBlockAssets(kvikkbilderPalette, cleanState).then(() => {
+      renderView();
+      return true;
+    });
+  }
+  window.kvikkbilderApi = {
+    createCleanState,
+    loadCleanState
+  };
+  loadBrickAndBlockAssets(kvikkbilderPalette).then(() => {
     renderView();
   });
 })();
