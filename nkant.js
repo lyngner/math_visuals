@@ -5273,6 +5273,111 @@ function createCleanNKantSaveState() {
     desc
   };
 }
+
+function loadCleanNKantState(rawState) {
+  if (!rawState || typeof rawState !== "object") return false;
+
+  const isV1Schema = rawState.v === 1;
+  const looksLikeLegacyState = !rawState.v && (rawState.figures || rawState.specsText);
+
+  if (!isV1Schema && !looksLikeLegacyState) {
+    return false;
+  }
+
+  const nextState = JSON.parse(JSON.stringify(DEFAULT_STATE));
+
+  if (isV1Schema) {
+    const opt = rawState.opt && typeof rawState.opt === "object" ? rawState.opt : {};
+    nextState.textSize = sanitizeTextSize(opt.textSize);
+    if (typeof opt.rotateText === "boolean") {
+      nextState.rotateText = opt.rotateText;
+    }
+    if (opt.defaults && typeof opt.defaults === "object") {
+      nextState.defaults = {
+        ...nextState.defaults,
+        ...opt.defaults
+      };
+    }
+    if (opt.layout && typeof opt.layout === "string") {
+      nextState.layout = opt.layout;
+    }
+    if (opt.labels && typeof opt.labels === "object") {
+      nextState.labelAdjustments = { ...opt.labels };
+    }
+
+    const defaults = getGlobalDefaults();
+    const figures = Array.isArray(rawState.figures) ? rawState.figures.slice(0, 4) : [];
+    nextState.figures = figures.map((entry, idx) => {
+      const base = createDefaultFigureState(idx, "", defaults);
+      const fig = { ...base };
+      const spec = entry && typeof entry.spec === "string" ? entry.spec : "";
+      fig.specText = spec;
+
+      if (entry && typeof entry.color === "string" && entry.color.trim()) {
+        fig.color = entry.color.trim();
+      }
+
+      const labels = entry && entry.labels && typeof entry.labels === "object" ? entry.labels : null;
+      if (labels && labels.sides && typeof labels.sides === "object") {
+        const { mode, text } = labels.sides;
+        if (mode && typeof mode === "object") {
+          ["a", "b", "c", "d"].forEach(key => {
+            if (typeof mode[key] === "string") {
+              fig.sides[key] = mode[key];
+            }
+          });
+        }
+        if (text && typeof text === "object") {
+          ["a", "b", "c", "d"].forEach(key => {
+            const tKey = `${key}Text`;
+            if (typeof text[tKey] === "string") {
+              fig.sides[tKey] = text[tKey];
+            }
+          });
+        }
+      }
+
+      if (labels && labels.angles && typeof labels.angles === "object") {
+        const { mode, text } = labels.angles;
+        if (mode && typeof mode === "object") {
+          ["A", "B", "C", "D"].forEach(key => {
+            if (typeof mode[key] === "string") {
+              fig.angles[key] = mode[key];
+            }
+          });
+        }
+        if (text && typeof text === "object") {
+          ["A", "B", "C", "D"].forEach(key => {
+            const tKey = `${key}Text`;
+            if (typeof text[tKey] === "string") {
+              fig.angles[tKey] = text[tKey];
+            }
+          });
+        }
+      }
+
+      if (entry && entry.anchor != null) {
+        fig.anchor = entry.anchor;
+      }
+
+      return fig;
+    });
+
+    const desc = rawState.desc && typeof rawState.desc === "object" ? rawState.desc : {};
+    if (typeof desc.text === "string") {
+      nextState.altText = desc.text;
+      nextState.altTextSource = desc.source === "manual" ? "manual" : "auto";
+    }
+
+    nextState.specsText = nextState.figures.map(fig => fig && typeof fig.specText === "string" ? fig.specText : "").join("\n");
+  } else if (looksLikeLegacyState) {
+    Object.assign(nextState, rawState);
+  }
+
+  Object.assign(STATE, nextState);
+  ensureStateDefaults();
+  return true;
+}
 async function downloadSVG(svgEl, filename) {
   const suggestedName = typeof filename === 'string' && filename ? filename : 'nkant.svg';
   const data = svgToString(svgEl);
@@ -5920,7 +6025,13 @@ window.addEventListener("DOMContentLoaded", async () => {
   setupNkantThemeSync();
 });
 
-window.addEventListener("examples:loaded", () => {
+window.addEventListener("examples:loaded", event => {
+  const candidateState = event && event.detail && typeof event.detail === "object" && event.detail.state
+    ? event.detail.state
+    : (typeof STATE_V2 !== "undefined" && STATE_V2 ? STATE_V2 : STATE);
+  if (!loadCleanNKantState(candidateState)) {
+    ensureStateDefaults();
+  }
   applyStateToUI();
   if (!altTextManager) {
     initAltTextManager();
@@ -5965,7 +6076,9 @@ function applyStateToUI() {
   updateLabelEditorUI();
 }
 function applyExamplesConfig() {
-  ensureStateDefaults();
+  if (!loadCleanNKantState(typeof STATE_V2 !== "undefined" && STATE_V2 ? STATE_V2 : STATE)) {
+    ensureStateDefaults();
+  }
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", applyExamplesConfig, {
       once: true
@@ -5981,6 +6094,7 @@ if (typeof window !== "undefined") {
   window.render = applyExamplesConfig;
   window.renderCombined = renderCombined;
   window.createCleanNKantSaveState = createCleanNKantSaveState;
+  window.loadCleanNKantState = loadCleanNKantState;
 }
 
 /* ---------- GEOMETRI ---------- */
