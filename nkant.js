@@ -4947,11 +4947,71 @@ function initResponsiveFigureSizing() {
   }
   scheduleResponsiveFigureSizeUpdate();
 }
+
+const EXPORT_BASE_SIZE = 800;
+
+function getNormalizedExportDimensions(svgEl) {
+  const vb = svgEl && svgEl.viewBox ? svgEl.viewBox.baseVal : null;
+  const width = (vb === null || vb === void 0 ? void 0 : vb.width) || svgEl.clientWidth || EXPORT_BASE_SIZE;
+  const height = (vb === null || vb === void 0 ? void 0 : vb.height) || svgEl.clientHeight || EXPORT_BASE_SIZE;
+  const maxDim = Math.max(width, height, 1);
+  const scale = EXPORT_BASE_SIZE / maxDim;
+  const normalizedWidth = width * scale;
+  const normalizedHeight = height * scale;
+  return {
+    width: EXPORT_BASE_SIZE,
+    height: EXPORT_BASE_SIZE,
+    offsetX: (EXPORT_BASE_SIZE - normalizedWidth) / 2,
+    offsetY: (EXPORT_BASE_SIZE - normalizedHeight) / 2,
+    scale
+  };
+}
+
+function normalizeFontSizesForExport(clone, scale) {
+  if (!clone || !Number.isFinite(scale) || scale === 1) return;
+  const normalizeSize = node => {
+    const attr = node.getAttribute('font-size');
+    let size = attr && attr.trim() ? parseFloat(attr) : NaN;
+    if (!Number.isFinite(size) && typeof window !== 'undefined' && typeof getComputedStyle === 'function') {
+      size = parseFloat(getComputedStyle(node).fontSize);
+    }
+    if (Number.isFinite(size) && size > 0) {
+      node.setAttribute('font-size', `${size / scale}px`);
+    }
+  };
+  clone.querySelectorAll('text, tspan').forEach(normalizeSize);
+}
+
+function normalizeSvgForExport(clone, dims) {
+  if (!clone || !dims) return;
+  const doc = clone.ownerDocument || (typeof document !== 'undefined' ? document : null);
+  const wrapper = doc ? doc.createElementNS('http://www.w3.org/2000/svg', 'g') : null;
+  if (wrapper) {
+    wrapper.setAttribute('transform', `translate(${dims.offsetX} ${dims.offsetY}) scale(${dims.scale})`);
+    while (clone.firstChild) {
+      wrapper.appendChild(clone.firstChild);
+    }
+    clone.appendChild(wrapper);
+  }
+  if (doc) {
+    const rect = doc.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', '0');
+    rect.setAttribute('y', '0');
+    rect.setAttribute('width', String(dims.width));
+    rect.setAttribute('height', String(dims.height));
+    rect.setAttribute('fill', '#ffffff');
+    clone.insertBefore(rect, clone.firstChild);
+  }
+  clone.setAttribute('width', String(dims.width));
+  clone.setAttribute('height', String(dims.height));
+  clone.setAttribute('viewBox', `0 0 ${dims.width} ${dims.height}`);
+}
 function svgToString(svgEl) {
   if (!svgEl) return '';
   const helper = typeof window !== 'undefined' ? window.MathVisSvgExport : null;
   const clone = helper && typeof helper.cloneSvgForExport === 'function' ? helper.cloneSvgForExport(svgEl) : svgEl.cloneNode(true);
   if (!clone) return '';
+  const exportDims = getNormalizedExportDimensions(svgEl);
   const removeSelector = '[data-ignore-export="true"], .label-rotation-handle';
   const removable = clone.querySelectorAll(removeSelector);
   removable.forEach(el => el.remove());
@@ -4979,6 +5039,8 @@ function svgToString(svgEl) {
   } else {
     clone.appendChild(style);
   }
+  normalizeSvgForExport(clone, exportDims);
+  normalizeFontSizesForExport(clone, exportDims.scale);
   if (!clone.getAttribute('xmlns')) {
     clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   }
@@ -5063,9 +5125,9 @@ async function downloadSVG(svgEl, filename) {
 /* ---------- PNG-EKSPORT ---------- */
 function downloadPNG(svgEl, filename, scale = 2, bg = "#fff") {
   // hent dimensjoner fra viewBox
-  const vb = svgEl.viewBox.baseVal;
-  const w = (vb === null || vb === void 0 ? void 0 : vb.width) || svgEl.clientWidth || 1200;
-  const h = (vb === null || vb === void 0 ? void 0 : vb.height) || svgEl.clientHeight || 800;
+  const exportDims = getNormalizedExportDimensions(svgEl);
+  const w = exportDims.width;
+  const h = exportDims.height;
 
   // gjør SVG om til data-URL
   const svgData = svgToString(svgEl);
