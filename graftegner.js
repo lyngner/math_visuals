@@ -7248,6 +7248,34 @@ function setupSettingsForm() {
       ? !!state[key]
       : !!fallback
   );
+  let lastLoadedExampleIndex = null;
+  const clearManualScreenState = state => {
+    if (!state || typeof state !== 'object') return false;
+    if (state.screenSource === 'manual' || state.screenSource == null) {
+      state.screen = null;
+      state.screenSource = null;
+      return true;
+    }
+    return false;
+  };
+  const registerExampleChange = incomingIndex => {
+    const normalizedIndex = Number.isInteger(incomingIndex) && incomingIndex >= 0
+      ? incomingIndex
+      : null;
+    const exampleChanged = normalizedIndex !== null && normalizedIndex !== lastLoadedExampleIndex;
+    if (exampleChanged) {
+      const windowState = typeof window !== 'undefined' && window.STATE && typeof window.STATE === 'object'
+        ? window.STATE
+        : null;
+      clearManualScreenState(windowState);
+      clearManualScreenState(EXAMPLE_STATE);
+      LAST_COMPUTED_SCREEN = null;
+      LAST_SCREEN_SOURCE = null;
+    }
+    if (normalizedIndex !== null) {
+      lastLoadedExampleIndex = normalizedIndex;
+    }
+  };
   const applyExampleStateToControls = () => {
     const exampleState = getExampleState();
     hydrateCurveLabelStateFromExample();
@@ -7359,7 +7387,9 @@ function setupSettingsForm() {
       if (normalized && normalized.length === 4) {
         ADV.screen = normalized.slice(0, 4);
         LAST_COMPUTED_SCREEN = ADV.screen.slice(0, 4);
-        LAST_SCREEN_SOURCE = 'manual';
+        LAST_SCREEN_SOURCE = typeof exampleState.screenSource === 'string'
+          ? exampleState.screenSource
+          : 'manual';
         syncScreenInputFromState();
         if (appState.board && typeof appState.board.getBoundingBox === 'function') {
           const currentScreen = fromBoundingBox(appState.board.getBoundingBox());
@@ -9952,7 +9982,11 @@ function setupSettingsForm() {
       }
       apply();
     };
-    const scheduleExampleHydration = () => {
+    const scheduleExampleHydration = event => {
+      const incomingIndex = event && event.detail && Number.isInteger(event.detail.index)
+        ? event.detail.index
+        : null;
+      registerExampleChange(incomingIndex);
       const scheduler = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : fn => setTimeout(fn, 0);
       scheduler(runExampleHydration);
     };
