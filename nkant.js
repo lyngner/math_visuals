@@ -84,7 +84,7 @@ function createDefaultFigureState(index = 0, specText = "", defaults = DEFAULT_G
 const STATE = {
   specsText: "",
   defaults: { ...DEFAULT_GLOBAL_DEFAULTS },
-  textSize: "normal",
+  textSize: "medium",
   rotateText: true,
   figures: [],
   layout: "grid", // 2x2 matrise
@@ -93,6 +93,31 @@ const STATE = {
   labelAdjustments: {}
 };
 const DEFAULT_STATE = JSON.parse(JSON.stringify(STATE));
+
+const TEXT_SIZE_PRESETS = {
+  large: 24,
+  medium: 20,
+  small: 16
+};
+const LEGACY_TEXT_SIZE_ALIASES = {
+  normal: "medium"
+};
+function sanitizeTextSize(value) {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (TEXT_SIZE_PRESETS[normalized]) return normalized;
+    if (LEGACY_TEXT_SIZE_ALIASES[normalized]) return LEGACY_TEXT_SIZE_ALIASES[normalized];
+    const numeric = Number.parseFloat(normalized);
+    if (Number.isFinite(numeric)) {
+      const match = Object.entries(TEXT_SIZE_PRESETS).find(([, size]) => Math.abs(size - numeric) < 1e-3);
+      if (match) return match[0];
+    }
+  } else if (Number.isFinite(value)) {
+    const match = Object.entries(TEXT_SIZE_PRESETS).find(([, size]) => Math.abs(size - value) < 1e-3);
+    if (match) return match[0];
+  }
+  return "medium";
+}
 
 function getGlobalDefaults() {
   const fallback = DEFAULT_STATE && DEFAULT_STATE.defaults ? DEFAULT_STATE.defaults : DEFAULT_GLOBAL_DEFAULTS;
@@ -176,6 +201,7 @@ function ensureStateDefaults() {
     return target;
   });
   STATE.specsText = STATE.figures.map(fig => fig && typeof fig.specText === "string" ? fig.specText : "").join("\n");
+  STATE.textSize = sanitizeTextSize(STATE.textSize);
   return STATE;
 }
   function syncSpecsTextFromFigures() {
@@ -238,23 +264,24 @@ function pushTextScale(scale) {
     currentTextScale = Number.isFinite(restoreTo) && restoreTo > 0 ? restoreTo : 1;
   };
 }
-const TEXT_SIZE_SCALE = {
-  large: 1.2,
-  normal: 1,
-  small: 0.8
-};
 function applyUserTextScaleToStyle() {
   STYLE.sideFS = STYLE_DEFAULTS.sideFS * userTextScale;
   STYLE.ptFS = STYLE_DEFAULTS.ptFS * userTextScale;
   STYLE.angFS = STYLE_DEFAULTS.angFS * userTextScale;
 }
 function applyTextSizePreference(size) {
-  const scale = TEXT_SIZE_SCALE[size] || TEXT_SIZE_SCALE.large;
+  const key = sanitizeTextSize(size);
+  const base = TEXT_SIZE_PRESETS.medium;
+  const px = TEXT_SIZE_PRESETS[key] || base;
+  const scale = base ? px / base : 1;
   userTextScale = scale;
   applyUserTextScaleToStyle();
   baseTextScale = 1;
   if (!textScaleStack.length) {
     currentTextScale = baseTextScale;
+  }
+  if (typeof document !== "undefined" && document.documentElement && document.documentElement.style) {
+    document.documentElement.style.setProperty('--nkant-text-scale', String(scale));
   }
 }
 const LABEL_EDITOR_STATE = {
@@ -5521,11 +5548,15 @@ function bindUI() {
   applyFigureSpecsToUI = renderFigureForms;
     renderFigureForms();
     if (textSizeSelect) {
-      textSizeSelect.value = STATE.textSize;
+      const normalized = sanitizeTextSize(STATE.textSize);
+      STATE.textSize = normalized;
+      textSizeSelect.value = normalized;
       textSizeSelect.addEventListener('change', () => {
+        const nextSize = sanitizeTextSize(textSizeSelect.value);
+        textSizeSelect.value = nextSize;
         updateState(state => {
-          state.textSize = textSizeSelect.value;
-        }, { onUpdate: () => applyTextSizePreference(STATE.textSize) });
+          state.textSize = nextSize;
+        }, { onUpdate: () => applyTextSizePreference(nextSize) });
       });
     }
 
@@ -5600,14 +5631,16 @@ function bindUI() {
     };
     window.addEventListener('math-visuals:app-mode-changed', handleAppModeChange);
     if (btnSvg) {
-      btnSvg.addEventListener("click", () => {
+      btnSvg.addEventListener("click", async () => {
+        await renderCombined();
         const svg = document.getElementById("paper");
         const filename = `${getSuggestedFilename()}.svg`;
         downloadSVG(svg, filename);
       });
     }
     if (btnPng) {
-      btnPng.addEventListener("click", () => {
+      btnPng.addEventListener("click", async () => {
+        await renderCombined();
         const svg = document.getElementById("paper");
         const filename = `${getSuggestedFilename()}.png`;
         downloadPNG(svg, filename, 2); // 2× oppløsning
@@ -5693,7 +5726,9 @@ function applyStateToUI() {
   ensureStateDefaults();
   const textSizeSelect = document.querySelector('#textSizeSelect');
   if (textSizeSelect) {
-    textSizeSelect.value = STATE.textSize;
+    const normalized = sanitizeTextSize(STATE.textSize);
+    STATE.textSize = normalized;
+    textSizeSelect.value = normalized;
   }
   applyTextSizePreference(STATE.textSize);
   if (rotateTextSelect) {

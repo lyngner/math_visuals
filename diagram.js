@@ -21,7 +21,7 @@ const CFG = {
   locked: [],
   altText: '',
   altTextSource: 'auto',
-  textSize: 'normal',
+  textSize: 'medium',
   series2: 'Jenter',
   start2: [2, 3, 3, 1, 1, 1, 0],
   answer2: [2, 3, 3, 1, 1, 1, 0]
@@ -38,15 +38,34 @@ function sanitizePieLabelPosition(value) {
   const normalized = value.trim().toLowerCase();
   return PIE_LABEL_POSITIONS.includes(normalized) ? normalized : 'outside';
 }
-const TEXT_SIZE_SCALE = {
-  large: 1.2,
-  normal: 1,
-  small: 0.8
+const TEXT_SIZE_PRESETS = {
+  large: 24,
+  medium: 20,
+  small: 16
+};
+const LEGACY_TEXT_SIZE_ALIASES = {
+  normal: 'medium'
+};
+const getTextSizeKeyFromValue = value => {
+  const numeric = Number.parseFloat(value);
+  if (Number.isFinite(numeric)) {
+    const entry = Object.entries(TEXT_SIZE_PRESETS).find(([, size]) => Math.abs(size - numeric) < 1e-3);
+    if (entry) return entry[0];
+  }
+  return null;
 };
 function sanitizeTextSize(value) {
-  if (typeof value !== 'string') return 'normal';
-  const normalized = value.trim().toLowerCase();
-  return TEXT_SIZE_SCALE[normalized] ? normalized : 'normal';
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (TEXT_SIZE_PRESETS[normalized]) return normalized;
+    if (LEGACY_TEXT_SIZE_ALIASES[normalized]) return LEGACY_TEXT_SIZE_ALIASES[normalized];
+    const numericKey = getTextSizeKeyFromValue(normalized);
+    if (numericKey) return numericKey;
+  } else if (Number.isFinite(value)) {
+    const numericKey = getTextSizeKeyFromValue(value);
+    if (numericKey) return numericKey;
+  }
+  return 'medium';
 }
 
 function sanitizeGridFlag(value, defaultValue) {
@@ -112,7 +131,9 @@ function getSuggestedFilename() {
 }
 function applyTextSizePreference(size) {
   const key = sanitizeTextSize(size);
-  const scale = TEXT_SIZE_SCALE[key] || TEXT_SIZE_SCALE.normal;
+  const base = TEXT_SIZE_PRESETS.medium;
+  const px = TEXT_SIZE_PRESETS[key] || base;
+  const scale = base ? px / base : 1;
   setCssVariable('--diagram-text-scale', String(scale));
 }
 function getValueDisplayMode(type = CFG.type) {
@@ -554,10 +575,12 @@ if (typeof window !== 'undefined' && typeof window.addEventListener === 'functio
 const btnSvg = document.getElementById('btnSvg');
 const btnPng = document.getElementById('btnPng');
 btnSvg === null || btnSvg === void 0 || btnSvg.addEventListener('click', () => {
+  applyCfg();
   const filename = `${getSuggestedFilename()}.svg`;
   downloadSVG(svg, filename);
 });
 btnPng === null || btnPng === void 0 || btnPng.addEventListener('click', () => {
+  applyCfg();
   const filename = `${getSuggestedFilename()}.png`;
   downloadPNG(svg, filename, 2);
 });
@@ -855,7 +878,13 @@ function initFromCfg() {
   if (snapInput) snapInput.value = Number.isFinite(CFG.snap) ? formatNumber(CFG.snap) : '';
   if (tolInput) tolInput.value = Number.isFinite(CFG.tolerance) ? formatNumber(CFG.tolerance) : '';
   CFG.textSize = sanitizeTextSize(CFG.textSize);
-  if (textSizeSelect) textSizeSelect.value = CFG.textSize;
+  if (textSizeSelect) {
+    textSizeSelect.value = CFG.textSize;
+    if (!textSizeSelect.dataset.boundChange) {
+      textSizeSelect.addEventListener('change', applyCfg);
+      textSizeSelect.dataset.boundChange = '1';
+    }
+  }
   if (series1Input) series1Input.value = CFG.series1 || '';
   if (startInput) startInput.value = formatNumberList(values);
   if (answerInput) answerInput.value = formatNumberList(CFG.answer || []);
