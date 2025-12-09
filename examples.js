@@ -7475,6 +7475,66 @@
       } catch (_) {}
     }
   }
+  function getActiveToolApi() {
+    if (typeof window === 'undefined') return null;
+    const attempts = [
+      () => {
+        const mv = window.mathVisuals && typeof window.mathVisuals === 'object' ? window.mathVisuals : null;
+        if (!mv) return null;
+        if (typeof mv.getActiveTool === 'function') {
+          try {
+            return mv.getActiveTool();
+          } catch (_) {}
+        }
+        if (mv.activeTool && typeof mv.activeTool === 'object') {
+          return mv.activeTool;
+        }
+        return null;
+      },
+      () => {
+        const api = window.MathVisExamples && typeof window.MathVisExamples === 'object' ? window.MathVisExamples : null;
+        if (!api) return null;
+        if (typeof api.getActiveTool === 'function') {
+          try {
+            return api.getActiveTool();
+          } catch (_) {}
+        }
+        if (api.activeTool && typeof api.activeTool === 'object') {
+          return api.activeTool;
+        }
+        return null;
+      }
+    ];
+    for (const attempt of attempts) {
+      const tool = attempt();
+      if (tool && typeof tool === 'object') {
+        return tool;
+      }
+    }
+    return null;
+  }
+  function requestActiveToolCleanState() {
+    if (typeof window === 'undefined') return null;
+    const activeTool = getActiveToolApi();
+    const createCleanStateFn = activeTool && typeof activeTool.createCleanState === 'function'
+      ? activeTool.createCleanState
+      : typeof window.createCleanState === 'function'
+        ? window.createCleanState
+        : null;
+    if (!createCleanStateFn) return null;
+    try {
+      const result = createCleanStateFn();
+      if (result && typeof result === 'object') {
+        return {
+          v: 1,
+          ...result
+        };
+      }
+    } catch (error) {
+      console.error('[examples] failed to collect clean state from active tool', error);
+    }
+    return null;
+  }
   function collectCurrentConfig() {
     flushPendingChanges();
     const svgMarkup = collectExampleSvgMarkup({ flush: false });
@@ -8260,6 +8320,30 @@
     }
   }
   function collectCurrentExampleState() {
+    flushPendingChanges();
+    const cleanState = requestActiveToolCleanState();
+    if (cleanState && typeof cleanState === 'object') {
+      const payload = { ...cleanState };
+      if (!Object.prototype.hasOwnProperty.call(payload, 'svg')) {
+        payload.svg = collectExampleSvgMarkup({ flush: false });
+      }
+      if (!Object.prototype.hasOwnProperty.call(payload, 'description')) {
+        payload.description = getDescriptionValue();
+      }
+      const hasConfig = payload.config && typeof payload.config === 'object';
+      const hasState = payload.state && typeof payload.state === 'object';
+      if (!hasConfig && !hasState) {
+        const fallback = collectCurrentConfig();
+        payload.config = fallback && fallback.config && typeof fallback.config === 'object' ? fallback.config : {};
+        if (!Object.prototype.hasOwnProperty.call(payload, 'svg')) {
+          payload.svg = fallback && typeof fallback.svg === 'string' ? fallback.svg : '';
+        }
+        if (!Object.prototype.hasOwnProperty.call(payload, 'description')) {
+          payload.description = fallback ? fallback.description : getDescriptionValue();
+        }
+      }
+      return payload;
+    }
     let ex;
     try {
       ex = collectCurrentConfig();
