@@ -9987,6 +9987,70 @@ function setupSettingsForm() {
     }
     ADV.points.snap.enabled = snapDefault;
   };
+  const applyCleanOptions = (cleanOptions, exampleState) => {
+    if (!cleanOptions || typeof cleanOptions !== 'object') return;
+
+    if (Object.prototype.hasOwnProperty.call(cleanOptions, 'grid')) {
+      const showGrid = !!cleanOptions.grid;
+      if (showGridInput) {
+        showGridInput.checked = showGrid;
+      }
+      ADV.axis.grid.show = showGrid;
+      if (exampleState && typeof exampleState === 'object') {
+        exampleState.showGrid = showGrid;
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(cleanOptions, 'lockAspect')) {
+      const lockAspect = !!cleanOptions.lockAspect;
+      if (lockInput) {
+        lockInput.checked = lockAspect;
+      }
+      ADV.lockAspect = lockAspect;
+      if (exampleState && typeof exampleState === 'object') {
+        exampleState.lockAspect = lockAspect;
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(cleanOptions, 'firstQuadrant')) {
+      const firstQuadrant = !!cleanOptions.firstQuadrant;
+      if (q1Input) {
+        q1Input.checked = firstQuadrant;
+      }
+      ADV.firstQuadrant = firstQuadrant;
+      if (exampleState && typeof exampleState === 'object') {
+        exampleState.firstQuadrant = firstQuadrant;
+      }
+    }
+
+    if (cleanOptions.axisLabels && typeof cleanOptions.axisLabels === 'object') {
+      const currentLabels = exampleState && exampleState.axisLabels && typeof exampleState.axisLabels === 'object'
+        ? exampleState.axisLabels
+        : { x: ADV.axis.labels.x, y: ADV.axis.labels.y, fontSize: ADV.axis.labels.fontSize };
+      const nextLabels = {
+        x: typeof cleanOptions.axisLabels.x === 'string' && cleanOptions.axisLabels.x.trim()
+          ? cleanOptions.axisLabels.x
+          : currentLabels.x,
+        y: typeof cleanOptions.axisLabels.y === 'string' && cleanOptions.axisLabels.y.trim()
+          ? cleanOptions.axisLabels.y
+          : currentLabels.y,
+        fontSize: currentLabels.fontSize
+      };
+
+      if (axisXInputElement) axisXInputElement.value = nextLabels.x;
+      if (axisYInputElement) axisYInputElement.value = nextLabels.y;
+      ADV.axis.labels.x = nextLabels.x;
+      ADV.axis.labels.y = nextLabels.y;
+
+      if (exampleState && typeof exampleState === 'object') {
+        exampleState.axisLabels = {
+          x: nextLabels.x,
+          y: nextLabels.y,
+          fontSize: ADV.axis.labels.fontSize
+        };
+      }
+    }
+  };
   const fillFormFromSimple = simple => {
     const source = typeof simple === 'string' ? simple : typeof window !== 'undefined' ? window.SIMPLE : appState.simple.value;
     const text = typeof source === 'string' ? source : '';
@@ -10588,6 +10652,69 @@ function setupSettingsForm() {
       requestRebuild();
     }
   };
+  const resetToDefaults = cleanState => {
+    resetScreenStateForExample();
+    const exampleState = getExampleState();
+    const clean = cleanState && typeof cleanState === 'object'
+      ? cleanState
+      : typeof window !== 'undefined' && window.CLEAN && typeof window.CLEAN === 'object'
+        ? window.CLEAN
+        : null;
+
+    const cleanView = clean ? normalizeStorageView(clean.view) : null;
+    if (cleanView && cleanView.length === 4) {
+      const normalized = calculateCorrectedScreen(cleanView) || cleanView.slice(0, 4);
+      ADV.screen = normalized.slice(0, 4);
+      LAST_COMPUTED_SCREEN = normalized.slice(0, 4);
+      LAST_SCREEN_SOURCE = 'default';
+      if (exampleState && typeof exampleState === 'object') {
+        exampleState.screen = normalized.slice(0, 4);
+        exampleState.screenSource = 'default';
+      }
+      syncScreenInputFromState();
+      if (screenInput) {
+        screenInput.value = formatScreenForInput(normalized);
+        screenInput.classList.remove('is-auto');
+        if (screenInput.dataset) delete screenInput.dataset.autoscreen;
+      }
+      if (appState.board && typeof appState.board.setBoundingBox === 'function') {
+        try {
+          appState.board.setBoundingBox(toBB(normalized), false);
+          if (typeof appState.board.update === 'function') {
+            appState.board.update();
+          }
+        } catch (_) {}
+      }
+    }
+
+    applyCleanOptions(clean && clean.options, exampleState);
+    const nextSimple = clean && typeof clean.code === 'string' ? clean.code : appState.simple.value;
+    fillFormFromSimple(nextSimple);
+    if (typeof window !== 'undefined') {
+      window.SIMPLE = appState.simple.value;
+    }
+
+    const resolvedExample = getExampleState();
+    if (resolvedExample && typeof resolvedExample === 'object') {
+      resolvedExample.lockAspect = ADV.lockAspect !== false;
+      resolvedExample.firstQuadrant = !!ADV.firstQuadrant;
+      resolvedExample.showGrid = !!(ADV.axis && ADV.axis.grid && ADV.axis.grid.show);
+      resolvedExample.axisLabels = {
+        x: ADV.axis.labels.x,
+        y: ADV.axis.labels.y,
+        fontSize: ADV.axis.labels.fontSize
+      };
+      if (Array.isArray(ADV.screen) && ADV.screen.length === 4) {
+        resolvedExample.screen = ADV.screen.slice(0, 4);
+        resolvedExample.screenSource = LAST_SCREEN_SOURCE;
+      }
+    }
+
+    apply();
+  };
+  if (typeof window !== 'undefined') {
+    window.resetToDefaults = resetToDefaults;
+  }
   const syncAxisLabelsFromInputs = () => {
     const axisXValue = axisXInputElement ? axisXInputElement.value.trim() : '';
     const axisYValue = axisYInputElement ? axisYInputElement.value.trim() : '';
