@@ -187,9 +187,11 @@ module.exports = async function handler(req, res) {
 
     let url;
     let queryParams = {};
+    let rawQueryPath = null;
     try {
       url = new URL(req.url, buildOrigin(req));
       queryParams = extractQueryParams(url.searchParams);
+      rawQueryPath = url.searchParams.get('path');
     } catch (error) {
       logDebug({
         method: req && req.method,
@@ -203,7 +205,7 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const queryPath = normalizePath(url.searchParams.get('path'));
+    const queryPath = normalizePath(rawQueryPath);
 
     const baseLog = {
       method: req.method,
@@ -211,6 +213,7 @@ module.exports = async function handler(req, res) {
       normalizedPath: url.pathname,
       queryParams,
       queryPath,
+      rawQueryPath,
       storeMode: currentMode,
     };
 
@@ -218,7 +221,7 @@ module.exports = async function handler(req, res) {
       if (req.method === 'GET') {
         try {
           if (queryPath) {
-            const entry = await getEntry(queryPath);
+            const entry = await getEntry(rawQueryPath || queryPath, rawQueryPath);
             if (!entry) {
               const metadata = applyModeHeaders(res, currentMode);
               logDebug({ ...baseLog, action: 'getEntry', statusCode: 404, foundEntry: false });
@@ -278,7 +281,7 @@ module.exports = async function handler(req, res) {
           return;
         }
         try {
-          await deleteEntry(target);
+          await deleteEntry(rawQueryPath || target);
           const metadata = applyModeHeaders(res, currentMode);
           logDebug({ ...baseLog, action: 'deleteEntry', statusCode: 200, deletedPath: target });
           sendJson(res, 200, { ok: true, ...metadata });
@@ -315,6 +318,7 @@ module.exports = async function handler(req, res) {
           sendJson(res, 400, { error: error.message || 'Invalid request body' });
           return;
         }
+        const rawTarget = typeof body?.path === 'string' && body.path ? body.path : rawQueryPath || queryPath;
         const target = extractPathFromBody(body, queryPath);
         if (!target) {
           logDebug({
@@ -349,7 +353,7 @@ module.exports = async function handler(req, res) {
           updatedAt: typeof body.updatedAt === 'string' ? body.updatedAt : undefined
         };
         try {
-          const entry = await setEntry(target, payload);
+          const entry = await setEntry(rawTarget || target, payload);
           const responseEntry = augmentEntry(entry, currentMode);
           applyModeHeaders(res, responseEntry.mode);
           logDebug({
@@ -357,7 +361,7 @@ module.exports = async function handler(req, res) {
             action: req.method === 'POST' ? 'createEntry' : 'updateEntry',
             statusCode: 200,
             mode: responseEntry.mode,
-            path: target,
+            path: rawTarget || target,
             examplesLength: Array.isArray(payload.examples) ? payload.examples.length : undefined,
           });
           sendJson(res, 200, responseEntry);

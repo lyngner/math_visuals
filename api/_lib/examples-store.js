@@ -295,6 +295,24 @@ function normalizeStoreMode(value) {
   return null;
 }
 
+function decodeKvEntryValue(value, key) {
+  if (value == null) return null;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch (error) {
+      throw new KvOperationError('Failed to parse KV entry payload', { cause: error, key });
+    }
+  }
+  if (typeof value === 'object') {
+    return value;
+  }
+  throw new KvOperationError('Unsupported KV entry payload type', {
+    code: 'KV_UNSUPPORTED_VALUE_TYPE',
+    key
+  });
+}
+
 function applyStorageMetadata(entry, mode) {
   if (!entry || typeof entry !== 'object') return entry;
   const resolved = normalizeStoreMode(mode) || normalizeStoreMode(entry.mode) || normalizeStoreMode(entry.storage) || getStoreMode();
@@ -574,12 +592,17 @@ async function readTrashFromKv() {
   }
 }
 
-async function writeToKv(path, entry) {
+async function writeToKv(path, entry, rawPath) {
   const kv = await loadKvClient();
   const key = makeKey(path);
+  const legacyKey = rawPath && rawPath !== path ? makeKey(rawPath) : null;
   try {
     await kv.set(key, entry);
     await kv.sadd(INDEX_KEY, path);
+    if (legacyKey) {
+      await kv.del(legacyKey);
+      await kv.srem(INDEX_KEY, rawPath);
+    }
   } catch (error) {
     throw new KvOperationError(`Failed to write entry to KV for path ${path}`, { cause: error });
   }
@@ -601,36 +624,53 @@ async function writeToKv(path, entry) {
   }
 }
 
-async function deleteFromKv(path) {
+async function deleteFromKv(path, rawPath) {
   const kv = await loadKvClient();
   const key = makeKey(path);
+  const legacyKey = rawPath && rawPath !== path ? makeKey(rawPath) : null;
   try {
     await kv.del(key);
     await kv.srem(INDEX_KEY, path);
+    if (legacyKey) {
+      await kv.del(legacyKey);
+      await kv.srem(INDEX_KEY, rawPath);
+    }
   } catch (error) {
     throw new KvOperationError(`Failed to delete entry in KV for path ${path}`, { cause: error });
   }
 }
 
-async function readFromKv(path) {
+async function readFromKv(path, rawPath) {
   const kv = await loadKvClient();
   const key = makeKey(path);
+  const legacyKey = rawPath && rawPath !== path ? makeKey(rawPath) : null;
   try {
-    const value = await kv.get(key);
-    if (value == null) return null;
-    if (typeof value === 'string') {
-      try {
-        return JSON.parse(value);
-      } catch (error) {
-        throw new KvOperationError('Failed to parse KV entry payload', { cause: error });
+    let value = await kv.get(key);
+    let sourceKey = key;
+    if (value == null && legacyKey) {
+      value = await kv.get(legacyKey);
+      if (value != null) {
+        sourceKey = legacyKey;
       }
     }
-    if (typeof value === 'object') {
-      return value;
+    if (value == null) {
+      if (legacyKey) {
+        await kv.srem(INDEX_KEY, rawPath);
+      }
+      return null;
     }
-    throw new KvOperationError('Unsupported KV entry payload type', {
-      code: 'KV_UNSUPPORTED_VALUE_TYPE'
-    });
+    const decoded = decodeKvEntryValue(value, sourceKey);
+    if (sourceKey !== key) {
+      await kv.set(key, decoded);
+      await kv.sadd(INDEX_KEY, path);
+      if (legacyKey) {
+        await kv.del(legacyKey);
+        await kv.srem(INDEX_KEY, rawPath);
+      }
+    } else if (legacyKey) {
+      await kv.srem(INDEX_KEY, rawPath);
+    }
+    return decoded;
   } catch (error) {
     if (error instanceof KvOperationError) {
       throw error;
@@ -657,13 +697,13 @@ function readFromMemory(path) {
   return value ? clone(value) : null;
 }
 
-async function getEntry(path) {
+async function getEntry(path, rawPath) {
   const normalized = normalizePath(path);
   if (!normalized) return null;
   const storeMode = getStoreMode();
   const useKv = storeMode === 'kv';
   if (useKv) {
-    const kvValue = await readFromKv(normalized);
+    const kvValue = await readFromKv(normalized, rawPath || path);
     if (kvValue) {
       const entry = buildEntry(normalized, kvValue);
       applyStorageMetadata(entry, 'kv');
@@ -688,7 +728,7 @@ async function setEntry(path, payload) {
   const entry = buildEntry(normalized, payload || {});
   const storeMode = getStoreMode();
   if (storeMode === 'kv') {
-    await writeToKv(normalized, entry);
+    await writeToKv(normalized, entry, path);
     const annotated = applyStorageMetadata({ ...entry }, 'kv');
     writeToMemory(normalized, annotated);
     return clone(annotated);
@@ -703,7 +743,7 @@ async function deleteEntry(path) {
   if (!normalized) return false;
   const storeMode = getStoreMode();
   if (storeMode === 'kv') {
-    await deleteFromKv(normalized);
+    await deleteFromKv(normalized, path);
   }
   deleteFromMemory(normalized);
   return true;
@@ -715,6 +755,7 @@ async function listEntries() {
   if (storeMode === 'kv') {
     const kv = await loadKvClient();
     let paths = [];
+    const seenPaths = new Set();
     try {
       const raw = await kv.smembers(INDEX_KEY);
       if (Array.isArray(raw)) paths = raw;
@@ -724,11 +765,18 @@ async function listEntries() {
     for (const value of paths) {
       const normalized = normalizePath(value);
       if (!normalized) continue;
-      const stored = await readFromKv(normalized);
+      if (seenPaths.has(normalized)) {
+        if (normalized !== value) {
+          try { await kv.srem(INDEX_KEY, value); } catch (_) {}
+        }
+        continue;
+      }
+      const stored = await readFromKv(normalized, value);
       if (!stored) continue;
       const entry = buildEntry(normalized, stored);
       applyStorageMetadata(entry, 'kv');
       writeToMemory(normalized, entry);
+      seenPaths.add(normalized);
       entries.push(clone(entry));
     }
     return entries;
