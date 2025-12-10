@@ -7,6 +7,10 @@
       "source": "/figure-library/(.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|json|zip|csv))",
       "destination": "/api/figure-library/raw?path=/$1"
     },
+    { "source": "/figurtall", "destination": "/figurtall.html" },
+    { "source": "/figurtall/eksempel:example([0-9]+)", "destination": "/figurtall.html" },
+    { "source": "/figurtall/eksempel:example([0-9]+)/", "destination": "/figurtall.html" },
+    { "source": "/figurtall/(.*)", "destination": "/figurtall.html" },
     { "source": "/sortering", "destination": "/sortering.html" },
     { "source": "/sortering/eksempel:example([0-9]+)", "destination": "/index.html" },
     { "source": "/sortering/eksempel:example([0-9]+)/", "destination": "/index.html" },
