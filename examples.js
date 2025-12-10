@@ -69,12 +69,9 @@
   }
 })();
 
-function createExamplesDomCleanup() {
+function createDomCleanupInitializer() {
   if (typeof document === 'undefined') {
-    return {
-      runInitialCleanup() {},
-      startObserving() {}
-    };
+    return () => {};
   }
 
   const TARGET_BUTTON_TEXT = 'gjenopprett eksempler';
@@ -225,19 +222,15 @@ function createExamplesDomCleanup() {
 
   let observer = null;
 
-  return {
-    runInitialCleanup() {
-      const root = document.body || document.documentElement || document;
-      cleanRoot(root);
-    },
-    startObserving() {
-      if (observer || typeof MutationObserver !== 'function') return;
-      observer = new MutationObserver(handleMutations);
-      observer.observe(document.documentElement, {
-        childList: true,
-        subtree: true
-      });
-    }
+  return function initDomCleanup() {
+    const root = document.body || document.documentElement || document;
+    cleanRoot(root);
+    if (observer || typeof MutationObserver !== 'function') return;
+    observer = new MutationObserver(handleMutations);
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true
+    });
   };
 }
 
@@ -246,11 +239,10 @@ function initExamples() {
   if (document.__MATH_VISUALS_EXAMPLES_INIT__) return;
 
   document.__MATH_VISUALS_EXAMPLES_INIT__ = true;
-  const cleanup = createExamplesDomCleanup();
+  const initDomCleanup = createDomCleanupInitializer();
 
   const init = () => {
-    cleanup.runInitialCleanup();
-    cleanup.startObserving();
+    initDomCleanup();
   };
 
   if (document.readyState === 'loading') {
