@@ -10,6 +10,7 @@ const {
   KvOperationError,
   KvConfigurationError,
   getStoreMode,
+  validateEntryPayload,
 } = require('../_lib/examples-store');
 
 const MEMORY_LIMITATION_NOTE = 'Denne instansen bruker midlertidig minnelagring. Eksempler tilbakestilles når serveren starter på nytt.';
@@ -323,6 +324,23 @@ module.exports = async function handler(req, res) {
             error: 'Missing path',
           });
           sendJson(res, 400, { error: 'Missing path' });
+          return;
+        }
+        const validation = validateEntryPayload({
+          examples: body.examples,
+          deletedProvided: body.deletedProvided,
+          updatedAt: body.updatedAt
+        });
+        if (!validation.ok) {
+          const message = validation.reason || 'Payload must be clean JSON';
+          logDebug({
+            ...baseLog,
+            action: req.method === 'POST' ? 'createEntry' : 'updateEntry',
+            statusCode: 400,
+            error: message,
+            path: target,
+          });
+          sendJson(res, 400, { error: message });
           return;
         }
         const payload = {

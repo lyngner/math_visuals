@@ -20,6 +20,127 @@ let memoryTrashEntries = [];
 const EXAMPLE_VALUE_TYPE_KEY = '__mathVisualsType__';
 const EXAMPLE_VALUE_DATA_KEY = '__mathVisualsValue__';
 
+function isPlainObject(value) {
+  if (!value || typeof value !== 'object') return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function validateSerializedValue(value, path) {
+  const type = typeof value;
+  if (
+    value == null ||
+    type === 'string' ||
+    type === 'boolean'
+  ) {
+    return null;
+  }
+  if (type === 'number') {
+    if (!Number.isFinite(value)) {
+      return `${path || 'value'} must be a finite number`;
+    }
+    return null;
+  }
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i++) {
+      const error = validateSerializedValue(value[i], `${path || 'value'}[${i}]`);
+      if (error) return error;
+    }
+    return null;
+  }
+  if (type === 'object') {
+    if (!isPlainObject(value)) {
+      return `${path || 'value'} must be a plain object`;
+    }
+    const markerType = value[EXAMPLE_VALUE_TYPE_KEY];
+    if (typeof markerType === 'string') {
+      if (markerType === 'map') {
+        if (!Array.isArray(value[EXAMPLE_VALUE_DATA_KEY])) {
+          return `${path || 'value'}.__mathVisualsValue__ must be an array for map`;
+        }
+        for (let i = 0; i < value[EXAMPLE_VALUE_DATA_KEY].length; i++) {
+          const entry = value[EXAMPLE_VALUE_DATA_KEY][i];
+          if (!Array.isArray(entry) || entry.length < 2) {
+            return `${path || 'value'} map entry ${i} must be an array with key and value`;
+          }
+          const keyError = validateSerializedValue(entry[0], `${path || 'value'}.__mathVisualsValue__[${i}][0]`);
+          if (keyError) return keyError;
+          const valueError = validateSerializedValue(entry[1], `${path || 'value'}.__mathVisualsValue__[${i}][1]`);
+          if (valueError) return valueError;
+        }
+        return null;
+      }
+      if (markerType === 'set') {
+        if (!Array.isArray(value[EXAMPLE_VALUE_DATA_KEY])) {
+          return `${path || 'value'}.__mathVisualsValue__ must be an array for set`;
+        }
+        for (let i = 0; i < value[EXAMPLE_VALUE_DATA_KEY].length; i++) {
+          const error = validateSerializedValue(value[EXAMPLE_VALUE_DATA_KEY][i], `${path || 'value'}.__mathVisualsValue__[${i}]`);
+          if (error) return error;
+        }
+        return null;
+      }
+      if (markerType === 'date') {
+        if (typeof value[EXAMPLE_VALUE_DATA_KEY] !== 'string') {
+          return `${path || 'value'}.__mathVisualsValue__ must be a string for date`;
+        }
+        return null;
+      }
+      if (markerType === 'regexp') {
+        if (typeof value.pattern !== 'string') {
+          return `${path || 'value'}.pattern must be a string for regexp`;
+        }
+        if (value.flags != null && typeof value.flags !== 'string') {
+          return `${path || 'value'}.flags must be a string for regexp`;
+        }
+        return null;
+      }
+      return `${path || 'value'} has unsupported __mathVisualsType__ '${markerType}'`;
+    }
+    const keys = Object.keys(value);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const error = validateSerializedValue(value[key], `${path || 'value'}.${key}`);
+      if (error) return error;
+    }
+    return null;
+  }
+  return `${path || 'value'} contains unsupported type`;
+}
+
+function validateEntryPayload(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return { ok: false, reason: 'Payload must be an object' };
+  }
+
+  if ('examples' in payload && !Array.isArray(payload.examples)) {
+    return { ok: false, reason: 'examples must be an array' };
+  }
+
+  if ('deletedProvided' in payload && !Array.isArray(payload.deletedProvided)) {
+    return { ok: false, reason: 'deletedProvided must be an array' };
+  }
+
+  if ('updatedAt' in payload && typeof payload.updatedAt !== 'string') {
+    return { ok: false, reason: 'updatedAt must be a string when provided' };
+  }
+
+  const examples = Array.isArray(payload.examples) ? payload.examples : [];
+  for (let i = 0; i < examples.length; i++) {
+    const error = validateSerializedValue(examples[i], `examples[${i}]`);
+    if (error) return { ok: false, reason: error };
+  }
+
+  const deletedProvided = Array.isArray(payload.deletedProvided) ? payload.deletedProvided : [];
+  for (let i = 0; i < deletedProvided.length; i++) {
+    if (typeof deletedProvided[i] !== 'string') {
+      return { ok: false, reason: `deletedProvided[${i}] must be a string` };
+    }
+  }
+
+  return { ok: true };
+}
+
 function serializeExampleValue(value, seen) {
   if (value == null) return value;
   const valueType = typeof value;
@@ -732,6 +853,7 @@ module.exports = {
   setTrashEntries,
   appendTrashEntries,
   deleteTrashEntries,
+  validateEntryPayload,
   KvOperationError,
   KvConfigurationError,
   isKvConfigured,
