@@ -4964,6 +4964,7 @@ initExamples();
     if (value == null) return value;
     const valueType = typeof value;
     if (valueType === 'function' || valueType === 'symbol') return undefined;
+    if (valueType === 'bigint') return value.toString();
     if (valueType !== 'object') return value;
     if (seen.has(value)) return seen.get(value);
     const tag = Object.prototype.toString.call(value);

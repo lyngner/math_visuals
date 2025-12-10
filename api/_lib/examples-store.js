@@ -145,6 +145,7 @@ function serializeExampleValue(value, seen) {
   if (value == null) return value;
   const valueType = typeof value;
   if (valueType === 'function' || valueType === 'symbol') return undefined;
+  if (valueType === 'bigint') return value.toString();
   if (valueType !== 'object') return value;
   if (seen.has(value)) return seen.get(value);
   const tag = Object.prototype.toString.call(value);
@@ -220,6 +221,9 @@ function serializeExampleValue(value, seen) {
 
 function deserializeExampleValue(value, seen) {
   if (value == null || typeof value !== 'object') {
+    if (typeof value === 'bigint') {
+      return value.toString();
+    }
     return value;
   }
   if (seen.has(value)) {

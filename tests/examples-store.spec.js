@@ -104,6 +104,31 @@ test.describe('examples-store serialization', () => {
 
     await deleteEntry(path);
   });
+
+  test('sanitizes BigInt values to JSON-safe strings', async () => {
+    const path = buildPath();
+
+    const payload = {
+      examples: [
+        {
+          title: 'BigInt example',
+          meta: { count: 42n },
+          config: { STATE: { id: 99n } }
+        }
+      ]
+    };
+
+    const entry = await setEntry(path, payload);
+    expect(entry.examples[0].meta.count).toBe('42');
+    expect(entry.examples[0].config.STATE.id).toBe('99');
+    expect(() => JSON.stringify(entry)).not.toThrow();
+
+    const stored = await getEntry(path);
+    expect(stored.examples[0].meta.count).toBe('42');
+    expect(stored.examples[0].config.STATE.id).toBe('99');
+
+    await deleteEntry(path);
+  });
 });
 
 test.describe('examples-store path normalization', () => {
