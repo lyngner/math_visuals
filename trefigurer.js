@@ -2093,7 +2093,7 @@
     window.STATE = nextState;
     ensureStateDefaults();
     syncControlsFromState();
-    draw();
+    draw({ rawInput: window.STATE.rawInput, figures: window.STATE.figures });
     refreshAltText('load-clean-state');
     return true;
   }
@@ -2255,9 +2255,11 @@
     }
     refreshAltText('figures');
   }
-  function draw() {
-    const rawInput = typeof window.STATE.rawInput === 'string' ? window.STATE.rawInput : defaultInput;
-    const figures = parseInput(rawInput);
+  function draw(options = {}) {
+    const providedInput = typeof options.rawInput === 'string' ? options.rawInput : null;
+    const providedFigures = Array.isArray(options.figures) ? options.figures : null;
+    const rawInput = providedInput ?? (typeof window.STATE.rawInput === 'string' ? window.STATE.rawInput : defaultInput);
+    const figures = providedFigures ?? parseInput(rawInput);
     window.STATE.rawInput = rawInput;
     window.STATE.figures = figures;
     updateForm(rawInput);
