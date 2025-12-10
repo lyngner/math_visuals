@@ -165,6 +165,8 @@ Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom Elast
   bash scripts/cloudshell-seed-examples.sh --dataset=docs/examples-seed.json
   ```
 
+  Seeding-skriptet kjører samme validator som API-et før noen kall sendes til Redis. Datasettet må derfor være ren JSON (ingen kommentarer/trailing-komma) og følge payload-reglene til `/api/examples`. Kjør gjerne `npm run seed-examples -- --dataset=docs/examples-seed.json --dry-run` lokalt for å få en klar feilmelding dersom datasettet ikke passerer valideringen.
+
   Legg til `--dry-run` for å verifisere eksporten uten å skrive til Redis (samme flagg støttes av `npm run seed-examples`). På den måten slipper du å holde terminalen åpen etter at `source`-kommandoen er ferdig; skriptet gjør ferdig både sjekk og seeding i samme prosess.
 4. Injiser verdiene i Lambda (via `infra/shared-parameters.yaml`), GitHub Secrets eller lokalt shell, og redeploy API-stacken i [`infra/api/template.yaml`](../infra/api/template.yaml). For lokal utvikling holder det å legge verdiene i `.env.local` og starte `npx vercel dev` på nytt.
 5. Workflowen `.github/workflows/deploy-infra.yml` gjør de samme stegene automatisk: den leser outputsene, oppdaterer Secrets Manager/Parameter Store og kjører seeding/vedlikehold med `REDIS_*`-verdiene tilgjengelig.
