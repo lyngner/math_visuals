@@ -10443,9 +10443,9 @@ function setupSettingsForm() {
     ADV.lockAspect = lockChecked;
     ADV.firstQuadrant = q1Checked;
 
-    // Hvis vi slår på «Lås aksene 1:1», sørg for at vi rekalkulerer utsnittet
+    // Hvis vi endrer «Lås aksene 1:1», sørg for at vi rekalkulerer utsnittet
     // basert på dagens skjerm før vi bygger på nytt.
-    if (!nextScreen && lockChecked && lockChanged) {
+    if (!nextScreen && lockChanged) {
       const currentScreen = Array.isArray(ADV.screen) && ADV.screen.length === 4
         ? ADV.screen.slice(0, 4)
         : appState.board && typeof appState.board.getBoundingBox === 'function'
