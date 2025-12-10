@@ -10439,8 +10439,22 @@ function setupSettingsForm() {
     const lockChecked = lockInput ? !!lockInput.checked : ADV.lockAspect;
     const q1Checked = q1Input ? !!q1Input.checked : ADV.firstQuadrant;
     const q1Changed = q1Checked !== prevFirstQuadrant;
+    const lockChanged = lockChecked !== prevLock;
     ADV.lockAspect = lockChecked;
     ADV.firstQuadrant = q1Checked;
+
+    // Hvis vi slår på «Lås aksene 1:1», sørg for at vi rekalkulerer utsnittet
+    // basert på dagens skjerm før vi bygger på nytt.
+    if (!nextScreen && lockChecked && lockChanged) {
+      const currentScreen = Array.isArray(ADV.screen) && ADV.screen.length === 4
+        ? ADV.screen.slice(0, 4)
+        : appState.board && typeof appState.board.getBoundingBox === 'function'
+          ? fromBoundingBox(appState.board.getBoundingBox())
+          : null;
+      if (currentScreen) {
+        nextScreen = currentScreen.slice(0, 4);
+      }
+    }
 
     // --- KJØR MATTE-MOTOREN ---
     // Nå bruker vi calculateCorrectedScreen til å fikse 1:1 og 1.kvadrant
@@ -10479,7 +10493,7 @@ function setupSettingsForm() {
       needsRebuild = true;
     }
 
-    if (lockChecked !== prevLock) {
+    if (lockChanged) {
       if (EXAMPLE_STATE && typeof EXAMPLE_STATE === 'object') {
         EXAMPLE_STATE.lockAspect = lockChecked;
       }
