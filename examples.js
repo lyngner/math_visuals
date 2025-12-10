@@ -1724,12 +1724,17 @@ initExamples();
   function resolveExamplesApiBase() {
     if (typeof window === 'undefined') return null;
     const defaultBase = '/api/examples';
+    const productionBase = 'https://mathvisuals.no/api/examples';
     if (window.MATH_VISUALS_EXAMPLES_API_URL) {
       const value = String(window.MATH_VISUALS_EXAMPLES_API_URL).trim();
       if (value) return value;
     }
     const { location } = window;
     if (!location || typeof location !== 'object') return null;
+    const hostname = typeof location.hostname === 'string' ? location.hostname : '';
+    if (hostname && /\.vercel\.app$/i.test(hostname)) {
+      return productionBase;
+    }
     const origin = typeof location.origin === 'string' && location.origin ? location.origin : null;
     if (origin && /^https?:/i.test(origin)) {
       return defaultBase;
@@ -1739,7 +1744,7 @@ initExamples();
     if (protocol && /^https?:$/i.test(protocol) && host) {
       return defaultBase;
     }
-    return defaultBase;
+    return productionBase;
   }
   function buildExamplesApiUrl(base, path) {
     if (!base) return null;
