@@ -434,7 +434,7 @@ function decodeKvEntryValue(value, key) {
     try {
       return JSON.parse(value);
     } catch (error) {
-      throw new KvOperationError('Failed to parse KV entry payload', { cause: error, key });
+      throw new KvOperationError('Failed to parse KV entry payload', { cause: error, key, code: 'KV_DECODE_FAILED' });
     }
   }
   if (typeof value === 'object') {
@@ -795,7 +795,24 @@ async function readFromKv(path, rawPath) {
       }
       return null;
     }
-    const decoded = decodeKvEntryValue(value, sourceKey);
+    let decoded;
+    try {
+      decoded = decodeKvEntryValue(value, sourceKey);
+    } catch (error) {
+      const isDecodeError = error instanceof KvOperationError && error.code === 'KV_DECODE_FAILED';
+      if (!isDecodeError) {
+        throw error;
+      }
+      try {
+        await kv.del(sourceKey);
+        await kv.srem(INDEX_KEY, sourceKey === key ? path : rawPath || path);
+        if (legacyKey && legacyKey !== sourceKey) {
+          await kv.del(legacyKey);
+          await kv.srem(INDEX_KEY, rawPath || path);
+        }
+      } catch (_) {}
+      return null;
+    }
     if (sourceKey !== key) {
       await kv.set(key, decoded);
       await kv.sadd(INDEX_KEY, path);
