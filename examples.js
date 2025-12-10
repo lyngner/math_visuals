@@ -7789,16 +7789,35 @@ initExamples();
       return null;
     };
 
-    const isVersionedExample = ex && typeof ex === 'object' && Number.isFinite(ex.v) && ex.v >= 1;
+    const extractVersionedExampleData = example => {
+      if (example && typeof example.v === 'number' && example.v >= 1) {
+        return example;
+      }
+      const cfg = example && example.config;
+      if (cfg && typeof cfg === 'object' && typeof cfg.v === 'number' && cfg.v >= 1) {
+        return cfg;
+      }
+      return null;
+    };
+    const versionedExampleData = extractVersionedExampleData(ex);
+    const isVersionedExample = versionedExampleData != null;
     if (isVersionedExample) {
       const loader = getActiveCleanStateLoader();
       let applied = false;
       const description = (() => {
-        const desc = ex.desc && typeof ex.desc === 'object' ? ex.desc : {};
+        const descSource = versionedExampleData;
+        const desc = descSource && descSource.desc && typeof descSource.desc === 'object' ? descSource.desc : {};
         if (typeof desc.text === 'string' && desc.text.trim()) {
           return desc.text;
         }
-        if (typeof ex.description === 'string' && ex.description.trim()) {
+        if (
+          descSource &&
+          typeof descSource.description === 'string' &&
+          descSource.description.trim()
+        ) {
+          return descSource.description;
+        }
+        if (ex && ex !== descSource && typeof ex.description === 'string' && ex.description.trim()) {
           return ex.description;
         }
         return null;
@@ -7809,7 +7828,7 @@ initExamples();
       }
       if (typeof loader === 'function') {
         try {
-          applied = !!loader(cloneValue(ex));
+          applied = !!loader(cloneValue(versionedExampleData));
         } catch (error) {
           console.error('[examples] failed to load clean state', error);
           applied = false;

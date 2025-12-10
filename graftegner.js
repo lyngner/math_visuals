@@ -833,6 +833,19 @@ const normalizeStorageView = typeof normalizeViewArray === 'function'
     return normalized.some(entry => entry == null) ? null : normalized;
   };
 const migrateStorageState = raw => {
+  if (raw && typeof raw === 'object' && raw.v === STORAGE_SCHEMA_VERSION) {
+    const normalizedView = normalizeStorageView(raw.view);
+    if (normalizedView) {
+      const options = raw.options && typeof raw.options === 'object'
+        ? { ...raw.options }
+        : null;
+      return {
+        ...raw,
+        view: normalizedView,
+        options
+      };
+    }
+  }
   if (typeof migrateToStorageV2 !== 'function') return null;
   const migrated = migrateToStorageV2(raw);
   return migrated && migrated.v === STORAGE_SCHEMA_VERSION ? migrated : null;
