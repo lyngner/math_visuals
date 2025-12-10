@@ -1020,18 +1020,16 @@ function getThemeColor(token, fallback) {
   return fallback;
 }
 
-// Hovedfunksjonen som oppdaterer alt
-async function refreshNkantTheme() {
-  // 1. Finn prosjekt
-  const project = getActiveProjectName();
+// --- PATCH START: Manglende tema-funksjon ---
 
-  // 2. Be om palett (bruker > prosjekt > default)
+function refreshNkantTheme(options = {}) {
+  const project = getActiveProjectName();
   const paletteApi = getPaletteApi();
   const theme = getThemeApi();
-  
-  const request = { 
-    count: NKANT_GROUP_PALETTE_SIZE, 
-    project: project 
+
+  const request = {
+    count: NKANT_GROUP_PALETTE_SIZE,
+    project: project
   };
 
   let groupPalette = [];
@@ -1055,12 +1053,12 @@ async function refreshNkantTheme() {
   // Sikre at vi har nok farger
   const finalPalette = ensurePalette(groupPalette, NKANT_GROUP_PALETTE_SIZE, SETTINGS_FALLBACK_PALETTE);
 
-  // 3. Oppdater STYLE-objektet
+  // Oppdater STYLE-objektet
   // MAPPING: 0=Linje, 1=Vinkel, 2=Fyll
   const primaryColor = finalPalette[0] || STYLE_DEFAULTS.edgeStroke;
   const secondaryColor = finalPalette[1] || primaryColor || STYLE_DEFAULTS.angStroke;
   const tertiaryColor = finalPalette[2] || STYLE_DEFAULTS.faceFill;
-  
+
   const textColor = getThemeColor('ui.primary', STYLE_DEFAULTS.textFill);
   const constructionColor = getThemeColor('dots.default', STYLE_DEFAULTS.constructionStroke);
 
@@ -1074,36 +1072,27 @@ async function refreshNkantTheme() {
     angFill: withAlphaColor(secondaryColor, 0.25, 'rgba(0,0,0,0.1)')
   });
 
-  // 4. Tegn på nytt
-    if (typeof renderCombined === 'function') {
-      await renderCombined();
+  // Tegn på nytt hvis funksjonen er tilgjengelig
+  if (typeof renderCombined === 'function') {
+    // Bruk scheduleRender for å unngå race conditions
+    if (typeof scheduleRender === 'function') {
+        scheduleRender();
+    } else {
+        renderCombined();
     }
   }
+}
 
-  let themeRefreshTimer = null;
-  let themeRefreshInFlight = null;
-  let themeRefreshQueued = false;
-  function scheduleThemeRefresh(delay = 50) {
-    if (themeRefreshTimer) {
-      clearTimeout(themeRefreshTimer);
-    }
-    themeRefreshTimer = setTimeout(() => {
-      themeRefreshTimer = null;
-      if (themeRefreshInFlight) {
-        themeRefreshQueued = true;
-        return;
-      }
-      themeRefreshInFlight = refreshNkantTheme()
-        .catch(() => {})
-        .finally(() => {
-          themeRefreshInFlight = null;
-          if (themeRefreshQueued) {
-            themeRefreshQueued = false;
-            scheduleThemeRefresh(10);
-          }
-        });
-    }, delay);
-  }
+// Hjelpefunksjon for å unngå spamming av refresh
+let themeRefreshTimer = null;
+function scheduleThemeRefresh(delay = 50) {
+  if (themeRefreshTimer) clearTimeout(themeRefreshTimer);
+  themeRefreshTimer = setTimeout(() => {
+    themeRefreshTimer = null;
+    refreshNkantTheme();
+  }, delay);
+}
+// --- PATCH SLUTT ---
 
   function setupNkantThemeSync() {
     const refresh = () => {
@@ -6091,24 +6080,6 @@ function applyExamplesConfig() {
   applyStateToUI();
   renderCombined();
 }
-  if (typeof window !== "undefined") {
-    window.applyConfig = applyExamplesConfig;
-    window.applyState = applyExamplesConfig;
-    window.render = applyExamplesConfig;
-    window.renderCombined = renderCombined;
-    window.createCleanNKantSaveState = createCleanNKantSaveState;
-    window.loadCleanNKantState = loadCleanNKantState;
-    window.nkantApi = {
-      createCleanState: (...args) => createCleanNKantSaveState(...args),
-      loadCleanState: (...args) => loadCleanNKantState(...args),
-      onExampleLoaded: handleExamplesLoaded,
-      onExampleCollect: handleExamplesCollect
-    };
-    const mv = window.mathVisuals && typeof window.mathVisuals === "object" ? window.mathVisuals : {};
-    mv.activeTool = window.nkantApi;
-    window.mathVisuals = mv;
-  }
-
 /* ---------- GEOMETRI ---------- */
 function buildRightAngleVariants(input) {
   const EPS = 1e-6;
@@ -6292,3 +6263,49 @@ function circleCircle(A, r, B, s) {
     y: ym - ry
   }];
 }
+
+// --- PATCH START: Clean JSON API ---
+if (typeof window !== "undefined") {
+  window.applyConfig = applyExamplesConfig;
+  window.applyState = applyExamplesConfig;
+  window.render = applyExamplesConfig;
+  window.renderCombined = renderCombined;
+  window.createCleanNKantSaveState = createCleanNKantSaveState;
+  window.loadCleanNKantState = loadCleanNKantState;
+
+  // Eksponer API for examples.js
+  window.nkantApi = {
+    // LAGRE: Lag en ren tilstands-objekt
+    createCleanState: () => {
+      return createCleanNKantSaveState();
+    },
+
+    // LASTE: Ta imot clean state og gjenopprett
+    loadCleanState: (json) => {
+      const success = loadCleanNKantState(json);
+      if (success && typeof renderCombined === 'function') {
+        renderCombined();
+      }
+      return success;
+    },
+
+    // Hooks for events
+    onExampleLoaded: (detail) => {
+      if (typeof handleExamplesLoaded === 'function') {
+        handleExamplesLoaded({ detail });
+      }
+    },
+    onExampleCollect: (detail) => {
+      if (typeof handleExamplesCollect === 'function') {
+        handleExamplesCollect({ detail });
+      } else if (detail && !detail.state) {
+        detail.state = createCleanNKantSaveState();
+      }
+    }
+  };
+
+  // Registrer som aktivt verktøy for mathVisuals rammeverket
+  if (!window.mathVisuals) window.mathVisuals = {};
+  window.mathVisuals.activeTool = window.nkantApi;
+}
+// --- PATCH SLUTT ---
