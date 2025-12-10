@@ -99,7 +99,10 @@
   };
 
   function applyFortegnsskjemaPalette(options = {}) {
-    chartPalette = { ...FORTEGNSSKJEMA_FALLBACK };
+    const palette = options && options.palette && typeof options.palette === 'object'
+      ? options.palette
+      : null;
+    chartPalette = { ...FORTEGNSSKJEMA_FALLBACK, ...(palette || {}) };
     if (root && root.style) {
       root.style.setProperty('--fortegnsskjema-axis-color', chartPalette.axis);
       root.style.setProperty('--fortegnsskjema-grid-color', chartPalette.grid);
@@ -707,6 +710,20 @@
     }
     return segments.map(value => value >= 0 ? 1 : -1);
   }
+  function sanitizePalette(palette) {
+    if (!palette || typeof palette !== 'object') {
+      return null;
+    }
+    const sanitized = {};
+    let hasValue = false;
+    ['axis', 'grid', 'positive', 'negative', 'text'].forEach(key => {
+      if (typeof palette[key] === 'string' && palette[key].trim()) {
+        sanitized[key] = palette[key];
+        hasValue = true;
+      }
+    });
+    return hasValue ? sanitized : null;
+  }
   function sanitizePointsArray(points) {
     if (!Array.isArray(points)) {
       return [];
@@ -847,6 +864,27 @@
       target.altText = '';
     }
     target.altTextSource = target.altTextSource === 'manual' ? 'manual' : 'auto';
+    const palette = sanitizePalette(target.palette);
+    target.palette = palette || null;
+  }
+  function createCleanState() {
+    const points = sanitizePointsArray(state.criticalPoints);
+    const rows = sanitizeRowsArray(state.signRows);
+    const resultRow = rows.find(row => row.role === 'result');
+    return {
+      v: 1,
+      expression: typeof state.expression === 'string' ? state.expression : '',
+      expressionPrefix: !!state.expressionPrefix,
+      autoDomain: sanitizeAutoDomain(state.autoDomain),
+      domain: sanitizeDomain(state.domain),
+      decimalPlaces: clampDecimalPlaces(state.decimalPlaces),
+      points,
+      segments: sanitizeSegments(resultRow ? resultRow.segments : []),
+      rows,
+      palette: sanitizePalette(state.palette) || { ...chartPalette },
+      altText: typeof state.altText === 'string' ? state.altText : '',
+      altTextSource: state.altTextSource === 'manual' ? 'manual' : 'auto'
+    };
   }
   function deepClone(value) {
     if (typeof structuredClone === 'function') {
@@ -858,6 +896,46 @@
       return JSON.parse(JSON.stringify(value));
     } catch (error) {}
     return value;
+  }
+  function loadCleanState(payload) {
+    if (!payload || payload.v !== 1) {
+      return false;
+    }
+    const sanitizedSegments = sanitizeSegments(payload.segments);
+    const palette = sanitizePalette(payload.palette);
+    const mergedRows = sanitizeRowsArray(payload.rows);
+    const existingResult = mergedRows.find(row => row.role === 'result');
+    if (sanitizedSegments.length) {
+      if (existingResult) {
+        existingResult.segments = sanitizedSegments.slice();
+      } else {
+        mergedRows.unshift({
+          id: `row-${rowIdCounter++}`,
+          label: 'f(x)',
+          segments: sanitizedSegments.slice(),
+          role: 'result',
+          locked: false
+        });
+      }
+    }
+    Object.assign(state, {
+      expression: typeof payload.expression === 'string' ? payload.expression : '',
+      expressionPrefix: !!payload.expressionPrefix,
+      autoDomain: sanitizeAutoDomain(payload.autoDomain),
+      domain: sanitizeDomain(payload.domain),
+      decimalPlaces: clampDecimalPlaces(Number(payload.decimalPlaces)),
+      criticalPoints: sanitizePointsArray(payload.points),
+      signRows: mergedRows,
+      altText: typeof payload.altText === 'string' ? payload.altText : '',
+      altTextSource: payload.altTextSource === 'manual' ? 'manual' : 'auto',
+      palette: palette || null,
+      solution: null
+    });
+    sanitizeState(state);
+    applyFortegnsskjemaPalette({ palette: state.palette });
+    renderAll();
+    refreshAltText('config');
+    return true;
   }
   function computeNextId(items, pattern, startIndex) {
     let max = startIndex - 1;
@@ -881,6 +959,7 @@
     rowIdCounter = computeNextId(state.signRows, /^row-(\d+)$/i, 1);
   }
   sanitizeState(state);
+  applyFortegnsskjemaPalette({ palette: state.palette });
   function pruneFactorRowsIfDisabled() {
     if (!Array.isArray(state.signRows)) {
       state.signRows = [];
@@ -3224,6 +3303,10 @@
   if (typeof window !== 'undefined') {
     window.renderAll = renderAll;
     window.render = renderAll;
+    window.fortegnsskjemaApi = {
+      createCleanState,
+      loadCleanState
+    };
   }
   window.addEventListener('examples:collect', event => {
     if (!event || !event.detail) return;
