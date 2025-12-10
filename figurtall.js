@@ -100,11 +100,12 @@ function isValidColor(value) {
   let figurtallAiAppliedSignature = null;
   let pendingAltTextReason = 'auto';
   const MAX_DIM = 20;
-  const MAX_COLORS = 4;
-  const LABEL_MODES = ['hidden', 'count', 'custom'];
-  const FIGURE_TYPES = ['square', 'square-outline', 'circle', 'circle-outline', 'star'];
-  let isSyncingTheme = false;
-  let rows = 3;
+    const MAX_COLORS = 4;
+    const LABEL_MODES = ['hidden', 'count', 'custom'];
+    const FIGURE_TYPES = ['square', 'square-outline', 'circle', 'circle-outline', 'star'];
+    let isSyncingTheme = false;
+    let themeObserver = null;
+    let rows = 3;
   let cols = 3;
   const colorCountInp = document.getElementById('colorCount');
   const colorInputs = [];
@@ -2141,12 +2142,21 @@ function isValidColor(value) {
   function syncThemeAndPalette() {
     if (isSyncingTheme) return;
     isSyncingTheme = true;
+    if (themeObserver) {
+      themeObserver.disconnect();
+    }
     try {
       applyThemeToDocument();
       ensureColors(STATE.colorCount);
       render();
     } finally {
       isSyncingTheme = false;
+      if (themeObserver && document && document.documentElement) {
+        themeObserver.observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ['data-project', 'data-mv-active-project', 'data-theme-profile']
+        });
+      }
     }
   }
   window.render = render;
@@ -2172,14 +2182,14 @@ function isValidColor(value) {
   }
   function initProjectProfileSync() {
     if (typeof MutationObserver === 'function' && document && document.documentElement) {
-      const observer = new MutationObserver(mutations => {
+      themeObserver = new MutationObserver(mutations => {
         if (!Array.isArray(mutations)) return;
         const shouldSync = mutations.some(mutation => mutation && mutation.type === 'attributes' && ['data-project', 'data-mv-active-project', 'data-theme-profile'].includes(mutation.attributeName));
         if (shouldSync) {
           syncThemeAndPalette();
         }
       });
-      observer.observe(document.documentElement, {
+      themeObserver.observe(document.documentElement, {
         attributes: true,
         attributeFilter: ['data-project', 'data-mv-active-project', 'data-theme-profile']
       });
