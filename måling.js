@@ -646,7 +646,6 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
   board.addEventListener('lostpointercapture', handleBoardLostPointerCapture);
 
   window.addEventListener('resize', handleResize);
-  window.addEventListener('examples:loaded', handleExamplesLoaded);
 
   initResponsiveSettingsPanel();
 
@@ -7663,8 +7662,12 @@ const FIGURE_LIBRARY_APP_KEY = 'maling';
   if (typeof window !== 'undefined') {
     window.målingApi = {
       createCleanState: (...args) => createCleanState(...args),
-      loadCleanState: (...args) => loadCleanState(...args)
+      loadCleanState: (...args) => loadCleanState(...args),
+      onExampleLoaded: () => handleExamplesLoaded()
     };
+    const mv = window.mathVisuals && typeof window.mathVisuals === 'object' ? window.mathVisuals : {};
+    mv.activeTool = window.målingApi;
+    window.mathVisuals = mv;
   }
 })().catch(error => {
   if (typeof console !== 'undefined' && typeof console.error === 'function') {

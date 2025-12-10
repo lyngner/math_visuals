@@ -1181,14 +1181,11 @@
       }
     });
   }
-  if (typeof window !== 'undefined' && window && typeof window.addEventListener === 'function') {
-    window.addEventListener('examples:collect', syncAllViewStates);
-    window.addEventListener('examples:loaded', () => {
-      ensureStateDefaults();
-      syncControlsFromState();
-      refreshAltText('examples-loaded');
-    });
-  }
+  const handleExamplesLoaded = () => {
+    ensureStateDefaults();
+    syncControlsFromState();
+    refreshAltText('examples-loaded');
+  };
   function getStoredView(index) {
     ensureViewStateCapacity();
     const stored = window.STATE.views[index];
@@ -2381,8 +2378,13 @@
     window.loadCleanState = loadCleanState;
     window.trefigurerApi = {
       createCleanState: (...args) => createCleanState(...args),
-      loadCleanState: (...args) => loadCleanState(...args)
+      loadCleanState: (...args) => loadCleanState(...args),
+      onExampleCollect: () => syncAllViewStates(),
+      onExampleLoaded: handleExamplesLoaded
     };
+    const mv = window.mathVisuals && typeof window.mathVisuals === 'object' ? window.mathVisuals : {};
+    mv.activeTool = window.trefigurerApi;
+    window.mathVisuals = mv;
   }
   window.draw = draw;
   initAltTextManager();

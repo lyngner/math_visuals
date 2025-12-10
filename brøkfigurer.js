@@ -2836,7 +2836,7 @@ function isValidColor(value) {
   });
   rebuildLayout();
   initAltTextManager();
-  window.addEventListener('examples:collect', event => {
+  const handleExamplesCollect = event => {
     var _window$render3, _window3, _window$render4, _window4;
     const detail = event === null || event === void 0 ? void 0 : event.detail;
     if (!detail || detail.svgOverride != null) return;
@@ -2853,23 +2853,21 @@ function isValidColor(value) {
       } else {
         continue;
       }
-      restore.push({
-        fig,
-        filled
-      });
+      restore.push(() => fig.setFilled(filled));
+      fig.setFilled(new Map());
     }
-    if (restore.length === 0) return;
-    for (const entry of restore) {
-      entry.fig.setFilled(new Map());
+    (_window$render3 = (_window3 = window).render) === null || _window$render3 === void 0 ? void 0 : _window$render3.call(_window3);
+    const svgString = serializeDocument();
+    if (typeof svgString === 'string' && svgString.trim()) {
+      detail.svgOverride = svgString;
     }
-    (_window$render3 = (_window3 = window).render) === null || _window$render3 === void 0 || _window$render3.call(_window3);
-    const svg = document.querySelector('svg');
-    if (svg) detail.svgOverride = svg.outerHTML;
-    for (const entry of restore) {
-      entry.fig.setFilled(entry.filled);
-    }
-    (_window$render4 = (_window4 = window).render) === null || _window$render4 === void 0 || _window$render4.call(_window4);
-  });
+    restore.forEach(fn => {
+      try {
+        fn();
+      } catch (_) {}
+    });
+    (_window$render4 = (_window4 = window).render) === null || _window$render4 === void 0 ? void 0 : _window$render4.call(_window4);
+  };
   function createCleanState() {
     const figures = getActiveFigureIds().map(id => {
       const figState = ensureFigureState(id);
@@ -3004,10 +3002,14 @@ function isValidColor(value) {
   if (typeof window !== 'undefined') {
     const api = {
       createCleanState,
-      loadCleanState
+      loadCleanState,
+      onExampleCollect: handleExamplesCollect
     };
     window.brøkfigurerApi = api;
     if (!window.brokfigurerApi) window.brokfigurerApi = api;
+    const mv = window.mathVisuals && typeof window.mathVisuals === 'object' ? window.mathVisuals : {};
+    mv.activeTool = api;
+    window.mathVisuals = mv;
   }
   window.render();
 })();

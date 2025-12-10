@@ -7049,6 +7049,27 @@ initExamples();
       } catch (_) {}
     }
     const detail = { svgOverride: null };
+    const notifyActiveToolCollect = () => {
+      const activeTool = getActiveToolApi();
+      if (!activeTool) return false;
+      const tried = new Set();
+      const execute = fn => {
+        if (typeof fn !== 'function' || tried.has(fn)) return false;
+        tried.add(fn);
+        try {
+          fn(detail);
+        } catch (_) {}
+        return true;
+      };
+      const candidates = ['onExampleCollect', 'onExamplesCollect', 'handleExampleCollect', 'collectExampleState'];
+      for (const name of candidates) {
+        if (execute(activeTool[name])) {
+          return true;
+        }
+      }
+      return false;
+    };
+    notifyActiveToolCollect();
     if (typeof window !== 'undefined' && window) {
       try {
         let evt;
@@ -7465,25 +7486,34 @@ initExamples();
       }
     }
   }
-  function triggerRefresh(index) {
+  function triggerRefresh(index, example) {
+    const detail = { index, example };
     const tried = new Set();
+    const activeTool = getActiveToolApi();
+    const execute = fn => {
+      if (typeof fn !== 'function' || tried.has(fn)) return false;
+      tried.add(fn);
+      try {
+        fn(detail);
+      } catch (_) {}
+      return true;
+    };
+    const toolCandidates = ['onExampleLoaded', 'onExamplesLoaded', 'handleExampleLoaded'];
+    if (activeTool) {
+      for (const name of toolCandidates) {
+        if (execute(activeTool[name])) return;
+      }
+    }
     const candidates = ['render', 'renderAll', 'draw', 'drawAll', 'update', 'updateAll', 'init', 'initAll', 'initFromCfg', 'initFromHtml', 'refresh', 'redraw', 'rerender', 'recalc', 'applyCfg', 'applyConfig', 'applyState', 'setup', 'rebuild'];
     for (const name of candidates) {
-      const fn = window[name];
-      if (typeof fn === 'function' && !tried.has(fn)) {
-        try {
-          fn();
-        } catch (_) {}
-        tried.add(fn);
-      }
+      if (activeTool && execute(activeTool[name])) return;
+      if (execute(window[name])) return;
     }
     let dispatched = false;
     if (typeof CustomEvent === 'function') {
       try {
         window.dispatchEvent(new CustomEvent('examples:loaded', {
-          detail: {
-            index
-          }
+          detail
         }));
         dispatched = true;
       } catch (_) {}
@@ -7799,7 +7829,7 @@ initExamples();
         initialLoadPerformed = true;
         updateTabSelection();
         if (!skipReloadIfActive) {
-          triggerRefresh(index);
+          triggerRefresh(index, ex);
         }
         notifyParentExampleChange(index);
         maybeAnnounceTemporaryExample(index, ex);
@@ -7848,7 +7878,7 @@ initExamples();
       initialLoadPerformed = true;
       updateTabSelection();
       if (!skipReloadIfActive) {
-        triggerRefresh(index);
+        triggerRefresh(index, ex);
       }
       notifyParentExampleChange(index);
       maybeAnnounceTemporaryExample(index, ex);

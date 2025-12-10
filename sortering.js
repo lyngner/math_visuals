@@ -4006,11 +4006,19 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
     return true;
   }
 
+  function handleExampleLoaded() {
+    applyStateFromGlobal();
+  }
+
   if (globalObj && typeof globalObj === 'object') {
     globalObj.sorteringApi = {
       createCleanState: (...args) => createCleanState(...args),
-      loadCleanState: (...args) => loadCleanState(...args)
+      loadCleanState: (...args) => loadCleanState(...args),
+      onExampleLoaded: handleExampleLoaded
     };
+    const mv = globalObj.mathVisuals && typeof globalObj.mathVisuals === 'object' ? globalObj.mathVisuals : {};
+    mv.activeTool = globalObj.sorteringApi;
+    globalObj.mathVisuals = mv;
   }
 
   function init() {
@@ -4068,11 +4076,6 @@ const FIGURE_LIBRARY_APP_KEY = 'sortering';
         globalObj.console.warn('mathVisSortering: kunne ikke laste figurbiblioteket', error);
       }
     });
-    if (typeof globalObj.addEventListener === 'function') {
-      globalObj.addEventListener('examples:loaded', () => {
-        applyStateFromGlobal();
-      });
-    }
   }
 
   if (doc.readyState === 'loading') {

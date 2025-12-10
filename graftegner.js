@@ -10263,6 +10263,7 @@ function setupSettingsForm() {
     });
   }
   if (typeof window !== 'undefined') {
+    let scheduleExampleHydration = null;
     const runExampleHydration = () => {
       // 1. Ta backup av utsnitt som ble lastet inn fra eksempelet
       const loadedScreen = (EXAMPLE_STATE && Array.isArray(EXAMPLE_STATE.screen)) ? EXAMPLE_STATE.screen.slice() : null;
@@ -10314,7 +10315,7 @@ function setupSettingsForm() {
       }
       apply();
     };
-    const scheduleExampleHydration = event => {
+    scheduleExampleHydration = event => {
       const incomingIndex = event && event.detail && Number.isInteger(event.detail.index)
         ? event.detail.index
         : null;
@@ -10322,7 +10323,6 @@ function setupSettingsForm() {
       const scheduler = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : fn => setTimeout(fn, 0);
       scheduler(runExampleHydration);
     };
-    window.addEventListener('examples:loaded', scheduleExampleHydration);
   }
   if (screenInput) {
     screenInput.addEventListener('input', () => {
@@ -10893,8 +10893,12 @@ function setupSettingsForm() {
     window.graftegnerApi = {
       ...existingApi,
       createCleanState: (...args) => createCleanSaveState(...args),
-      loadCleanState: (...args) => loadCleanSaveState(...args)
+      loadCleanState: (...args) => loadCleanSaveState(...args),
+      onExampleLoaded: scheduleExampleHydration
     };
+    const mv = window.mathVisuals && typeof window.mathVisuals === 'object' ? window.mathVisuals : {};
+    mv.activeTool = window.graftegnerApi;
+    window.mathVisuals = mv;
   }
   refreshFunctionColorDefaults = refreshFunctionColorDefaultsLocal;
   root.addEventListener('change', apply);
