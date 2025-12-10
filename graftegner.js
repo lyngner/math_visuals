@@ -10881,7 +10881,17 @@ function setupSettingsForm() {
   };
   if (typeof window !== 'undefined') {
     window.loadCleanSaveState = loadCleanSaveState;
+    if (typeof window.createCleanState !== 'function') {
+      window.createCleanState = createCleanSaveState;
+    }
+    if (typeof window.loadCleanState !== 'function') {
+      window.loadCleanState = loadCleanSaveState;
+    }
+    const existingApi = window.graftegnerApi && typeof window.graftegnerApi === 'object'
+      ? window.graftegnerApi
+      : {};
     window.graftegnerApi = {
+      ...existingApi,
       createCleanState: (...args) => createCleanSaveState(...args),
       loadCleanState: (...args) => loadCleanSaveState(...args)
     };
