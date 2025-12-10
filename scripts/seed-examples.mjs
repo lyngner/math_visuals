@@ -19,7 +19,8 @@ const {
   setTrashEntries,
   getStoreMode,
   isKvConfigured,
-  KvConfigurationError
+  KvConfigurationError,
+  validateEntryPayload
 } = require('../api/_lib/examples-store.js');
 
 function printHelp() {
@@ -91,7 +92,10 @@ async function loadDataset(datasetPath) {
   try {
     parsed = JSON.parse(raw);
   } catch (error) {
-    throw new Error(`Datasettet (${resolvedPath}) inneholder ugyldig JSON: ${error && error.message ? error.message : error}`);
+    throw new Error(
+      `Datasettet (${resolvedPath}) inneholder ugyldig JSON (må være ren JSON uten kommentarer): ` +
+      `${error && error.message ? error.message : error}`
+    );
   }
   if (Array.isArray(parsed)) {
     return { entries: parsed, trash: [] };
@@ -118,18 +122,43 @@ function sanitizeEntryPayload(entry) {
   };
 }
 
+function validateDatasetEntries(entries, sourcePath) {
+  const errors = [];
+  const sanitized = [];
+
+  for (const entry of entries || []) {
+    const payload = sanitizeEntryPayload(entry);
+    if (!payload) {
+      errors.push('Fant en oppføring uten gyldig path/tool. Legg til en "path"-verdi i datasettet.');
+      continue;
+    }
+    const validation = validateEntryPayload(payload.payload);
+    if (!validation.ok) {
+      const message = validation.reason || 'Payload must be clean JSON';
+      const label = payload.path ? ` for ${payload.path}` : '';
+      errors.push(`Ugyldig payload${label}: ${message}`);
+      continue;
+    }
+    sanitized.push(payload);
+  }
+
+  if (errors.length > 0) {
+    const locationHint = sourcePath ? ` (${sourcePath})` : '';
+    throw new Error(
+      `Datasettet${locationHint} er ikke klart til seeding:\n- ${errors.join('\n- ')}\n` +
+      'Pass på at filen er ren JSON (uten kommentarer) og at verdiene matcher API-validatoren.'
+    );
+  }
+
+  return sanitized;
+}
+
 async function seedEntries(entries, { dryRun }) {
   let ensured = 0;
   let skipped = 0;
   const failures = [];
   for (const entry of entries || []) {
-    const payload = sanitizeEntryPayload(entry);
-    if (!payload) {
-      skipped += 1;
-      console.warn('⚠️  Hopper over ugyldig entry uten sti.');
-      continue;
-    }
-    const { path: normalizedPath, payload: data } = payload;
+    const { path: normalizedPath, payload: data } = entry;
     const label = data.examples.length === 1
       ? `${normalizedPath} (${data.examples.length} eksempel)`
       : `${normalizedPath} (${data.examples.length} eksempler)`;
@@ -193,13 +222,24 @@ async function main() {
     return;
   }
 
+  let entries;
+  try {
+    entries = validateDatasetEntries(dataset.entries, options.datasetPath);
+  } catch (error) {
+    console.error(error && error.message ? error.message : error);
+    process.exitCode = 1;
+    return;
+  }
+
   console.log('Starter seeding av eksempeltjenesten.');
   console.log(`Kilde: ${options.datasetPath}`);
   if (options.dryRun) {
     console.log('Tørrkjøring aktivert – ingen data skrives til Redis.');
   }
 
-  const entryResult = await seedEntries(dataset.entries, options);
+  console.log('Validering fullført – skriver payloadene med samme regler som API-et.');
+
+  const entryResult = await seedEntries(entries, options);
   const trashResult = await seedTrashEntries(dataset.trash, options);
 
   if (entryResult.failures.length > 0 || trashResult.failed) {
