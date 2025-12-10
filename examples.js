@@ -4927,6 +4927,10 @@ initExamples();
       if (!copy || typeof copy !== 'object') {
         return {};
       }
+      const version = typeof copy.v === 'number' ? copy.v : null;
+      if (Number.isFinite(version) && version >= 1) {
+        return copy;
+      }
       const description = extractDescriptionFromExample(copy);
       if (typeof description === 'string') {
         copy.description = description;
@@ -7728,7 +7732,7 @@ initExamples();
     showLoadingOverlay();
     const examples = getExamples();
     const ex = examples[index];
-    if (!ex || !ex.config) {
+    if (!ex || typeof ex !== 'object') {
       setDescriptionValue('');
       scheduleOverlayHide(true);
       return false;
@@ -7765,6 +7769,10 @@ initExamples();
     };
     const getActiveCleanStateLoader = () => {
       if (typeof window === 'undefined') return null;
+      const activeTool = getActiveToolApi();
+      if (activeTool && typeof activeTool.loadCleanState === 'function') {
+        return activeTool.loadCleanState;
+      }
       const candidates = [window.graftegnerApi, window.nkantApi, window.diagramApi];
       for (const candidate of candidates) {
         if (candidate && typeof candidate.loadCleanState === 'function') {
@@ -7774,28 +7782,52 @@ initExamples();
       return null;
     };
 
+    const isVersionedExample = ex && typeof ex === 'object' && Number.isFinite(ex.v) && ex.v >= 1;
+    if (isVersionedExample) {
+      const loader = getActiveCleanStateLoader();
+      let applied = false;
+      const description = (() => {
+        const desc = ex.desc && typeof ex.desc === 'object' ? ex.desc : {};
+        if (typeof desc.text === 'string' && desc.text.trim()) {
+          return desc.text;
+        }
+        if (typeof ex.description === 'string' && ex.description.trim()) {
+          return ex.description;
+        }
+        return null;
+      })();
+      setDescriptionValue(description != null ? normalizeDescriptionString(description) : '');
+      if (currentAppMode === 'task') {
+        ensureTaskModeDescriptionRendered();
+      }
+      if (typeof loader === 'function') {
+        try {
+          applied = !!loader(cloneValue(ex));
+        } catch (error) {
+          console.error('[examples] failed to load clean state', error);
+          applied = false;
+        }
+      }
+      if (applied || skipReloadIfActive) {
+        currentExampleIndex = index;
+        pendingRequestedIndex = null;
+        initialLoadPerformed = true;
+        updateTabSelection();
+        if (!skipReloadIfActive) {
+          triggerRefresh(index);
+        }
+        notifyParentExampleChange(index);
+        maybeAnnounceTemporaryExample(index, ex);
+        scheduleOverlayHide(false);
+      } else {
+        scheduleOverlayHide(true);
+      }
+      return applied || skipReloadIfActive;
+    }
     const cfg = ex.config && typeof ex.config === 'object' ? ex.config : {};
-    const versionedExampleData = (() => {
-      if (!cfg || typeof cfg !== 'object') return null;
-      const version = typeof cfg.v === 'number' ? cfg.v : null;
-      return Number.isFinite(version) && version >= 1 ? cfg : null;
-    })();
-    const diagramHydration = versionedExampleData ? { applied: false, description: null } : hydrateDiagramExample(ex);
-    const descriptionFromVersioned = (() => {
-      if (!versionedExampleData) return null;
-      const desc = versionedExampleData.desc && typeof versionedExampleData.desc === 'object' ? versionedExampleData.desc : {};
-      if (typeof desc.text === 'string' && desc.text.trim()) {
-        return desc.text;
-      }
-      if (typeof versionedExampleData.description === 'string' && versionedExampleData.description.trim()) {
-        return versionedExampleData.description;
-      }
-      return null;
-    })();
+    const diagramHydration = hydrateDiagramExample(ex);
     const description =
-      descriptionFromVersioned != null
-        ? normalizeDescriptionString(descriptionFromVersioned)
-        : diagramHydration.description != null
+      diagramHydration.description != null
         ? normalizeDescriptionString(diagramHydration.description)
         : extractDescriptionFromExample(ex);
     setDescriptionValue(description);
@@ -7804,17 +7836,8 @@ initExamples();
     }
     let applied = false;
     const providedBindings = new Set();
-    const shouldApplyBindings = !skipReloadIfActive && !diagramHydration.applied && !versionedExampleData;
-    if (versionedExampleData) {
-      const loader = getActiveCleanStateLoader();
-      if (typeof loader === 'function') {
-        try {
-          applied = !!loader(versionedExampleData);
-        } catch (_) {
-          applied = false;
-        }
-      }
-    } else {
+    const shouldApplyBindings = !skipReloadIfActive && !diagramHydration.applied;
+    if (shouldApplyBindings) {
       if (shouldApplyBindings) {
         for (const name of BINDING_NAMES) {
           const value = cfg[name];
@@ -8357,26 +8380,7 @@ initExamples();
     flushPendingChanges();
     const cleanState = requestActiveToolCleanState();
     if (cleanState && typeof cleanState === 'object') {
-      const payload = { ...cleanState };
-      if (!Object.prototype.hasOwnProperty.call(payload, 'svg')) {
-        payload.svg = collectExampleSvgMarkup({ flush: false });
-      }
-      if (!Object.prototype.hasOwnProperty.call(payload, 'description')) {
-        payload.description = getDescriptionValue();
-      }
-      const hasConfig = payload.config && typeof payload.config === 'object';
-      const hasState = payload.state && typeof payload.state === 'object';
-      if (!hasConfig && !hasState) {
-        const fallback = collectCurrentConfig();
-        payload.config = fallback && fallback.config && typeof fallback.config === 'object' ? fallback.config : {};
-        if (!Object.prototype.hasOwnProperty.call(payload, 'svg')) {
-          payload.svg = fallback && typeof fallback.svg === 'string' ? fallback.svg : '';
-        }
-        if (!Object.prototype.hasOwnProperty.call(payload, 'description')) {
-          payload.description = fallback ? fallback.description : getDescriptionValue();
-        }
-      }
-      return payload;
+      return cloneValue(cleanState);
     }
     let ex;
     try {
@@ -8464,14 +8468,21 @@ initExamples();
       if (indexToUpdate == null) return;
       const payload = collectCurrentExampleState();
       const existing = examples[indexToUpdate];
-      const updated = existing && typeof existing === 'object' ? { ...existing } : {};
-      updated.config = payload && typeof payload.config === 'object' ? payload.config : {};
-      updated.svg = typeof (payload === null || payload === void 0 ? void 0 : payload.svg) === 'string' ? payload.svg : '';
-      if (payload && Object.prototype.hasOwnProperty.call(payload, 'description')) {
-        updated.description = typeof payload.description === 'string' ? payload.description : '';
-      } else {
-        updated.description = getDescriptionValue();
-      }
+      const isVersionedPayload = payload && typeof payload === 'object' && Number.isFinite(payload.v) && payload.v >= 1;
+      const updated = (() => {
+        if (isVersionedPayload) {
+          return cloneValue(payload);
+        }
+        const legacy = existing && typeof existing === 'object' ? { ...existing } : {};
+        legacy.config = payload && typeof payload.config === 'object' ? payload.config : {};
+        legacy.svg = typeof (payload === null || payload === void 0 ? void 0 : payload.svg) === 'string' ? payload.svg : '';
+        if (payload && Object.prototype.hasOwnProperty.call(payload, 'description')) {
+          legacy.description = typeof payload.description === 'string' ? payload.description : '';
+        } else {
+          legacy.description = getDescriptionValue();
+        }
+        return legacy;
+      })();
       if (Object.prototype.hasOwnProperty.call(updated, TEMPORARY_EXAMPLE_FLAG)) {
         delete updated[TEMPORARY_EXAMPLE_FLAG];
       }
