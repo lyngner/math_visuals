@@ -1999,6 +1999,104 @@
   const applyFloating = floating => {
     renderers.forEach(renderer => renderer.setFloating(Boolean(floating)));
   };
+  function sanitizeFigureEntry(entry) {
+    if (!entry || typeof entry !== 'object') return null;
+    const cleaned = {
+      input: typeof entry.input === 'string' ? entry.input : ''
+    };
+    if (typeof entry.type === 'string') {
+      cleaned.type = entry.type;
+    }
+    if (entry.dimensions && typeof entry.dimensions === 'object') {
+      const dims = {};
+      Object.keys(entry.dimensions).forEach(key => {
+        const source = entry.dimensions[key];
+        if (!source || typeof source !== 'object') return;
+        const dim = {};
+        if (typeof source.label === 'string') dim.label = source.label;
+        if (Number.isFinite(source.value)) dim.value = Number(source.value);
+        if (source.requested != null) dim.requested = Boolean(source.requested);
+        if (Object.keys(dim).length) {
+          dims[key] = dim;
+        }
+      });
+      if (Object.keys(dims).length) {
+        cleaned.dimensions = dims;
+      }
+    }
+    return cleaned;
+  }
+  function sanitizeViewEntry(entry) {
+    if (!entry || typeof entry !== 'object') return null;
+    const position = normalizeVectorArray(entry.position);
+    const target = normalizeVectorArray(entry.target);
+    const sanitized = {};
+    if (position) sanitized.position = position.slice();
+    if (target) sanitized.target = target.slice();
+    if (Number.isFinite(entry.distance)) sanitized.distance = Number(entry.distance);
+    if (Number.isFinite(entry.baseDistance)) sanitized.baseDistance = Number(entry.baseDistance);
+    return Object.keys(sanitized).length ? sanitized : null;
+  }
+  function createCleanState(meta) {
+    ensureStateDefaults();
+    syncAllViewStates();
+    const figures = getCurrentFigures();
+    const cleanFigures = Array.isArray(figures)
+      ? figures.map(sanitizeFigureEntry).filter(Boolean)
+      : [];
+    const cleanViews = Array.isArray(window.STATE && window.STATE.views)
+      ? window.STATE.views.map(sanitizeViewEntry)
+      : [];
+    const cleanState = {
+      v: 1,
+      input: typeof window.STATE.rawInput === 'string' ? window.STATE.rawInput : defaultInput,
+      figures: cleanFigures,
+      rotationLocked: Boolean(window.STATE.rotationLocked),
+      freeFigure: Boolean(window.STATE.freeFigure),
+      useCustomColor: Boolean(window.STATE.useCustomColor),
+      customColor: typeof window.STATE.customColor === 'string' ? window.STATE.customColor : undefined,
+      transparency: clampTransparency(window.STATE.transparency),
+      views: cleanViews
+    };
+    if (!cleanState.customColor) delete cleanState.customColor;
+    if (meta && typeof meta === 'object') {
+      cleanState.meta = { ...meta };
+    }
+    return cleanState;
+  }
+  function loadCleanState(rawState) {
+    if (!rawState || typeof rawState !== 'object') return false;
+    if (Number(rawState.v) !== 1) return false;
+    const nextState = {};
+    const input = typeof rawState.input === 'string' ? rawState.input : defaultInput;
+    nextState.rawInput = input;
+    if (Array.isArray(rawState.figures)) {
+      nextState.figures = rawState.figures.map(sanitizeFigureEntry).filter(Boolean);
+    }
+    const transparency = clampTransparency(rawState.transparency);
+    nextState.transparency = transparency;
+    if (typeof rawState.rotationLocked === 'boolean') {
+      nextState.rotationLocked = rawState.rotationLocked;
+    }
+    if (typeof rawState.freeFigure === 'boolean') {
+      nextState.freeFigure = rawState.freeFigure;
+    }
+    if (typeof rawState.useCustomColor === 'boolean') {
+      nextState.useCustomColor = rawState.useCustomColor;
+    }
+    if (typeof rawState.customColor === 'string') {
+      nextState.customColor = rawState.customColor;
+    }
+    if (Array.isArray(rawState.views)) {
+      nextState.views = rawState.views.map(sanitizeViewEntry);
+    }
+    window.STATE = nextState;
+    ensureStateDefaults();
+    syncControlsFromState();
+    draw();
+    refreshAltText('load-clean-state');
+    return true;
+  }
   function syncControlsFromState() {
     if (!window.STATE || typeof window.STATE !== 'object') return;
     if (lockRotationCheckbox) {
@@ -2278,6 +2376,13 @@
         draw();
       }
     });
+  }
+  if (typeof window !== 'undefined') {
+    window.loadCleanState = loadCleanState;
+    window.trefigurerApi = {
+      createCleanState: (...args) => createCleanState(...args),
+      loadCleanState: (...args) => loadCleanState(...args)
+    };
   }
   window.draw = draw;
   initAltTextManager();
