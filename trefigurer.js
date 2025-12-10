@@ -2070,7 +2070,8 @@
     const nextState = {};
     const input = typeof rawState.input === 'string' ? rawState.input : defaultInput;
     nextState.rawInput = input;
-    if (Array.isArray(rawState.figures)) {
+    const hasFigures = Array.isArray(rawState.figures);
+    if (hasFigures) {
       nextState.figures = rawState.figures.map(sanitizeFigureEntry).filter(Boolean);
     }
     const transparency = clampTransparency(rawState.transparency);
@@ -2093,7 +2094,8 @@
     window.STATE = nextState;
     ensureStateDefaults();
     syncControlsFromState();
-    draw({ rawInput: window.STATE.rawInput, figures: window.STATE.figures });
+    const figuresOption = hasFigures ? window.STATE.figures : undefined;
+    draw({ rawInput: window.STATE.rawInput, figures: figuresOption });
     refreshAltText('load-clean-state');
     return true;
   }
