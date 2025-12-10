@@ -114,6 +114,21 @@ function resolveCorsOrigin(req) {
 
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
+    if (req.body !== undefined && req.body !== null) {
+      if (typeof req.body === 'string' || Buffer.isBuffer(req.body)) {
+        try {
+          resolve(JSON.parse(req.body.toString()));
+        } catch (error) {
+          reject(Object.assign(new Error('Invalid JSON body'), { cause: error }));
+        }
+        return;
+      }
+      if (typeof req.body === 'object') {
+        resolve(req.body);
+        return;
+      }
+    }
+
     let data = '';
     req.on('data', chunk => {
       data += chunk;
