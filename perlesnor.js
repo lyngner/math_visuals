@@ -81,6 +81,11 @@ const ADV = {
     rightColorClass: "blue"
   }
 };
+const ADV_DEFAULTS = {
+  assets: { ...ADV.assets },
+  a11y: { ...ADV.a11y },
+  ui: { ...ADV.ui }
+};
 function getThemeApi() {
   const theme = typeof window !== 'undefined' ? window.MathVisualsTheme : null;
   return theme && typeof theme === 'object' ? theme : null;
@@ -920,6 +925,110 @@ function buildClipFallbackPath(width, height, wireY) {
 function clamp(v, a, b) {
   return Math.max(a, Math.min(b, v));
 }
+function cloneConfig(value) {
+  if (value === null || value === undefined) return value;
+  if (typeof structuredClone === 'function') {
+    try {
+      return structuredClone(value);
+    } catch (error) {
+      // Fall back to JSON-kloning under vedvarende feil
+    }
+  }
+  if (typeof value !== 'object') return value;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (error) {
+    return value;
+  }
+}
+function pickOverrides(current, baseline) {
+  const result = {};
+  if (!current || typeof current !== 'object') return result;
+  const baseObj = baseline && typeof baseline === 'object' ? baseline : {};
+  Object.keys(current).forEach(key => {
+    if (!(key in baseObj) || current[key] !== baseObj[key]) {
+      result[key] = current[key];
+    }
+  });
+  return result;
+}
+function createCleanState() {
+  const assets = pickOverrides(ADV.assets, ADV_DEFAULTS.assets);
+  const a11y = pickOverrides(ADV.a11y, ADV_DEFAULTS.a11y);
+  const ui = pickOverrides(ADV.ui, ADV_DEFAULTS.ui);
+  const state = {
+    v: 1,
+    nBeads: SIMPLE.nBeads,
+    startIndex: SIMPLE.startIndex,
+    idx,
+    clipY,
+    altText: typeof SIMPLE.altText === 'string' ? SIMPLE.altText : '',
+    altTextSource: SIMPLE.altTextSource === 'manual' ? 'manual' : 'auto'
+  };
+  if (SIMPLE.beadRadius != null && Number.isFinite(SIMPLE.beadRadius)) {
+    state.beadRadius = SIMPLE.beadRadius;
+  }
+  if (SIMPLE.correct !== undefined) {
+    state.correct = cloneConfig(SIMPLE.correct);
+  }
+  if (SIMPLE.feedback && typeof SIMPLE.feedback === 'object') {
+    state.feedback = cloneConfig(SIMPLE.feedback);
+  }
+  if (Object.keys(assets).length) state.assets = assets;
+  if (Object.keys(a11y).length) state.a11y = a11y;
+  if (Object.keys(ui).length) state.ui = ui;
+  return state;
+}
+function loadCleanState(payload) {
+  if (!payload || typeof payload !== 'object') {
+    console.warn('perlesnor: Ugyldig tilstand – forventer objekt.');
+    return false;
+  }
+  if (payload.v !== 1) {
+    console.warn('perlesnor: Ustøttet tilstand-versjon.', payload.v);
+    return false;
+  }
+  if (Number.isFinite(payload.nBeads)) {
+    SIMPLE.nBeads = Math.max(1, Math.round(payload.nBeads));
+  }
+  if (Number.isFinite(payload.startIndex)) {
+    SIMPLE.startIndex = Math.max(0, Math.round(payload.startIndex));
+  }
+  if (Number.isFinite(payload.beadRadius)) {
+    SIMPLE.beadRadius = payload.beadRadius;
+  }
+  if (payload.correct !== undefined) {
+    SIMPLE.correct = cloneConfig(payload.correct);
+  }
+  if (payload.feedback && typeof payload.feedback === 'object') {
+    SIMPLE.feedback = { ...SIMPLE.feedback, ...cloneConfig(payload.feedback) };
+  }
+  if (typeof payload.altText === 'string') {
+    SIMPLE.altText = payload.altText;
+  }
+  if (payload.altTextSource === 'manual' || payload.altTextSource === 'auto') {
+    SIMPLE.altTextSource = payload.altTextSource;
+  }
+  if (payload.assets && typeof payload.assets === 'object') {
+    ADV.assets = { ...ADV.assets, ...cloneConfig(payload.assets) };
+  }
+  if (payload.a11y && typeof payload.a11y === 'object') {
+    ADV.a11y = { ...ADV.a11y, ...cloneConfig(payload.a11y) };
+  }
+  if (payload.ui && typeof payload.ui === 'object') {
+    ADV.ui = { ...ADV.ui, ...cloneConfig(payload.ui) };
+  }
+  CFG = makeCFG();
+  overlay.setAttribute("aria-valuemax", String(CFG.nBeads));
+  layout();
+  const desiredIdx = Number.isFinite(payload.idx) ? Math.round(payload.idx) : CFG.startIndex;
+  idx = clamp(desiredIdx, 0, CFG.nBeads);
+  const desiredClipY = Number.isFinite(payload.clipY) ? payload.clipY : 0;
+  clipY = clamp(desiredClipY, CLIP_Y_MIN, CLIP_Y_MAX);
+  draw();
+  syncAltText('load');
+  return true;
+}
 function pt(e) {
   const p = svg.createSVGPoint();
   p.x = e.clientX;
@@ -1136,4 +1245,10 @@ async function downloadPNG(svgEl, filename, scale = 2, bg = '#fff') {
     };
     img.src = url;
   });
+}
+if (typeof window !== 'undefined') {
+  window.perlesnorApi = {
+    createCleanState,
+    loadCleanState
+  };
 }
