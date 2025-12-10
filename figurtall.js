@@ -103,6 +103,7 @@ function isValidColor(value) {
   const MAX_COLORS = 4;
   const LABEL_MODES = ['hidden', 'count', 'custom'];
   const FIGURE_TYPES = ['square', 'square-outline', 'circle', 'circle-outline', 'star'];
+  let isSyncingTheme = false;
   let rows = 3;
   let cols = 3;
   const colorCountInp = document.getElementById('colorCount');
@@ -2138,9 +2139,15 @@ function isValidColor(value) {
   });
   initAltTextManager();
   function syncThemeAndPalette() {
-    applyThemeToDocument();
-    ensureColors(STATE.colorCount);
-    render();
+    if (isSyncingTheme) return;
+    isSyncingTheme = true;
+    try {
+      applyThemeToDocument();
+      ensureColors(STATE.colorCount);
+      render();
+    } finally {
+      isSyncingTheme = false;
+    }
   }
   window.render = render;
   window.createCleanFigurtallState = createCleanState;
