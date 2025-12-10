@@ -285,15 +285,19 @@ function ensureDescriptionRendererLoaded() {
 }
 function resolveExamplesApiBase() {
   if (typeof window === 'undefined') return null;
+  const productionBase = 'https://mathvisuals.no/api/examples';
   if (window.MATH_VISUALS_EXAMPLES_API_URL) {
     const value = String(window.MATH_VISUALS_EXAMPLES_API_URL).trim();
     if (value) return value;
   }
   const origin = window.location && window.location.origin;
+  if (typeof window.location?.hostname === 'string' && /\.vercel\.app$/i.test(window.location.hostname)) {
+    return productionBase;
+  }
   if (typeof origin === 'string' && /^https?:/i.test(origin)) {
     return '/api/examples';
   }
-  return null;
+  return productionBase;
 }
 function buildExamplesApiUrl(base, path) {
   if (!base) return null;
