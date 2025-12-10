@@ -7838,24 +7838,22 @@ initExamples();
     const providedBindings = new Set();
     const shouldApplyBindings = !skipReloadIfActive && !diagramHydration.applied;
     if (shouldApplyBindings) {
-      if (shouldApplyBindings) {
-        for (const name of BINDING_NAMES) {
-          const value = cfg[name];
-          const normalizedValue = value != null ? value : cfg[String(name).toLowerCase()];
-          if (normalizedValue != null) {
-            applyBinding(name, normalizedValue);
-            providedBindings.add(name);
-            applied = true;
-          }
-        }
-        if (!providedBindings.has('STATE')) {
-          applyBinding('STATE', {});
+      for (const name of BINDING_NAMES) {
+        const value = cfg[name];
+        const normalizedValue = value != null ? value : cfg[String(name).toLowerCase()];
+        if (normalizedValue != null) {
+          applyBinding(name, normalizedValue);
+          providedBindings.add(name);
+          applied = true;
         }
       }
-      if (diagramHydration.applied) {
-        applied = true;
-        providedBindings.add('CFG');
+      if (!providedBindings.has('STATE')) {
+        applyBinding('STATE', {});
       }
+    }
+    if (diagramHydration.applied) {
+      applied = true;
+      providedBindings.add('CFG');
     }
     if (applied || skipReloadIfActive) {
       currentExampleIndex = index;
