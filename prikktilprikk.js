@@ -24,6 +24,7 @@
   const MAX_ZOOM = 4;
   const ZOOM_STEP = 0.25;
   const PAN_STEP = 0.01;
+  const STORAGE_SCHEMA_VERSION = 1;
   const VIEW_PADDING_FACTOR = 0.1;
   const VIEW_MIN_PADDING = 0.05;
   const WORLD_MIN_X = -2;
@@ -1080,6 +1081,148 @@
       previous = point;
     });
     return sequential;
+  }
+
+  function normalizeViewSnapshot(rawView, { allowNull = false } = {}) {
+    if (!rawView || typeof rawView !== 'object') {
+      return allowNull ? null : { zoom: DEFAULT_ZOOM, panX: 0, panY: 0 };
+    }
+    const zoom = clampZoom(rawView.zoom);
+    const panX = sanitizeCoordinate(rawView.panX);
+    const panY = sanitizeCoordinate(rawView.panY);
+    return { zoom, panX, panY };
+  }
+
+  function clonePointsForStorage(points) {
+    if (!Array.isArray(points)) return [];
+    const usedIds = new Set();
+    const normalized = [];
+    points.forEach((point, idx) => {
+      if (!point || typeof point !== 'object') return;
+      let id = typeof point.id === 'string' && point.id.trim() ? point.id : `p${idx + 1}`;
+      while (usedIds.has(id)) {
+        id = `${id}_${usedIds.size + 1}`;
+      }
+      usedIds.add(id);
+      const label = typeof point.label === 'string' && point.label.trim() ? point.label : String(idx + 1);
+      normalized.push({
+        id,
+        label,
+        x: sanitizeCoordinate(point.x),
+        y: sanitizeCoordinate(point.y),
+        isFalse: !!point.isFalse
+      });
+    });
+    return normalized;
+  }
+
+  function normalizeTaskSnapshot(rawTask) {
+    if (!rawTask || typeof rawTask !== 'object') return null;
+    const points = clonePointsForStorage(rawTask.points);
+    const validPoints = new Set(points.map(point => point.id));
+    const predefinedLines = sanitizeLineList(rawTask.predefinedLines, validPoints);
+    const answerLinesInput = sanitizeLineList(rawTask.answerLines, validPoints);
+    const answerLines = answerLinesInput.length ? answerLinesInput : buildSequentialAnswerLines(points);
+    const labelFontSize = normalizeLabelFontSize(rawTask.labelFontSize);
+    const view = normalizeViewSnapshot(rawTask.view);
+    const nextPointId = Number.isFinite(rawTask.nextPointId) ? rawTask.nextPointId : points.length + 1;
+    const coordinateOrigin = typeof rawTask.coordinateOrigin === 'string' && rawTask.coordinateOrigin
+      ? rawTask.coordinateOrigin
+      : 'bottom-left';
+    return {
+      coordinateOrigin,
+      points,
+      answerLines,
+      predefinedLines,
+      showLabels: rawTask.showLabels === false ? false : true,
+      labelFontSize,
+      nextPointId,
+      showGrid: rawTask.showGrid === false ? false : true,
+      snapToGrid: !!rawTask.snapToGrid,
+      view
+    };
+  }
+
+  function normalizeProgressSnapshot(rawProgress, validPoints) {
+    const normalized = {};
+    if (!rawProgress || typeof rawProgress !== 'object') return normalized;
+    const progressLines = sanitizeLineList(rawProgress.lines, validPoints);
+    if (progressLines.length) normalized.lines = progressLines;
+    const view = normalizeViewSnapshot(rawProgress.view, { allowNull: true });
+    if (view) normalized.view = view;
+    return normalized;
+  }
+
+  function createCleanState() {
+    const task = normalizeTaskSnapshot({ ...STATE, view: getViewSettings() });
+    if (!task) return null;
+    const validPoints = new Set(task.points.map(point => point.id));
+    const progress = {};
+    const progressLines = sanitizeLineList(Array.from(userLines).map(key => keyToPair(key)), validPoints);
+    if (progressLines.length) progress.lines = progressLines;
+    if (hasUserAdjustedView) {
+      progress.view = normalizeViewSnapshot(getViewSettings());
+    }
+    return {
+      v: STORAGE_SCHEMA_VERSION,
+      task,
+      progress,
+      mode: isEditMode ? 'edit' : 'play'
+    };
+  }
+
+  function loadCleanState(rawState) {
+    const base = rawState && typeof rawState === 'object' ? rawState : null;
+    if (!base) return false;
+    const taskCandidate = base.task && typeof base.task === 'object' ? base.task : base;
+    const task = normalizeTaskSnapshot(taskCandidate);
+    if (!task) return false;
+    const validPoints = new Set(task.points.map(point => point.id));
+    const progress = normalizeProgressSnapshot(base.progress, validPoints);
+    const normalizedMode = typeof base.mode === 'string' ? base.mode : null;
+
+    STATE.coordinateOrigin = task.coordinateOrigin;
+    STATE.points = task.points;
+    STATE.answerLines = task.answerLines;
+    STATE.predefinedLines = task.predefinedLines;
+    STATE.showLabels = task.showLabels;
+    STATE.labelFontSize = task.labelFontSize;
+    STATE.nextPointId = task.nextPointId;
+    STATE.showGrid = task.showGrid;
+    STATE.snapToGrid = task.snapToGrid;
+    STATE.view = task.view || { zoom: DEFAULT_ZOOM, panX: 0, panY: 0 };
+
+    userLines.clear();
+    if (progress.lines) {
+      progress.lines.forEach(([a, b]) => {
+        const key = makeLineKey(a, b);
+        if (key) userLines.add(key);
+      });
+    }
+
+    hasUserAdjustedView = !!progress.view;
+    if (progress.view) {
+      STATE.view = progress.view;
+    }
+
+    selectedPointId = null;
+    predefAnchorPointId = null;
+
+    rebuildAll(false);
+    clearStatus();
+    if (normalizedMode) applyModeChange(normalizedMode);
+
+    if (typeof window !== 'undefined') {
+      window.STATE = STATE;
+      window.STATE_V2 = {
+        v: STORAGE_SCHEMA_VERSION,
+        task: deepClone(task),
+        progress: deepClone(progress),
+        mode: normalizedMode
+      };
+    }
+
+    return true;
   }
 
   function ensureBottomLeftOrigin() {
@@ -2853,6 +2996,15 @@
 
   window.addEventListener('message', handleModeMessage);
   window.addEventListener('math-visuals:app-mode-changed', handleAppModeEvent);
+
+  if (typeof window !== 'undefined') {
+    window.createCleanState = createCleanState;
+    window.loadCleanState = loadCleanState;
+    window.prikktilprikkApi = {
+      createCleanState: (...args) => createCleanState(...args),
+      loadCleanState: (...args) => loadCleanState(...args)
+    };
+  }
 
   function requestInitialMode() {
     if (typeof window === 'undefined') return;
