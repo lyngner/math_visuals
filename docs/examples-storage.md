@@ -14,6 +14,8 @@ Denne siden dokumenterer hvordan `examples.js` samhandler med API-et på `/api/e
 * Når en side åpnes, henter klienten hele posten fra API-et. Hvis forespørselen lykkes, vises både innebygde og brukerlagrede eksempler direkte fra back-end.
 * Hvis Redis-instansen ikke er tilgjengelig eller mangler konfigurasjon (`REDIS_ENDPOINT`, `REDIS_PORT` og `REDIS_PASSWORD`), går API-et over til et minnebasert lager. Responsene merkes med `storage: "memory"`/`mode: "memory"` og klientene viser et varsel om begrenset persistens.
 * Når API-et svarer med en feil (f.eks. ekte backend-nedetid), beholder UI-et gjeldende visning og viser en statusmelding. I minnemodus kan UI-et fortsatt lagre midlertidige endringer.
+* API-et saniterer alle innkommende eksempler: beskrivelser konverteres til ren tekst/trimmes, SVG-er forkastes når de overskrider ~120 kB, midlertidige felt som `__openRequestId`/`temporary` fjernes, og verdier som `Map`/`Set`/`Date`/`RegExp`/`BigInt` serialiseres til JSON-vennlige strukturer. Klienter kan fortsatt gjøre sin egen ryddejobb, men back-end er kilden til sannhet for hva som faktisk lagres.【F:api/_lib/examples-store.js†L1-L235】【F:api/_lib/examples-store.js†L420-L519】
+* Eksempeltjenesten forventer versjonerte stater. `createCleanState` skal levere objekter med `v: 1` (settes automatisk om feltet mangler), og `loadCleanState` kjøres kun for slike versjoner når et eksempel åpnes.【F:examples.js†L7535-L7574】【F:examples.js†L7660-L7711】
 
 ## Lagringsnøkler og canonical paths
 

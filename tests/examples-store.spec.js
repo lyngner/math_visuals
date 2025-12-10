@@ -129,6 +129,45 @@ test.describe('examples-store serialization', () => {
 
     await deleteEntry(path);
   });
+
+  test('sanitizes descriptions, svg size limits and temporary markers', async () => {
+    const path = buildPath();
+    const largeSvg = `<svg>${'x'.repeat(130000)}</svg>`;
+
+    const payload = {
+      examples: [
+        {
+          descriptionHtml: '<p>Hello<br>world</p>',
+          descriptionRich: '<div>ignored</div>',
+          svg: largeSvg,
+          temporary: true,
+          __isTemporaryExample: true,
+          __openRequestId: 'abc123',
+          meta: new Map([['colors', new Set(['red', 'blue'])]])
+        }
+      ]
+    };
+
+    const entry = await setEntry(path, payload);
+    const example = entry.examples[0];
+
+    expect(example.description).toBe('Hello\nworld');
+    expect(example.svg).toBe('');
+    expect(example.descriptionHtml).toBeUndefined();
+    expect(example.descriptionRich).toBeUndefined();
+    expect(example.temporary).toBeUndefined();
+    expect(example.__isTemporaryExample).toBeUndefined();
+    expect(example.__openRequestId).toBeUndefined();
+
+    const stored = await getEntry(path);
+    const decodedMeta = __deserializeExampleValue(stored.examples[0].meta);
+    expect(decodedMeta instanceof Map).toBe(true);
+    const colorSet = decodedMeta.get('colors');
+    expect(colorSet instanceof Set).toBe(true);
+    expect(Array.from(colorSet).sort()).toEqual(['blue', 'red']);
+
+    await deleteEntry(path);
+  });
 });
 
 test.describe('examples-store path normalization', () => {
