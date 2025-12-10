@@ -1276,7 +1276,10 @@
       if (point && !point.isFalse) realPointIds.add(point.id);
     });
     STATE.predefinedLines = sanitizeLineList(STATE.predefinedLines, realPointIds);
-    STATE.answerLines = buildSequentialAnswerLines(sanitizedPoints);
+    const sanitizedAnswerLines = sanitizeLineList(STATE.answerLines, realPointIds);
+    STATE.answerLines = sanitizedAnswerLines.length
+      ? sanitizedAnswerLines
+      : buildSequentialAnswerLines(sanitizedPoints);
     let nextCandidate = 1;
     sanitizedPoints.forEach(point => {
       const match = point.id.match(/([0-9]+)$/);
