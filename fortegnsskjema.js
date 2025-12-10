@@ -3305,26 +3305,29 @@
     window.render = renderAll;
     window.fortegnsskjemaApi = {
       createCleanState,
-      loadCleanState
+      loadCleanState,
+      onExampleCollect: event => {
+        if (!event || !event.detail) return;
+        const markup = getExportSvgMarkup();
+        if (markup) {
+          event.detail.svgOverride = markup;
+        }
+      },
+      onExampleLoaded: () => {
+        sanitizeState(state);
+        updateIdCounters();
+        renderAll();
+        setCheckMessage('');
+        if (altTextManager) {
+          altTextManager.applyCurrent();
+          refreshAltText('examples');
+        }
+      }
     };
+    const mv = window.mathVisuals && typeof window.mathVisuals === 'object' ? window.mathVisuals : {};
+    mv.activeTool = window.fortegnsskjemaApi;
+    window.mathVisuals = mv;
   }
-  window.addEventListener('examples:collect', event => {
-    if (!event || !event.detail) return;
-    const markup = getExportSvgMarkup();
-    if (markup) {
-      event.detail.svgOverride = markup;
-    }
-  });
-  window.addEventListener('examples:loaded', () => {
-    sanitizeState(state);
-    updateIdCounters();
-    renderAll();
-    setCheckMessage('');
-    if (altTextManager) {
-      altTextManager.applyCurrent();
-      refreshAltText('examples');
-    }
-  });
   createDefaultRow();
   initAltTextManager();
   renderAll();

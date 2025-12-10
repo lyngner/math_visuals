@@ -6016,48 +6016,48 @@ function bindUI() {
 }
 
 /* ---------- INIT ---------- */
-window.addEventListener("DOMContentLoaded", async () => {
-  bindUI();
-  initResponsiveFigureSizing();
-  initAltTextManager();
-  applyTextSizePreference(STATE.textSize);
+  window.addEventListener("DOMContentLoaded", async () => {
+    bindUI();
+    initResponsiveFigureSizing();
+    initAltTextManager();
+    applyTextSizePreference(STATE.textSize);
   syncLabelEditingAvailability();
   setupNkantThemeSync();
 });
 
-window.addEventListener("examples:loaded", event => {
-  const candidateState = event && event.detail && typeof event.detail === "object" && event.detail.state
-    ? event.detail.state
-    : (typeof STATE_V2 !== "undefined" && STATE_V2 ? STATE_V2 : STATE);
-  if (candidateState) {
-    if (typeof window !== "undefined") {
-      window.STATE_V2 = candidateState;
-      window.STATE = candidateState;
+  const handleExamplesLoaded = event => {
+    const candidateState = event && event.detail && typeof event.detail === "object" && event.detail.state
+      ? event.detail.state
+      : (typeof STATE_V2 !== "undefined" && STATE_V2 ? STATE_V2 : STATE);
+    if (candidateState) {
+      if (typeof window !== "undefined") {
+        window.STATE_V2 = candidateState;
+        window.STATE = candidateState;
+      }
     }
-  }
-  applyExamplesConfig();
-  if (!altTextManager) {
-    initAltTextManager();
-  }
-  if (altTextManager) {
-    altTextManager.applyCurrent();
-    maybeRefreshAltText("examples");
-  }
-});
+    applyExamplesConfig();
+    if (!altTextManager) {
+      initAltTextManager();
+    }
+    if (altTextManager) {
+      altTextManager.applyCurrent();
+      maybeRefreshAltText("examples");
+    }
+  };
 
-window.addEventListener("examples:collect", event => {
-  const cleanState = createCleanNKantSaveState();
-  if (event && event.detail && typeof event.detail === 'object') {
-    event.detail.state = cleanState;
-  }
-  if (typeof window !== 'undefined') {
-    window.STATE_V2 = cleanState;
-    window.STATE = cleanState;
-  }
-  if (altTextManager) {
-    altTextManager.applyCurrent();
-  }
-});
+  const handleExamplesCollect = event => {
+    const cleanState = createCleanNKantSaveState();
+    if (event && event.detail && typeof event.detail === 'object') {
+      event.detail.state = cleanState;
+    }
+    if (typeof window !== 'undefined') {
+      window.STATE_V2 = cleanState;
+      window.STATE = cleanState;
+    }
+    if (altTextManager) {
+      altTextManager.applyCurrent();
+    }
+  };
 function applyStateToUI() {
   ensureStateDefaults();
   const textSizeSelect = document.querySelector('#textSizeSelect');
@@ -6091,18 +6091,23 @@ function applyExamplesConfig() {
   applyStateToUI();
   renderCombined();
 }
-if (typeof window !== "undefined") {
-  window.applyConfig = applyExamplesConfig;
-  window.applyState = applyExamplesConfig;
-  window.render = applyExamplesConfig;
-  window.renderCombined = renderCombined;
-  window.createCleanNKantSaveState = createCleanNKantSaveState;
-  window.loadCleanNKantState = loadCleanNKantState;
-  window.nkantApi = {
-    createCleanState: (...args) => createCleanNKantSaveState(...args),
-    loadCleanState: (...args) => loadCleanNKantState(...args)
-  };
-}
+  if (typeof window !== "undefined") {
+    window.applyConfig = applyExamplesConfig;
+    window.applyState = applyExamplesConfig;
+    window.render = applyExamplesConfig;
+    window.renderCombined = renderCombined;
+    window.createCleanNKantSaveState = createCleanNKantSaveState;
+    window.loadCleanNKantState = loadCleanNKantState;
+    window.nkantApi = {
+      createCleanState: (...args) => createCleanNKantSaveState(...args),
+      loadCleanState: (...args) => loadCleanNKantState(...args),
+      onExampleLoaded: handleExamplesLoaded,
+      onExampleCollect: handleExamplesCollect
+    };
+    const mv = window.mathVisuals && typeof window.mathVisuals === "object" ? window.mathVisuals : {};
+    mv.activeTool = window.nkantApi;
+    window.mathVisuals = mv;
+  }
 
 /* ---------- GEOMETRI ---------- */
 function buildRightAngleVariants(input) {

@@ -868,8 +868,28 @@ const paletteService = typeof require === 'function'
   if (typeof window !== 'undefined') {
     window['brøkveggApi'] = {
       createCleanState: (...args) => createCleanState(...args),
-      loadCleanState: (...args) => loadCleanState(...args)
+      loadCleanState: (...args) => loadCleanState(...args),
+      onExampleLoaded: event => {
+        const incoming = event && event.detail && typeof event.detail === 'object' ? event.detail.state : null;
+        const loaded = loadCleanState(incoming);
+        if (!loaded && altTextManager) {
+          altTextManager.applyCurrent();
+          refreshAltText('examples');
+        }
+      },
+      onExampleCollect: event => {
+        if (!event || !event.detail) return;
+        try {
+          event.detail.svgOverride = svgToString(svg);
+        } catch (_) {}
+        try {
+          event.detail.state = createCleanState();
+        } catch (_) {}
+      }
     };
+    const mv = window.mathVisuals && typeof window.mathVisuals === 'object' ? window.mathVisuals : {};
+    mv.activeTool = window['brøkveggApi'];
+    window.mathVisuals = mv;
   }
   function handleThemeProfileChange(event) {
     const data = event && event.data;
@@ -1077,21 +1097,4 @@ const paletteService = typeof require === 'function'
     window.addEventListener('message', handleThemeProfileMessage);
   }
   initAltTextManager();
-  window.addEventListener('examples:loaded', event => {
-    const incoming = event && event.detail && typeof event.detail === 'object' ? event.detail.state : null;
-    const loaded = loadCleanState(incoming);
-    if (!loaded && altTextManager) {
-      altTextManager.applyCurrent();
-      refreshAltText('examples');
-    }
-  });
-  window.addEventListener('examples:collect', event => {
-    if (!event || !event.detail) return;
-    try {
-      event.detail.svgOverride = svgToString(svg);
-    } catch (_) {}
-    try {
-      event.detail.state = createCleanState();
-    } catch (_) {}
-  });
 })();

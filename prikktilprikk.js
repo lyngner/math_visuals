@@ -3002,8 +3002,15 @@
     window.loadCleanState = loadCleanState;
     window.prikktilprikkApi = {
       createCleanState: (...args) => createCleanState(...args),
-      loadCleanState: (...args) => loadCleanState(...args)
+      loadCleanState: (...args) => loadCleanState(...args),
+      onExampleLoaded: () => {
+        rebuildAll(true);
+        clearStatus();
+      }
     };
+    const mv = window.mathVisuals && typeof window.mathVisuals === 'object' ? window.mathVisuals : {};
+    mv.activeTool = window.prikktilprikkApi;
+    window.mathVisuals = mv;
   }
 
   function requestInitialMode() {
@@ -3022,11 +3029,6 @@
 
   window.addEventListener('resize', () => {
     updateAllLabelPositions();
-  });
-
-  window.addEventListener('examples:loaded', () => {
-    rebuildAll(true);
-    clearStatus();
   });
 
   updatePredefToolUI();
