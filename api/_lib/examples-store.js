@@ -20,10 +20,139 @@ let memoryTrashEntries = [];
 const EXAMPLE_VALUE_TYPE_KEY = '__mathVisualsType__';
 const EXAMPLE_VALUE_DATA_KEY = '__mathVisualsValue__';
 
+const DESCRIPTION_FALLBACK_FIELDS = [
+  'descriptionHtml',
+  'descriptionHTML',
+  'description_html',
+  'descriptionRich',
+  'description_rich',
+  'descriptionRichText',
+  'description_rich_text',
+  'richDescription',
+  'taskDescription',
+  'task_description',
+  'taskText',
+  'task_text',
+  'task',
+  'oppgave',
+  'oppgavetekst',
+  'oppgaveTekst'
+];
+
+const TEMPORARY_EXAMPLE_FIELDS = [
+  '__isTemporaryExample',
+  '__openRequestId',
+  '__openRequestSourcePath',
+  '__openRequestCreatedAt',
+  '__openRequestNoticePending',
+  '__openRequestNoticeShown',
+  'temporary'
+];
+
+const MAX_SVG_STORAGE_BYTES = 120000;
+
 function isPlainObject(value) {
   if (!value || typeof value !== 'object') return false;
   const proto = Object.getPrototypeOf(value);
   return proto === Object.prototype || proto === null;
+}
+
+function normalizeDescriptionString(value) {
+  if (typeof value !== 'string') return '';
+  const normalized = value
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n');
+  return normalized.trim();
+}
+
+function convertHtmlToPlainText(html) {
+  if (typeof html !== 'string') return '';
+  const trimmed = html.trim();
+  if (!trimmed) return '';
+  const sanitized = trimmed
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, '');
+  const replaced = sanitized
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\s*li\b[^>]*>/gi, '\n- ')
+    .replace(/<\/(?:p|div|section|article|li|tr|thead|tbody|tfoot|table|h[1-6])\s*>/gi, '\n');
+  const stripped = replaced.replace(/<[^>]+>/g, '');
+  return normalizeDescriptionString(stripped);
+}
+
+function extractDescriptionFromExample(example) {
+  if (!example || typeof example !== 'object') return '';
+  if (typeof example.description === 'string' && example.description.trim()) {
+    return normalizeDescriptionString(example.description);
+  }
+  for (const key of DESCRIPTION_FALLBACK_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(example, key)) continue;
+    const value = example[key];
+    if (typeof value !== 'string') continue;
+    if (!value.trim()) continue;
+    const processed = /html|rich/i.test(key) ? convertHtmlToPlainText(value) : normalizeDescriptionString(value);
+    if (processed) return processed;
+  }
+  if (typeof example.description === 'string') {
+    return normalizeDescriptionString(example.description);
+  }
+  return '';
+}
+
+function computeByteLength(str) {
+  if (typeof str !== 'string') return 0;
+  if (typeof TextEncoder === 'function') {
+    try {
+      return new TextEncoder().encode(str).length;
+    } catch (_) {}
+  }
+  return str.length;
+}
+
+function sanitizeSvgForStorage(svg) {
+  if (typeof svg !== 'string') return '';
+  const trimmed = svg.trim();
+  if (!trimmed) return '';
+  if (computeByteLength(trimmed) <= MAX_SVG_STORAGE_BYTES) {
+    return trimmed;
+  }
+  const normalized = trimmed.replace(/\s{2,}/g, ' ');
+  if (computeByteLength(normalized) <= MAX_SVG_STORAGE_BYTES) {
+    return normalized;
+  }
+  return '';
+}
+
+function stripTemporaryFields(example) {
+  if (!example || typeof example !== 'object') return;
+  TEMPORARY_EXAMPLE_FIELDS.forEach(field => {
+    if (Object.prototype.hasOwnProperty.call(example, field)) {
+      delete example[field];
+    }
+  });
+}
+
+function sanitizeExampleObject(example) {
+  if (!example || typeof example !== 'object') return null;
+  const sanitized = { ...example };
+  const description = extractDescriptionFromExample(sanitized);
+  sanitized.description = description;
+
+  DESCRIPTION_FALLBACK_FIELDS.forEach(field => {
+    if (field !== 'description' && Object.prototype.hasOwnProperty.call(sanitized, field)) {
+      delete sanitized[field];
+    }
+  });
+
+  if (Object.prototype.hasOwnProperty.call(sanitized, 'svg')) {
+    sanitized.svg = sanitizeSvgForStorage(sanitized.svg);
+  }
+
+  stripTemporaryFields(sanitized);
+
+  return sanitized;
 }
 
 function validateSerializedValue(value, path) {
@@ -442,7 +571,10 @@ function sanitizeExamples(arr) {
   if (!Array.isArray(arr)) return [];
   return arr
     .filter(item => item && typeof item === 'object')
-    .map(item => serializeExampleValue(item, new WeakMap()));
+    .map(item => {
+      const cleaned = sanitizeExampleObject(item) || {};
+      return serializeExampleValue(cleaned, new WeakMap());
+    });
 }
 
 function sanitizeDeleted(list) {
