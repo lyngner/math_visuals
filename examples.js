@@ -3184,20 +3184,6 @@ initExamples();
         }
       }
     }
-    if (canonicalValue != null) {
-      legacyKeys.forEach(legacyKey => {
-        if (legacyKey === key) return;
-        try {
-          const legacyValue = storageGetItem(legacyKey);
-          if (legacyValue != null && legacyValue === canonicalValue) {
-            storageRemoveItem(legacyKey);
-          }
-        } catch (_) {}
-      });
-      if (typeof canonicalValue === 'string') {
-        lastStoredRawValue = canonicalValue;
-      }
-    }
     const deletedKey = key + '_deletedProvidedExamples';
     let canonicalDeletedValue = storageGetItem(deletedKey);
     if (canonicalDeletedValue == null) {
@@ -3211,17 +3197,15 @@ initExamples();
         }
       }
     }
-    if (canonicalDeletedValue != null) {
-      legacyKeys.forEach(legacyKey => {
-        const candidate = legacyKey + '_deletedProvidedExamples';
-        try {
-          const legacyValue = storageGetItem(candidate);
-          if (legacyValue != null && legacyValue === canonicalDeletedValue) {
-            storageRemoveItem(candidate);
-          }
-        } catch (_) {}
-      });
+    if (typeof canonicalValue === 'string') {
+      lastStoredRawValue = canonicalValue;
     }
+    legacyKeys.forEach(legacyKey => {
+      if (legacyKey === key) return;
+      try { storageRemoveItem(legacyKey); } catch (_) {}
+      const candidate = legacyKey + '_deletedProvidedExamples';
+      try { storageRemoveItem(candidate); } catch (_) {}
+    });
   } catch (_) {}
   if (lastStoredRawValue == null) {
     try {

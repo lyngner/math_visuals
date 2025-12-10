@@ -4,10 +4,14 @@ import process from 'node:process';
 const DEFAULT_URL = 'http://localhost:3000/api/examples';
 
 function parseArgs(argv) {
-  const result = { url: DEFAULT_URL, path: null };
+  const result = { url: DEFAULT_URL, path: null, listPaths: false };
   for (const arg of argv) {
     if (arg === '--help' || arg === '-h') {
       result.help = true;
+      continue;
+    }
+    if (arg === '--list-paths') {
+      result.listPaths = true;
       continue;
     }
     if (arg.startsWith('--url=')) {
@@ -29,10 +33,11 @@ function parseArgs(argv) {
 
 function printHelp() {
   console.log('Slik bruker du skriptet:');
-  console.log('  node scripts/check-examples-api.mjs [--url=URL] [--path=sti]');
+  console.log('  node scripts/check-examples-api.mjs [--url=URL] [--path=sti] [--list-paths]');
   console.log('');
   console.log('Standard-URL er http://localhost:3000/api/examples.');
   console.log('Hvis du oppgir --path, sjekkes ett bestemt verktøy.');
+  console.log('Bruk --list-paths for å skrive ut lagrede paths når API-et returnerer entries.');
 }
 
 function describeMode(mode) {
@@ -101,6 +106,15 @@ async function main() {
 
     if (Array.isArray(data.entries)) {
       console.log(`✅ Fikk ${data.entries.length} post(er). Lagres i ${describeMode(mode)}.`);
+      if (args.listPaths) {
+        const paths = data.entries
+          .map(entry => entry && entry.path)
+          .filter(Boolean);
+        if (paths.length) {
+          console.log('Lagrede paths:');
+          paths.forEach(value => console.log(`  - ${value}`));
+        }
+      }
       if (!persistent) {
         console.log('⚠️  Dette er midlertidig. Eksempler forsvinner når serveren starter på nytt.');
       }
@@ -109,6 +123,9 @@ async function main() {
 
     if (data && Array.isArray(data.examples)) {
       console.log(`✅ Fikk en post med ${data.examples.length} eksempel(er). Lagres i ${describeMode(mode)}.`);
+      if (args.listPaths && data.path) {
+        console.log(`Lagret path: ${data.path}`);
+      }
       if (!persistent) {
         console.log('⚠️  Dette er midlertidig. Eksempler forsvinner når serveren starter på nytt.');
       }

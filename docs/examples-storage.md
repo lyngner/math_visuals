@@ -15,6 +15,13 @@ Denne siden dokumenterer hvordan `examples.js` samhandler med API-et på `/api/e
 * Hvis Redis-instansen ikke er tilgjengelig eller mangler konfigurasjon (`REDIS_ENDPOINT`, `REDIS_PORT` og `REDIS_PASSWORD`), går API-et over til et minnebasert lager. Responsene merkes med `storage: "memory"`/`mode: "memory"` og klientene viser et varsel om begrenset persistens.
 * Når API-et svarer med en feil (f.eks. ekte backend-nedetid), beholder UI-et gjeldende visning og viser en statusmelding. I minnemodus kan UI-et fortsatt lagre midlertidige endringer.
 
+## Lagringsnøkler og canonical paths
+
+* Back-end bruker prefikset `examples:` i Redis og holder en path-indeks (`examples:__paths__`) og papirkurven (`examples:__trash__`). Hver path normaliseres til canonical form (uten `index.html`, trailing slash eller `/eksempelX`-segmenter) og lagres som `examples:<canonicalPath>`. Dersom det finnes gamle keys med andre varianter fjernes de og migreres til canonical path når de leses eller overskrives.【F:api/_lib/examples-store.js†L1-L19】【F:api/_lib/examples-store.js†L320-L382】【F:api/_lib/examples-store.js†L560-L658】
+* `examples.js` bruker per-side-nøkler i `localStorage` med prefikset `examples_<canonicalPath>` pluss tilhørende `_history`, `_trash` og `_deletedProvidedExamples`-suffixer. Alle legacy-varianter (f.eks. med `index.html` eller ulike casing-varianter) migreres til canonical key og slettes deretter slik at kun én nøkkel per verktøy er igjen.【F:examples.js†L1869-L2069】【F:examples.js†L3141-L3187】
+* Øvrige klientnøkler i bruk er `archive_open_request`, `example_to_load` og `currentPage` når et eksempel åpnes i viewer-verktøyet, samt trash-køen `mathvis:examples:trashQueue:v1` som buffer slettinger ved nettverksfeil.【F:examples-viewer.js†L640-L690】【F:examples.js†L2189-L2689】
+* Kjør `node scripts/check-examples-api.mjs --url=https://<domene>/api/examples --list-paths` for å liste hvilke canonical paths som faktisk ligger i back-end i et miljø. Flagget fungerer også lokalt mot `http://localhost:3000/api/examples` hvis dev-serveren kjører.【F:scripts/check-examples-api.mjs†L1-L111】
+
 ## Figurbibliotek vs. SVG-arkiv
 
 * Eksporter fra verktøyene havner i SVG-arkivet (`/api/svg`). Endepunktet har et rå-visningsgrensesnitt på `/api/svg/raw` og statiske omskrivninger for `/bildearkiv/*`.
