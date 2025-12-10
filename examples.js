@@ -69,28 +69,42 @@
   }
 })();
 
-(function removeRestoreExampleButtons() {
-  if (typeof document === 'undefined') return;
-  const targetText = 'gjenopprett eksempler';
+function createExamplesDomCleanup() {
+  if (typeof document === 'undefined') {
+    return {
+      runInitialCleanup() {},
+      startObserving() {}
+    };
+  }
+
+  const TARGET_BUTTON_TEXT = 'gjenopprett eksempler';
+  const TARGET_DESCRIPTION_TEXT = 'Forklaring til formatering av oppgavetekst';
+
   const isElement = node => {
     if (typeof Node === 'undefined') return !!(node && node.nodeType === 1);
     return !!(node && node.nodeType === Node.ELEMENT_NODE);
   };
+
   const normalizeText = value => {
     if (typeof value !== 'string') return '';
     return value.replace(/\s+/g, ' ').trim().toLowerCase();
   };
-  const shouldRemove = button => {
+
+  const targetButtonTextNormalized = normalizeText(TARGET_BUTTON_TEXT);
+  const targetDescriptionTextNormalized = normalizeText(TARGET_DESCRIPTION_TEXT);
+
+  const shouldRemoveButton = button => {
     if (!button) return false;
     const text = normalizeText(button.textContent || '');
-    return text === targetText;
+    return text === targetButtonTextNormalized;
   };
-  const removeButtonsIn = root => {
+
+  const removeRestoreButtons = root => {
     let removed = false;
     if (!root) return removed;
     const process = element => {
       if (!element) return;
-      if (shouldRemove(element)) {
+      if (shouldRemoveButton(element)) {
         element.remove();
         removed = true;
       }
@@ -110,58 +124,19 @@
     }
     return removed;
   };
-  const removeAll = () => {
-    if (!document.body) return false;
-    return removeButtonsIn(document);
-  };
-  const initRemoval = () => {
-    removeAll();
-  };
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initRemoval, { once: true });
-  } else {
-    initRemoval();
-  }
-  if (typeof MutationObserver !== 'function') return;
-  const observer = new MutationObserver(mutations => {
-    let removed = false;
-    mutations.forEach(mutation => {
-      mutation.addedNodes && mutation.addedNodes.forEach(node => {
-        if (removeButtonsIn(node)) removed = true;
-      });
-    });
-    if (removed) {
-      removeAll();
-    }
-  });
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true
-  });
-})();
 
-(function removeTaskDescriptionFormattingField() {
-  if (typeof document === 'undefined') return;
-  const TARGET_TEXT = 'Forklaring til formatering av oppgavetekst';
-  const normalize = value => {
-    if (typeof value !== 'string') return '';
-    return value.replace(/\s+/g, ' ').trim().toLowerCase();
-  };
-  const targetNormalized = normalize(TARGET_TEXT);
-  if (!targetNormalized) return;
-
-  const matchesTarget = element => {
+  const matchesDescriptionTarget = element => {
     if (!element) return false;
-    const text = normalize(element.textContent || '');
-    if (text && text.includes(targetNormalized)) {
+    const text = normalizeText(element.textContent || '');
+    if (text && text.includes(targetDescriptionTextNormalized)) {
       return true;
     }
     if (element.attributes && element.attributes.length) {
       for (let i = 0; i < element.attributes.length; i++) {
         const attr = element.attributes[i];
         if (!attr) continue;
-        const value = normalize(attr.value || '');
-        if (value && value.includes(targetNormalized)) {
+        const value = normalizeText(attr.value || '');
+        if (value && value.includes(targetDescriptionTextNormalized)) {
           return true;
         }
       }
@@ -169,7 +144,7 @@
     return false;
   };
 
-  const removeNode = element => {
+  const removeFormattingNode = element => {
     if (!element || !element.parentNode) return;
     let container = element;
     if (typeof element.closest === 'function') {
@@ -185,8 +160,9 @@
     }
   };
 
-  const processRoot = root => {
-    if (!root) return;
+  const removeFormattingNodes = root => {
+    if (!root) return false;
+    let removed = false;
     const visited = new WeakSet();
     const walk = node => {
       if (!node || visited.has(node)) return;
@@ -194,8 +170,9 @@
       const nodeType = node.nodeType;
       if (nodeType === 1) {
         const element = node;
-        if (matchesTarget(element)) {
-          removeNode(element);
+        if (matchesDescriptionTarget(element)) {
+          removeFormattingNode(element);
+          removed = true;
           return;
         }
         if (element.shadowRoot) {
@@ -207,8 +184,9 @@
         }
         return;
       }
-      if (nodeType === 11 && node.host && matchesTarget(node.host)) {
-        removeNode(node.host);
+      if (nodeType === 11 && node.host && matchesDescriptionTarget(node.host)) {
+        removeFormattingNode(node.host);
+        removed = true;
         return;
       }
       const children = node.childNodes;
@@ -219,11 +197,60 @@
       }
     };
     walk(root);
+    return removed;
   };
 
+  const cleanRoot = root => {
+    const buttonsRemoved = removeRestoreButtons(root);
+    const formattingRemoved = removeFormattingNodes(root);
+    return { buttonsRemoved, formattingRemoved };
+  };
+
+  const handleMutations = mutations => {
+    let buttonsRemoved = false;
+    mutations.forEach(mutation => {
+      if (!mutation.addedNodes) return;
+      mutation.addedNodes.forEach(node => {
+        if (!node) return;
+        const result = cleanRoot(node);
+        if (result.buttonsRemoved) {
+          buttonsRemoved = true;
+        }
+      });
+    });
+    if (buttonsRemoved) {
+      removeRestoreButtons(document);
+    }
+  };
+
+  let observer = null;
+
+  return {
+    runInitialCleanup() {
+      const root = document.body || document.documentElement || document;
+      cleanRoot(root);
+    },
+    startObserving() {
+      if (observer || typeof MutationObserver !== 'function') return;
+      observer = new MutationObserver(handleMutations);
+      observer.observe(document.documentElement, {
+        childList: true,
+        subtree: true
+      });
+    }
+  };
+}
+
+function initExamples() {
+  if (typeof document === 'undefined') return;
+  if (document.__MATH_VISUALS_EXAMPLES_INIT__) return;
+
+  document.__MATH_VISUALS_EXAMPLES_INIT__ = true;
+  const cleanup = createExamplesDomCleanup();
+
   const init = () => {
-    if (!document.body) return;
-    processRoot(document.body);
+    cleanup.runInitialCleanup();
+    cleanup.startObserving();
   };
 
   if (document.readyState === 'loading') {
@@ -231,24 +258,27 @@
   } else {
     init();
   }
+}
 
-  if (typeof MutationObserver !== 'function') return;
-  const observer = new MutationObserver(mutations => {
-    mutations.forEach(mutation => {
-      if (!mutation.addedNodes) return;
-      mutation.addedNodes.forEach(node => {
-        if (!node) return;
-        if (node.nodeType === 1) {
-          processRoot(node);
-        }
-      });
-    });
-  });
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true
-  });
-})();
+const examplesGlobalScope =
+  typeof globalThis !== 'undefined'
+    ? globalThis
+    : typeof window !== 'undefined'
+      ? window
+      : typeof global !== 'undefined'
+        ? global
+        : null;
+
+if (examplesGlobalScope) {
+  examplesGlobalScope.initMathVisualsExamples = initExamples;
+}
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = module.exports || {};
+  module.exports.initExamples = initExamples;
+}
+
+initExamples();
 
 (function initGlobalSettings() {
   const globalScope = typeof window !== 'undefined' ? window : typeof globalThis !== 'undefined' ? globalThis : null;
