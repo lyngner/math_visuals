@@ -335,6 +335,79 @@ const paletteService = typeof require === 'function'
     });
   }
   cleanTileModes();
+  function sanitizeTileModes(tileModes, denominators) {
+    if (!tileModes || typeof tileModes !== 'object') return {};
+    const modes = {};
+    const validDens = Array.isArray(denominators) ? denominators : [];
+    const validDenSet = new Set(validDens);
+    Object.entries(tileModes).forEach(([key, value]) => {
+      if (!TEXT_MODES.includes(value)) return;
+      const match = /^([0-9]+):([0-9]+)$/.exec(key);
+      if (!match) return;
+      const den = Number.parseInt(match[1], 10);
+      const idx = Number.parseInt(match[2], 10);
+      if (!Number.isFinite(den) || !validDenSet.has(den)) return;
+      if (!Number.isFinite(idx) || idx < 0 || idx >= den) return;
+      modes[`${den}:${idx}`] = value;
+    });
+    return modes;
+  }
+  function createCleanState() {
+    ensureStateDefaults();
+    cleanTileModes();
+    const denoms = Array.isArray(STATE.denominators) ? STATE.denominators.slice() : DEFAULT_DENOMS.slice();
+    const tileModes = sanitizeTileModes(STATE.tileModes, denoms);
+    const clean = {
+      v: 1,
+      denominators: denoms,
+      defaultMode: TEXT_MODES.includes(STATE.defaultMode) ? STATE.defaultMode : 'fraction',
+      showLabels: !!STATE.showLabels,
+      textScale: clamp(Number(STATE.textScale), MIN_SCALE, MAX_SCALE),
+      decimalDigits: clampInt(STATE.decimalDigits, 0, MAX_DECIMAL_DIGITS, DEFAULT_DECIMAL_DIGITS),
+      percentDigits: clampInt(STATE.percentDigits, 0, MAX_PERCENT_DIGITS, DEFAULT_PERCENT_DIGITS),
+      trimTrailingZeros: !!STATE.trimTrailingZeros
+    };
+    if (Object.keys(tileModes).length) {
+      clean.tileModes = tileModes;
+    }
+    if (STATE.altText && typeof STATE.altText === 'string' && STATE.altText.trim()) {
+      clean.altText = STATE.altText;
+      clean.altTextSource = STATE.altTextSource === 'manual' ? 'manual' : 'auto';
+    }
+    return clean;
+  }
+  function loadCleanState(rawState) {
+    if (!rawState || typeof rawState !== 'object') return false;
+    if (rawState.v !== undefined && rawState.v !== 1) return false;
+    const denominators = sanitizeDenominators(rawState.denominators);
+    STATE.denominators = denominators.length ? denominators : DEFAULT_DENOMS.slice();
+    STATE.defaultMode = TEXT_MODES.includes(rawState.defaultMode) ? rawState.defaultMode : 'fraction';
+    STATE.showLabels = typeof rawState.showLabels === 'boolean' ? rawState.showLabels : STATE.showLabels;
+    const nextScale = Number(rawState.textScale);
+    STATE.textScale = clamp(Number.isFinite(nextScale) ? nextScale : STATE.textScale, MIN_SCALE, MAX_SCALE);
+    STATE.decimalDigits = clampInt(rawState.decimalDigits, 0, MAX_DECIMAL_DIGITS, STATE.decimalDigits);
+    STATE.percentDigits = clampInt(rawState.percentDigits, 0, MAX_PERCENT_DIGITS, STATE.percentDigits);
+    STATE.trimTrailingZeros = typeof rawState.trimTrailingZeros === 'boolean'
+      ? rawState.trimTrailingZeros
+      : STATE.trimTrailingZeros;
+    const cleanedModes = sanitizeTileModes(rawState.tileModes, STATE.denominators);
+    STATE.tileModes = cleanedModes;
+    STATE.altText = typeof rawState.altText === 'string' ? rawState.altText : '';
+    STATE.altTextSource = rawState.altTextSource === 'manual' ? 'manual' : 'auto';
+    ensureStateDefaults();
+    cleanTileModes();
+    updateControlsFromState();
+    render();
+    if (altTextManager) {
+      altTextManager.applyCurrent();
+      refreshAltText('load');
+    }
+    if (typeof window !== 'undefined') {
+      window.STATE_V2 = STATE;
+      window.STATE = STATE;
+    }
+    return true;
+  }
   function updateModeButtons() {
     setModeButtons.forEach(btn => {
       if (!btn || !btn.dataset.setMode) return;
@@ -790,6 +863,14 @@ const paletteService = typeof require === 'function'
   }
   render();
   window.render = render;
+  window.createCleanState = createCleanState;
+  window.loadCleanState = loadCleanState;
+  if (typeof window !== 'undefined') {
+    window['brøkveggApi'] = {
+      createCleanState: (...args) => createCleanState(...args),
+      loadCleanState: (...args) => loadCleanState(...args)
+    };
+  }
   function handleThemeProfileChange(event) {
     const data = event && event.data;
     const type = typeof data === 'string' ? data : data && data.type;
@@ -996,8 +1077,10 @@ const paletteService = typeof require === 'function'
     window.addEventListener('message', handleThemeProfileMessage);
   }
   initAltTextManager();
-  window.addEventListener('examples:loaded', () => {
-    if (altTextManager) {
+  window.addEventListener('examples:loaded', event => {
+    const incoming = event && event.detail && typeof event.detail === 'object' ? event.detail.state : null;
+    const loaded = loadCleanState(incoming);
+    if (!loaded && altTextManager) {
       altTextManager.applyCurrent();
       refreshAltText('examples');
     }
@@ -1006,6 +1089,9 @@ const paletteService = typeof require === 'function'
     if (!event || !event.detail) return;
     try {
       event.detail.svgOverride = svgToString(svg);
+    } catch (_) {}
+    try {
+      event.detail.state = createCleanState();
     } catch (_) {}
   });
 })();
