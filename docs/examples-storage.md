@@ -62,6 +62,23 @@ Dette scenarioet betyr vanligvis at produksjonsmiljøet mangler Redis-hemmelighe
 4. Se i CloudWatch-loggene til Lambdaen. Manglende `REDIS_*` variabler logges som `Redis KV is not configured` av `kv-client`.
 5. Kjør sjekkskriptet på nytt mot produksjonsadressen. Når det viser «varig lagring (kv)», skal eksemplene bestå på domenet ditt akkurat som lokalt.
 
+### Sanitering av ødelagte eller utilgjengelige eksempler
+
+Når API-et har fått inn korrupt data (eller du vil rydde bort backend-avhengige eksempler fra miljøer uten Redis), kan du saniteres via et eget skript:
+
+```bash
+# Tørrkjøring som viser hva som slettes uten å gjøre endringer
+node scripts/sanitize-examples.mjs --url=https://<ditt-endepunkt>/api/examples --all --dry-run
+
+# Slett alt som ligger i eksempellageret på et endepunkt
+node scripts/sanitize-examples.mjs --url=https://<ditt-endepunkt>/api/examples --all
+
+# Slett kun graftegner-oppføringen
+node scripts/sanitize-examples.mjs --url=https://<ditt-endepunkt>/api/examples --path=/graftegner
+```
+
+Skriptet bruker samme API som klientene (`DELETE /api/examples?path=...`). Når `--all` er satt henter det først en liste over paths og itererer gjennom dem. Med `--dry-run` ser du hvilke stier som blir berørt uten at noe slettes.
+
 ## Distribusjon og miljøvariabler
 
 Eksempeltjenesten kjører nå i AWS, og alle persistente data går gjennom ElastiCache for Redis. Hver instans (Lambda, lokal `vercel dev`, GitHub Actions osv.) må derfor hente de tre Redis-variablene fra CloudFormation-outputsene og skrive dem videre til Secrets Manager/SSM før den starter. Oversikten under viser hva de betyr og hvor de kommer fra:
