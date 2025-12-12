@@ -37,7 +37,7 @@ jobs:
       # Stack names and defaults
       STATIC_STACK_NAME: math-visuals-static-site-dev
       API_STACK_NAME: math-visuals-api-dev
-      DATA_STACK_NAME: math-visuals-data-dev
+      DATA_STACK_NAME: math-visuals-redis-dev
       DATA_ENVIRONMENT_NAME: dev
       SHARED_PARAMETERS_STACK_NAME: math-visuals-shared-dev
       SKIP_EXAMPLES_SEEDING: "true"

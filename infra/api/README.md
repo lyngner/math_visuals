@@ -76,7 +76,7 @@ aws cloudformation deploy \
           LambdaCodeS3Bucket=<artefakt-bucket> \
           LambdaCodeS3Key=<sti>/api-lambda.zip \
           StageName=prod \
-          DataStackName=math-visuals-data \
+          DataStackName=math-visuals-redis \
           SharedParametersStackName=math-visuals-shared \
           LambdaCodeS3ObjectVersion=""
 
@@ -93,7 +93,7 @@ aws cloudformation deploy \
 #           LambdaCodeS3Key=<sti>/api-lambda.zip \
 #           LambdaCodeS3ObjectVersion=<versjon-id eller \"\"> \
 #           StageName=prod \
-#           DataStackName=math-visuals-data \
+#           DataStackName=math-visuals-redis \
 #           SharedParametersStackName=math-visuals-shared
 ```
 
@@ -114,10 +114,10 @@ aws cloudformation deploy \
 
 Hvis du bruker versjonerte objekter i S3, kan du sette `LambdaCodeS3ObjectVersion=<versjon-id>` i `--parameter-overrides`.
 
-`DataStackName` må peke på stacken som deployes fra `infra/data`. Denne verdien
-brukes til å importere VPC-ID, private subnett, Lambda-sikkerhetsgruppen og
-Redis-endepunkter slik at Lambdaen kan kjøre bak samme nettverk/firewall som
-Redis.
+`DataStackName` må peke på stacken som deployes fra `infra/data` (produksjon
+bruker `math-visuals-redis`). Denne verdien brukes til å importere VPC-ID,
+private subnett, Lambda-sikkerhetsgruppen og Redis-endepunkter slik at
+Lambdaen kan kjøre bak samme nettverk/firewall som Redis.
 
 `SharedParametersStackName` gjør at malen kan importere Secrets Manager- og
 Parameter Store-navn fra `infra/shared-parameters.yaml`. Sørg for at
@@ -133,7 +133,7 @@ samme region ved å kjøre:
 cd math_visuals
 AWS_REGION=eu-west-1 \
 STACK_NAME=math-visuals-api \
-DATA_STACK_NAME=math-visuals-data \
+DATA_STACK_NAME=math-visuals-redis \
   ./scripts/verify-api-lambda.sh
 ```
 
@@ -161,7 +161,7 @@ cd math_visuals
 
 AWS_REGION=eu-west-1 \
 STACK_NAME=math-visuals-api \
-DATA_STACK_NAME=math-visuals-data \
+DATA_STACK_NAME=math-visuals-redis \
 SHARED_PARAMETERS_STACK_NAME=math-visuals-shared \
   ./scripts/cloudshell-deploy-api.sh math-visuals-artifacts-eu-west-1
 ```
