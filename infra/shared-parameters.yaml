@@ -14,19 +14,19 @@ Outputs:
     Description: >-
       Fully-qualified name of the Secrets Manager secret that stores the Redis
       authentication token/password.
-    Value: !Sub 'math-visuals/${EnvironmentName}/redis/password'
+    Value: !Ref RedisPasswordSecret
     Export:
       Name: !Sub '${AWS::StackName}-RedisPasswordSecretName'
 
   RedisEndpointParameterName:
     Description: Name of the SSM parameter that stores the Redis endpoint used by clients.
-    Value: !Sub '/math-visuals/${EnvironmentName}/redis/endpoint'
+    Value: !Ref RedisEndpointParameter
     Export:
       Name: !Sub '${AWS::StackName}-RedisEndpointParameterName'
 
   RedisPortParameterName:
     Description: Name of the SSM parameter that stores the Redis port used by clients.
-    Value: !Sub '/math-visuals/${EnvironmentName}/redis/port'
+    Value: !Ref RedisPortParameter
     Export:
       Name: !Sub '${AWS::StackName}-RedisPortParameterName'
 
@@ -45,6 +45,34 @@ Outputs:
       Name: !Sub '${AWS::StackName}-SvgAllowedOriginsParameterName'
 
 Resources:
+  RedisPasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Sub 'math-visuals/${EnvironmentName}/redis/password'
+      Description: Redis authentication token/password shared across stacks.
+
+  RedisEndpointParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Sub '/math-visuals/${EnvironmentName}/redis/endpoint'
+      Type: String
+      Value: 'set-by-update-script'
+      Description: Hostname of the Redis instance used by clients.
+
+  RedisPortParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Sub '/math-visuals/${EnvironmentName}/redis/port'
+      Type: String
+      Value: 'set-by-update-script'
+      Description: Port of the Redis instance used by clients.
+
   SharedStackVersionParameter:
     Type: AWS::SSM::Parameter
     Properties:

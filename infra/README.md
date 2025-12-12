@@ -67,6 +67,41 @@ Repeat the `put-secret-value` and `put-parameter` commands whenever the Redis or
 allowed-origins configuration changes. The next deployment will automatically
 pick up the updated values because the templates resolve them dynamically.
 
+### Oppdatere verdiene uten data-stacken
+
+Noen miljøer bruker ikke data-stacken til å skrive Redis-verdiene. Kjør da
+`scripts/update-shared-params.sh` direkte for å oppdatere Secrets Manager og
+Parameter Store basert på manuelt oppgitte verdier:
+
+```bash
+SHARED_STACK=math-visuals-shared-dev \
+SHARED_REGION=eu-west-1 \
+./scripts/update-shared-params.sh
+```
+
+Skriptet gjør de samme oppslagene og `put-*`-operasjonene som data-stacken
+normalt ville trigget. Alternativt kan du oppdatere ressursene eksplisitt med
+AWS CLI hvis du ønsker full kontroll:
+
+```bash
+aws secretsmanager put-secret-value \
+  --secret-id $(aws cloudformation list-exports --query "Exports[?Name=='math-visuals-shared-dev-RedisPasswordSecretName'].Value" --output text) \
+  --secret-string '{"authToken":"<nytt-passord>"}'
+
+aws ssm put-parameter \
+  --name $(aws cloudformation list-exports --query "Exports[?Name=='math-visuals-shared-dev-RedisEndpointParameterName'].Value" --output text) \
+  --type String --overwrite \
+  --value "<redis-endpoint>"
+
+aws ssm put-parameter \
+  --name $(aws cloudformation list-exports --query "Exports[?Name=='math-visuals-shared-dev-RedisPortParameterName'].Value" --output text) \
+  --type String --overwrite \
+  --value "<redis-port>"
+```
+
+Begge metodene sikrer at API- og frontend-stackene kan slå opp Redis-verdiene
+selv når data-stacken ikke er i bruk.
+
 ## CloudShell helper for validating the examples API
 
 Operators can sanity-check the deployed `/api/examples` endpoint directly from
