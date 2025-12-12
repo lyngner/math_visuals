@@ -41,6 +41,7 @@ jobs:
       DATA_ENVIRONMENT_NAME: prod
       SHARED_PARAMETERS_STACK_NAME: math-visuals-shared
       SKIP_EXAMPLES_SEEDING: "true"
+      USE_EXTERNAL_REDIS: ${{ secrets.USE_EXTERNAL_REDIS || 'false' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -95,6 +96,7 @@ jobs:
             || echo "Data stack not found; skipping cleanup."
 
       - name: Deploy data stack
+        if: env.USE_EXTERNAL_REDIS != 'true'
         env:
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
         run: |
@@ -108,6 +110,7 @@ jobs:
               RedisAuthToken=$REDIS_PASSWORD
 
       - name: Sync shared Redis connection parameters
+        if: env.USE_EXTERNAL_REDIS != 'true'
         env:
           REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT }}
           REDIS_PORT: ${{ secrets.REDIS_PORT }}
