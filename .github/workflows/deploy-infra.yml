@@ -90,7 +90,9 @@ jobs:
       - name: Recover data stack from ROLLBACK_COMPLETE
         run: |
           set -euo pipefail
-          bash scripts/helpers/delete-rollback-complete-stack.sh "$DATA_STACK_NAME"
+          aws cloudformation describe-stacks --stack-name "$DATA_STACK_NAME" >/dev/null 2>&1 \
+            && bash scripts/helpers/delete-rollback-complete-stack.sh "$DATA_STACK_NAME" \
+            || echo "Data stack not found; skipping cleanup."
 
       - name: Deploy data stack
         env:
