@@ -65,6 +65,18 @@ jobs:
           # App Runner stacks require the AWSServiceRoleForAppRunner role. See infra/README.md for IAM guidance.
           bash scripts/ensure-apprunner-slr.sh
 
+      - name: Deploy shared parameters stack
+        run: |
+          set -euo pipefail
+
+          echo "Ensuring $SHARED_PARAMETERS_STACK_NAME is ready for an update..."
+          scripts/helpers/wait-for-stable-stack.sh "$SHARED_PARAMETERS_STACK_NAME"
+
+          aws cloudformation deploy \
+            --stack-name "$SHARED_PARAMETERS_STACK_NAME" \
+            --template-file infra/shared-parameters.yaml \
+            --parameter-overrides EnvironmentName=$DATA_ENVIRONMENT_NAME
+
       - name: Compute Lambda artefact key
         run: |
           set -euo pipefail
