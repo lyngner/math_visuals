@@ -104,19 +104,6 @@ jobs:
           set -euo pipefail
           bash scripts/helpers/delete-rollback-complete-stack.sh "$DATA_STACK_NAME"
 
-      - name: Deploy data stack
-        env:
-          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD_DEV }}
-        run: |
-          aws cloudformation deploy \
-            --stack-name "$DATA_STACK_NAME" \
-            --template-file infra/data/template.yaml \
-            --capabilities CAPABILITY_IAM \
-            --parameter-overrides \
-              EnvironmentName=$DATA_ENVIRONMENT_NAME \
-              SharedParametersStackName=$SHARED_PARAMETERS_STACK_NAME \
-              RedisAuthToken=$REDIS_PASSWORD
-
       - name: Sync shared Redis connection parameters
         env:
           REDIS_ENDPOINT: ${{ secrets.REDIS_ENDPOINT_DEV }}
