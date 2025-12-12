@@ -19,7 +19,8 @@ Parameters:
     Description: Deployment stage name for the HTTP API.
   DataStackName:
     Type: String
-    Description: Name of the CloudFormation stack that provisions the data plane (infra/data).
+    Default: math-visuals-redis
+    Description: Name of the CloudFormation stack that exports Redis/VPC resources for the API.
   SharedParametersStackName:
     Type: String
     Description: Name of the CloudFormation stack that exports shared parameter names.
