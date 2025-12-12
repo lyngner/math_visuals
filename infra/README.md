@@ -67,6 +67,20 @@ Repeat the `put-secret-value` and `put-parameter` commands whenever the Redis or
 allowed-origins configuration changes. The next deployment will automatically
 pick up the updated values because the templates resolve them dynamically.
 
+When the data stack is not in use, the shared stack still provisions the Redis
+secret/parameters. You can update the values directly via
+`scripts/update-shared-params.sh` by pointing it at the shared stack/region and
+skipping any data stack overrides:
+
+```bash
+SHARED_STACK=math-visuals-shared SHARED_REGION=eu-west-1 ./scripts/update-shared-params.sh
+```
+
+The script will prompt for the Redis password, endpoint and port and write them
+to the newly created Secrets Manager/SSM resources exported as
+`*-RedisPasswordSecretName`, `*-RedisEndpointParameterName` and
+`*-RedisPortParameterName` respectively.
+
 ## CloudShell helper for validating the examples API
 
 Operators can sanity-check the deployed `/api/examples` endpoint directly from
