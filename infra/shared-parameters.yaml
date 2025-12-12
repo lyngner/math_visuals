@@ -45,6 +45,31 @@ Outputs:
       Name: !Sub '${AWS::StackName}-SvgAllowedOriginsParameterName'
 
 Resources:
+  RedisPasswordSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Retain
+    Properties:
+      Name: !Sub 'math-visuals/${EnvironmentName}/redis/password'
+      Description: Redis authentication token/password used by the API and examples API.
+
+  RedisEndpointParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Retain
+    Properties:
+      Name: !Sub '/math-visuals/${EnvironmentName}/redis/endpoint'
+      Type: String
+      Value: placeholder
+      Description: Redis endpoint hostname used by clients.
+
+  RedisPortParameter:
+    Type: AWS::SSM::Parameter
+    DeletionPolicy: Retain
+    Properties:
+      Name: !Sub '/math-visuals/${EnvironmentName}/redis/port'
+      Type: String
+      Value: placeholder
+      Description: Redis port used by clients.
+
   SharedStackVersionParameter:
     Type: AWS::SSM::Parameter
     Properties:
