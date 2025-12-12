@@ -39,7 +39,7 @@ jobs:
       API_STACK_NAME: math-visuals-api
       DATA_STACK_NAME: ${{ secrets.DATA_STACK_NAME || 'math-visuals-data' }}
       DATA_ENVIRONMENT_NAME: prod
-      SHARED_PARAMETERS_STACK_NAME: math-visuals-shared
+      SHARED_PARAMETERS_STACK_NAME: ${{ secrets.SHARED_PARAMETERS_STACK_NAME || 'math-visuals-shared' }}
       SKIP_EXAMPLES_SEEDING: "true"
     steps:
       - name: Checkout repository
