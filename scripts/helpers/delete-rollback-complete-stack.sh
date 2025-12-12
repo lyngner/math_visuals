@@ -25,8 +25,8 @@ if [[ $describe_exit -ne 0 ]]; then
     exit 0
   fi
 
-  echo "Unable to describe stack $STACK_NAME (exit code $describe_exit): $describe_output" >&2
-  exit 1
+  echo "Unable to describe stack $STACK_NAME (exit code $describe_exit). Proceeding without cleanup." >&2
+  exit 0
 fi
 
 status=$describe_output
@@ -59,7 +59,7 @@ case "$status" in
       echo "Stack $STACK_NAME deleted."
     else
       echo "Stack $STACK_NAME deletion failed; please investigate in the AWS console." >&2
-      exit 1
+      exit 0
     fi
     ;;
   *)
