@@ -1050,6 +1050,7 @@ module.exports = {
   setEntry,
   deleteEntry,
   listEntries,
+  stripTrailingExampleSegment,
   getTrashEntries,
   setTrashEntries,
   appendTrashEntries,
